@@ -2,15 +2,22 @@
 #define CQChartsModelFilter_H
 
 #include <CQChartsRegExp.h>
-#include <cassert>
+
+#include <QObject>
 #include <QSortFilterProxyModel>
+
 #include <set>
 #include <future>
+#include <cassert>
 
 class CQCharts;
 class CQChartsModelExprMatch;
 class QItemSelectionModel;
 
+/*!
+ * \brief Model Filter Data class
+ * \ingroup Charts
+ */
 class CQChartsModelFilterData {
  public:
   enum class Type {
@@ -21,7 +28,6 @@ class CQChartsModelFilterData {
     SELECTED
   };
 
- public:
   using ColumnFilterMap = std::map<int,CQChartsRegExp>;
 
  public:
@@ -75,24 +81,31 @@ class CQChartsModelFilterData {
   }
 
  private:
-  Type            type_           { Type::EXPRESSION }; //! type
-  QString         filter_;                              //! filter string
-  bool            invert_         { false };            //! invert filter
-  CQChartsRegExp  regexp_;                              //! cached regexp for REGEXP
-  QModelIndexList filterRows_;                          //! cached rows (for SELECTED)
-  ColumnFilterMap columnFilterMap_;                     //! column filters for SIMPLE
-  QString         filterExpr_;                          //! preprocessed filter for EXPRESSION
+  Type            type_           { Type::EXPRESSION }; //!< type
+  QString         filter_;                              //!< filter string
+  bool            invert_         { false };            //!< invert filter
+  CQChartsRegExp  regexp_;                              //!< cached regexp for REGEXP
+  QModelIndexList filterRows_;                          //!< cached rows (for SELECTED)
+  ColumnFilterMap columnFilterMap_;                     //!< column filters for SIMPLE
+  QString         filterExpr_;                          //!< preprocessed filter for EXPRESSION
 };
 
 //------
 
 class CQChartsExprModel;
 
+/*!
+ * \brief Model Filter Model
+ * \ingroup Charts
+ */
 class CQChartsModelFilter : public QSortFilterProxyModel {
   Q_OBJECT
 
-  Q_PROPERTY(QString filter READ filter   WRITE setFilter)
-  Q_PROPERTY(bool    invert READ isInvert WRITE setInvert)
+  Q_PROPERTY(QString filter       READ filter         WRITE setFilter      )
+  Q_PROPERTY(Type    filterType   READ filterType     WRITE setFilterType  )
+  Q_PROPERTY(bool    filterInvert READ isFilterInvert WRITE setFilterInvert)
+
+  Q_ENUMS(Type)
 
   // model indices are from source model
  public:
@@ -100,6 +113,8 @@ class CQChartsModelFilter : public QSortFilterProxyModel {
     AND,
     OR
   };
+
+  using Type = CQChartsModelFilterData::Type;
 
  public:
   CQChartsModelFilter(CQCharts *charts);
@@ -114,12 +129,14 @@ class CQChartsModelFilter : public QSortFilterProxyModel {
   QItemSelectionModel *selectionModel() const { return selectionModel_; }
   void setSelectionModel(QItemSelectionModel *sm) { selectionModel_ = sm; }
 
-  void setFilterType(const CQChartsModelFilterData::Type &type) {
-    currentFilterData().setType(type);
-  }
-
   const QString &filter() const { return currentFilterData().filter(); }
   void setFilter(const QString &filter) { currentFilterData().setFilter(filter); }
+
+  const Type &filterType() const { return currentFilterData().type(); }
+  void setFilterType(const Type &type) { currentFilterData().setType(type); }
+
+  bool isFilterInvert() const { return currentFilterData().isInvert(); }
+  void setFilterInvert(bool b) { currentFilterData().setInvert(b); }
 
   bool isExpr    () const { return currentFilterData().isExpr(); }
   bool isRegExp  () const { return currentFilterData().isRegExp(); }

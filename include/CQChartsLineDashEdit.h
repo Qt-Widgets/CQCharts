@@ -7,18 +7,24 @@
 #include <map>
 
 class QMenu;
-class QLineEdit;
+class CQLineEdit;
 class QToolButton;
 class CQIconCombo;
 class CQChartsLineDashEditAction;
 
+/*!
+ * \brief line dash edit
+ * \ingroup Charts
+ */
 class CQChartsLineDashEdit : public QFrame {
   Q_OBJECT
 
-  Q_PROPERTY(bool editable READ editable WRITE setEditable)
+  Q_PROPERTY(bool             editable READ editable    WRITE setEditable)
+  Q_PROPERTY(CQChartsLineDash lineDash READ getLineDash WRITE setLineDash)
 
  public:
   CQChartsLineDashEdit(QWidget *parent=0);
+ ~CQChartsLineDashEdit();
 
   bool editable() const { return editable_; }
   void setEditable(bool b);
@@ -28,7 +34,7 @@ class CQChartsLineDashEdit : public QFrame {
 
   void addDashOption(const std::string &id, const CQChartsLineDash &dash);
 
-  static QIcon dashIcon(const CQChartsLineDash &dash);
+  static QIcon dashIcon(const CQChartsLineDash &dash, bool bg=true);
 
  private:
   void updateState();
@@ -46,7 +52,7 @@ class CQChartsLineDashEdit : public QFrame {
 
   bool             editable_ { false };
   CQChartsLineDash dash_;
-  QLineEdit*       edit_     { nullptr };
+  CQLineEdit*      edit_     { nullptr };
   QToolButton*     button_   { nullptr };
   QMenu*           menu_     { nullptr };
   CQIconCombo*     combo_    { nullptr };
@@ -55,6 +61,10 @@ class CQChartsLineDashEdit : public QFrame {
 
 //---
 
+/*!
+ * \brief line dash edit action
+ * \ingroup Charts
+ */
 class CQChartsLineDashEditAction : public QAction {
  public:
   CQChartsLineDashEditAction(CQChartsLineDashEdit *parent, const std::string &id,
@@ -73,7 +83,10 @@ class CQChartsLineDashEditAction : public QAction {
 
 #include <CQPropertyViewType.h>
 
-// type for CQChartsLineDash
+/*!
+ * \brief type for CQChartsLineDash
+ * \ingroup Charts
+ */
 class CQChartsLineDashPropertyViewType : public CQPropertyViewType {
  public:
   CQChartsLineDashPropertyViewType();
@@ -82,18 +95,23 @@ class CQChartsLineDashPropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &index,
             const QVariant &value, bool inside) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "line_dash"; }
 };
 
 //------
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsLineDash
+/*!
+ * \brief editor factory for CQChartsLineDash
+ * \ingroup Charts
+ */
 class CQChartsLineDashPropertyViewEditor : public CQPropertyViewEditorFactory {
  public:
   CQChartsLineDashPropertyViewEditor();

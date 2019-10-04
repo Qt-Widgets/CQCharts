@@ -12,6 +12,7 @@ class CQChartsRotatedTextBoxObj;
 
 /*!
  * \brief Chord Plot Type
+ * \ingroup Charts
  */
 class CQChartsChordPlotType : public CQChartsPlotType {
  public:
@@ -30,6 +31,11 @@ class CQChartsChordPlotType : public CQChartsPlotType {
   bool hasAxes() const override { return false; }
   bool hasKey () const override { return false; }
 
+  bool allowXLog() const override { return false; }
+  bool allowYLog() const override { return false; }
+
+  bool canProbe() const override { return false; }
+
   QString description() const override;
 
   bool isColumnForParameter(CQChartsModelColumnDetails *columnDetails,
@@ -46,6 +52,7 @@ class CQChartsChordPlot;
 
 /*!
  * \brief Chord Data
+ * \ingroup Charts
  */
 class CQChartsChordData {
  public:
@@ -60,11 +67,14 @@ class CQChartsChordData {
 
   struct Group {
     QString str;
-    double  value { -1 };
+    int     i { 0 };
+    int     n { 0 };
 
-    Group(const QString &str="", double value=-1) :
-     str(str), value(value) {
+    Group(const QString &str="", int i=0, int n=1) :
+     str(str), i(i), n(n) {
     }
+
+    double value() const { return (n > 0 ? double(i)/n : 0.0); }
   };
 
   using Values = std::vector<Value>;
@@ -130,33 +140,33 @@ class CQChartsChordData {
   }
 
  private:
-  int         from_       { -1 };
-  QString     name_;
-  Group       group_;
-  Values      values_;
-  QModelIndex ind_;
-  double      a_          { 0.0 };
-  double      da_         { 0.0 };
-  double      total_      { 0.0 };
-  double      totalValid_ { false };
+  int         from_       { -1 };    //!< from node
+  QString     name_;                 //!< value name
+  Group       group_;                //!< group
+  Values      values_;               //!< connection values
+  QModelIndex ind_;                  //!< model index
+  double      a_          { 0.0 };   //!< start angle
+  double      da_         { 0.0 };   //!< delta angle
+  double      total_      { 0.0 };   //!< value total
+  double      totalValid_ { false }; //!< is total valid
 };
 
 //---
 
 /*!
- * \brief Chord Plot Object
+ * \brief Chord Plot object
+ * \ingroup Charts
  */
 class CQChartsChordObj : public CQChartsPlotObj {
   Q_OBJECT
 
  public:
   CQChartsChordObj(const CQChartsChordPlot *plot, const CQChartsGeom::BBox &rect,
-                   const CQChartsChordData &data, int i, int n);
+                   const CQChartsChordData &data, const ColorInd &ig, const ColorInd &iv);
 
   const CQChartsChordData &data() { return data_; }
 
-  int i() const { return i_; }
-  int n() const { return n_; }
+  QString typeName() const override { return "chord"; }
 
   QString calcId() const override;
 
@@ -166,11 +176,9 @@ class CQChartsChordObj : public CQChartsPlotObj {
 
   void getSelectIndices(Indices &inds) const override;
 
-  void addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const override;
+  void draw(CQChartsPaintDevice *device) override;
 
-  void draw(QPainter *painter) override;
-
-  void drawFg(QPainter *painter) const override;
+  void drawFg(CQChartsPaintDevice *device) const override;
 
   CQChartsGeom::BBox textBBox() const;
 
@@ -180,16 +188,15 @@ class CQChartsChordObj : public CQChartsPlotObj {
   void valueAngles(int ind, double &a, double &da) const;
 
  private:
-  const CQChartsChordPlot* plot_ { nullptr };
-  CQChartsChordData        data_;
-  int                      i_    { 0 };
-  int                      n_    { 1 };
+  const CQChartsChordPlot* plot_ { nullptr }; //!< parent plot
+  CQChartsChordData        data_;             //!< chord data
 };
 
 //---
 
 /*!
  * \brief Chord Plot
+ * \ingroup Charts
  *
  * columns:
  *   + link  : link
@@ -216,7 +223,7 @@ class CQChartsChordPlot : public CQChartsPlot,
   Q_PROPERTY(double innerRadius READ innerRadius WRITE setInnerRadius)
   Q_PROPERTY(double labelRadius READ labelRadius WRITE setLabelRadius)
 
-  // border
+  // stroke
   CQCHARTS_STROKE_DATA_PROPERTIES
 
   // style
@@ -288,23 +295,25 @@ class CQChartsChordPlot : public CQChartsPlot,
 
   //---
 
+  void write(std::ostream &os, const QString &varName, const QString &modelName) const override;
+
  private:
   bool initTableObjs(PlotObjs &objs) const;
   bool initHierObjs(PlotObjs &objs) const;
 
  private:
-  CQChartsColumn             linkColumn_;                 //! link column
-  CQChartsColumn             valueColumn_;                //! value column
-  CQChartsColumn             groupColumn_;                //! group column
-  bool                       sorted_         { false };   //! is sorted
-  double                     innerRadius_    { 0.9 };     //! inner radius
-  double                     labelRadius_    { 1.1 };     //! label radius
-  double                     segmentAlpha_   { 0.7 };     //! segment alpha
-  double                     arcAlpha_       { 0.3 };     //! arc alpha
-  double                     gapAngle_       { 2.0 };     //! gap angle
-  double                     startAngle_     { 90.0 };    //! start angle
-  CQChartsRotatedTextBoxObj* textBox_        { nullptr }; //! text box
-  double                     valueToDegrees_ { 1.0 };     //! value to degrees scale
+  CQChartsColumn             linkColumn_;                 //!< link column
+  CQChartsColumn             valueColumn_;                //!< value column
+  CQChartsColumn             groupColumn_;                //!< group column
+  bool                       sorted_         { false };   //!< is sorted
+  double                     innerRadius_    { 0.9 };     //!< inner radius
+  double                     labelRadius_    { 1.1 };     //!< label radius
+  double                     segmentAlpha_   { 0.7 };     //!< segment alpha
+  double                     arcAlpha_       { 0.3 };     //!< arc alpha
+  double                     gapAngle_       { 2.0 };     //!< gap angle
+  double                     startAngle_     { 90.0 };    //!< start angle
+  CQChartsRotatedTextBoxObj* textBox_        { nullptr }; //!< text box
+  double                     valueToDegrees_ { 1.0 };     //!< value to degrees scale
 };
 
 #endif

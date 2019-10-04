@@ -6,6 +6,10 @@
 #include <QStringList>
 #include <cassert>
 
+/*!
+ * \brief Symbol Data
+ * \ingroup Charts
+ */
 class CQChartsSymbol {
  public:
   enum class Type {

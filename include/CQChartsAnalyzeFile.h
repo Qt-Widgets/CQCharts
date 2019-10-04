@@ -6,6 +6,7 @@
 
 /*!
  * \brief analyze a file to auto determine file type and format
+ * \ingroup Charts
  */
 class CQChartsAnalyzeFile {
  public:
@@ -15,7 +16,7 @@ class CQChartsAnalyzeFile {
                   bool &firstLineHeader, bool &firstColumnHeader);
 
  private:
-  QString filename_; //! file name
+  QString filename_; //!< file name
 };
 
 #endif

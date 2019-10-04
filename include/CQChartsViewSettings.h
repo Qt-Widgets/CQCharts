@@ -10,7 +10,9 @@ class CQChartsViewSettingsModelTable;
 class CQChartsViewSettingsPlotTable;
 class CQChartsViewSettingsViewAnnotationsTable;
 class CQChartsViewSettingsPlotAnnotationsTable;
-class CQChartsViewSettingsLayerTable;
+class CQChartsViewSettingsViewLayerTable;
+class CQChartsViewSettingsPlotLayerTable;
+class CQChartsPlotTip;
 
 class CQChartsModelDetailsWidget;
 class CQChartsWindow;
@@ -18,11 +20,7 @@ class CQChartsView;
 class CQChartsPlot;
 class CQChartsAnnotation;
 class CQChartsFilterEdit;
-class CQChartsGradientPaletteCanvas;
-class CQChartsGradientPaletteControl;
 class CQChartsLoadModelDlg;
-class CQChartsEditModelDlg;
-class CQChartsCreatePlotDlg;
 class CQChartsCreateAnnotationDlg;
 class CQChartsEditAnnotationDlg;
 class CQChartsEditTitleDlg;
@@ -30,20 +28,25 @@ class CQChartsEditKeyDlg;
 class CQChartsEditAxisDlg;
 class CQChartsPropertyViewTree;
 
+class CQColorsEditCanvas;
+class CQColorsEditControl;
+class CQColorsEditList;
+
+class CQTabWidget;
 class CQIntegerSpin;
 class CQGroupBox;
 
-class QTabWidget;
 class QComboBox;
 class QSpinBox;
 class QPushButton;
+class QToolButton;
 class QRadioButton;
 class QCheckBox;
-class QLineEdit;
 class QLabel;
 
 /*!
  * \brief View settings widget
+ * \ingroup Charts
  */
 class CQChartsViewSettings : public QFrame {
   Q_OBJECT
@@ -60,6 +63,8 @@ class CQChartsViewSettings : public QFrame {
 
   CQChartsPropertyViewTree *viewPropertyTree() const;
 
+  CQChartsPropertyViewTree *plotPropertyTree(CQChartsPlot *plot) const;
+
  signals:
   void propertyItemSelected(QObject *obj, const QString &path);
 
@@ -69,6 +74,8 @@ class CQChartsViewSettings : public QFrame {
   void invalidateModelDetails();
 //void updateModelDetails();
 
+  void plotsTabChangedSlot();
+
   void updatePlots();
   void updateCurrentPlot();
 
@@ -76,13 +83,12 @@ class CQChartsViewSettings : public QFrame {
 
   void updateLayers();
 
-  void layerImageSlot();
-
-  void paletteIndexSlot(int ind);
-
-  void loadPaletteNameSlot();
+  void viewLayerImageSlot();
+  void plotLayerImageSlot();
 
   void updateSelection();
+
+  void updateView();
 
   //---
 
@@ -90,11 +96,15 @@ class CQChartsViewSettings : public QFrame {
 
   void loadModelSlot();
   void editModelSlot();
+  void plotModelSlot();
 
   //---
 
-  void layersSelectionChangeSlot();
-  void layersClickedSlot(int, int);
+  void viewLayersSelectionChangeSlot();
+  void viewLayersClickedSlot(int, int);
+
+  void plotLayersSelectionChangeSlot();
+  void plotLayersClickedSlot(int, int);
 
   //---
 
@@ -120,7 +130,6 @@ class CQChartsViewSettings : public QFrame {
 
   void removePlotsSlot();
 
-  void createPlotSlot();
   void writePlotSlot();
 
   //---
@@ -135,19 +144,20 @@ class CQChartsViewSettings : public QFrame {
 
   //---
 
+  void palettesComboSlot(int);
+  void palettesResetSlot();
+
+  void paletteColorsChangedSlot();
+
   void updatePalettes();
   void updateInterface();
 
  private:
-  CQChartsGradientPaletteCanvas  *interfacePlot   () const {
-    return themeWidgets_.interfacePlot; }
-  CQChartsGradientPaletteControl *interfaceControl() const {
-    return themeWidgets_.interfaceControl; }
+  CQColorsEditCanvas  *interfacePlot   () const { return themeWidgets_.interfacePlot; }
+  CQColorsEditControl *interfaceControl() const { return themeWidgets_.interfaceControl; }
 
-  CQChartsGradientPaletteCanvas  *palettesPlot   () const {
-    return themeWidgets_.palettesPlot; }
-  CQChartsGradientPaletteControl *palettesControl() const {
-    return themeWidgets_.palettesControl; }
+  CQColorsEditCanvas  *palettesPlot   () const { return themeWidgets_.palettesPlot; }
+  CQColorsEditControl *palettesControl() const { return themeWidgets_.palettesControl; }
 
   void addWidgets();
 
@@ -158,6 +168,8 @@ class CQChartsViewSettings : public QFrame {
   void initThemeFrame      (QFrame *themeFrame);
   void initLayersFrame     (QFrame *layersFrame);
 
+  void updatePaletteWidgets();
+
   CQChartsPlot *getPropertiesPlot() const;
 
   CQChartsPlot *getSelectedPlot() const;
@@ -167,78 +179,92 @@ class CQChartsViewSettings : public QFrame {
   void getSelectedAnnotations(Annotations &viewAnnotations, Annotations &plotAnnotations) const;
 
  private:
+  using FilterEdit           = CQChartsViewSettingsFilterEdit;
+  using ViewPropertiesWidget = CQChartsViewSettingsViewPropertiesWidget;
+  using ModelTable           = CQChartsViewSettingsModelTable;
+  using PlotTable            = CQChartsViewSettingsPlotTable;
+  using ViewAnnotationsTable = CQChartsViewSettingsViewAnnotationsTable;
+  using PlotAnnotationsTable = CQChartsViewSettingsPlotAnnotationsTable;
+  using ViewLayerTable       = CQChartsViewSettingsViewLayerTable;
+  using PlotLayerTable       = CQChartsViewSettingsPlotLayerTable;
+
   struct PropertiesWidgets {
-    CQChartsViewSettingsFilterEdit*           viewFilterEdit   { nullptr }; //! view settings filter
-    CQChartsViewSettingsViewPropertiesWidget* viewPropertyTree { nullptr }; //! view settings tree
-    QTabWidget*                               plotsTab         { nullptr }; //! plots settings tab
+    FilterEdit*           viewFilterEdit   { nullptr }; //!< view settings filter
+    ViewPropertiesWidget* viewPropertyTree { nullptr }; //!< view settings tree
+    CQTabWidget*          plotsTab         { nullptr }; //!< plots settings tab
+//  CQChartsPlotTip*      plotTip          { nullptr }; //!< current plot tip
+//  QToolButton*          plotTipButton    { nullptr }; //!< current plot tip button
   };
 
   struct ModelsWidgets {
-    CQChartsViewSettingsModelTable* modelTable    { nullptr }; //! model table
-    CQGroupBox*                     detailsGroup  { nullptr }; //! model details group box
-    CQChartsModelDetailsWidget*     detailsWidget { nullptr }; //! model details
-    QPushButton*                    editButton    { nullptr }; //! edit model
+    ModelTable*                 modelTable    { nullptr }; //!< model table
+    QFrame*                     detailsFrame  { nullptr }; //!< model details frame
+    CQChartsModelDetailsWidget* detailsWidget { nullptr }; //!< model details
+    QPushButton*                editButton    { nullptr }; //!< edit model
+    QPushButton*                plotButton    { nullptr }; //!< edit model
   };
 
   struct PlotsWidgets {
-    CQChartsViewSettingsPlotTable* plotTable            { nullptr }; //! plot table
-    QCheckBox*                     overlayCheck         { nullptr }; //! overlay check
-    QCheckBox*                     x1x2Check            { nullptr }; //! x1x2 check
-    QCheckBox*                     y1y2Check            { nullptr }; //! y1y2 check
-    QRadioButton*                  placeVerticalRadio   { nullptr }; //! place vertical radio
-    QRadioButton*                  placeHorizontalRadio { nullptr }; //! place horizontal radio
-    QRadioButton*                  placeGridRadio       { nullptr }; //! place grid radio
-    CQIntegerSpin*                 placeRowsEdit        { nullptr }; //! grid number of rows edit
-    CQIntegerSpin*                 placeColumnsEdit     { nullptr }; //! grid number of columns edit
-    QPushButton*                   raiseButton          { nullptr }; //! raise plot button
-    QPushButton*                   lowerButton          { nullptr }; //! lower plot button
-    QPushButton*                   removeButton         { nullptr }; //! remove plot button
+    PlotTable*     plotTable            { nullptr }; //!< plot table
+    QCheckBox*     overlayCheck         { nullptr }; //!< overlay check
+    QCheckBox*     x1x2Check            { nullptr }; //!< x1x2 check
+    QCheckBox*     y1y2Check            { nullptr }; //!< y1y2 check
+    QRadioButton*  placeVerticalRadio   { nullptr }; //!< place vertical radio
+    QRadioButton*  placeHorizontalRadio { nullptr }; //!< place horizontal radio
+    QRadioButton*  placeGridRadio       { nullptr }; //!< place grid radio
+    CQIntegerSpin* placeRowsEdit        { nullptr }; //!< grid number of rows edit
+    CQIntegerSpin* placeColumnsEdit     { nullptr }; //!< grid number of columns edit
+    QPushButton*   raiseButton          { nullptr }; //!< raise plot button
+    QPushButton*   lowerButton          { nullptr }; //!< lower plot button
+    QPushButton*   removeButton         { nullptr }; //!< remove plot button
   };
 
   struct AnnotationsWidgets {
-    CQChartsViewSettingsViewAnnotationsTable* viewTable    { nullptr }; //! view annotations table
-    CQChartsViewSettingsPlotAnnotationsTable* plotTable    { nullptr }; //! plot annotations table
-    QPushButton*                              editButton   { nullptr }; //! edit button
-    QPushButton*                              removeButton { nullptr }; //! remove button
+    ViewAnnotationsTable* viewTable    { nullptr }; //!< view annotations table
+    PlotAnnotationsTable* plotTable    { nullptr }; //!< plot annotations table
+    QPushButton*          editButton   { nullptr }; //!< edit button
+    QPushButton*          removeButton { nullptr }; //!< remove button
   };
 
   struct ThemeWidgets {
-    QSpinBox*                       palettesSpin       { nullptr }; //! palettes index spin
-    QComboBox*                      palettesCombo      { nullptr }; //! palettes name combo
-    QPushButton*                    palettesLoadButton { nullptr }; //! load palette name button
-    CQChartsGradientPaletteCanvas*  palettesPlot       { nullptr }; //! current palette plot
-    CQChartsGradientPaletteControl* palettesControl    { nullptr }; //! current palette control
-    CQChartsGradientPaletteCanvas*  interfacePlot      { nullptr }; //! interface palette plot
-    CQChartsGradientPaletteControl* interfaceControl   { nullptr }; //! interface palette control
+    CQColorsEditList*    palettesList     { nullptr }; //!< palettes list
+    QComboBox*           palettesCombo    { nullptr }; //!< palettes name combo
+    CQColorsEditCanvas*  palettesPlot     { nullptr }; //!< current palette plot
+    CQColorsEditControl* palettesControl  { nullptr }; //!< current palette control
+    CQColorsEditCanvas*  interfacePlot    { nullptr }; //!< interface palette plot
+    CQColorsEditControl* interfaceControl { nullptr }; //!< interface palette control
   };
 
   struct LayersWidgets {
-    CQChartsViewSettingsLayerTable* layerTable { nullptr }; //! layer table widget
+    ViewLayerTable* viewLayerTable { nullptr }; //!< view layer table widget
+    PlotLayerTable* plotLayerTable { nullptr }; //!< plot layer table widget
   };
 
-  CQChartsWindow*              window_              { nullptr }; //! parent window
-  QTabWidget*                  tab_                 { nullptr }; //! settings/palette tab
-  PropertiesWidgets            propertiesWidgets_;               //! properties widgets
-  ModelsWidgets                modelsWidgets_;                   //! models widgets
-  PlotsWidgets                 plotsWidgets_;                    //! plots widgets
-  AnnotationsWidgets           annotationsWidgets_;              //! annotations widgets
-  ThemeWidgets                 themeWidgets_;                    //! theme widgets
-  LayersWidgets                layersWidgets_;                   //! layers widgets
-  CQChartsLoadModelDlg*        loadModelDlg_        { nullptr }; //! load dialog
-  CQChartsEditModelDlg*        editModelDlg_        { nullptr }; //! edit model dialog
-  CQChartsCreatePlotDlg*       createPlotDlg_       { nullptr }; //! plot dialog
-  CQChartsCreateAnnotationDlg* createAnnotationDlg_ { nullptr }; //! create annotation dialog
-  CQChartsEditAnnotationDlg*   editAnnotationDlg_   { nullptr }; //! edit annotation dialog
-  CQChartsEditTitleDlg*        editTitleDlg_        { nullptr }; //! edit plot title dialog
-  CQChartsEditKeyDlg*          editKeyDlg_          { nullptr }; //! edit plot key dialog
-  CQChartsEditAxisDlg*         editXAxisDlg_        { nullptr }; //! edit plot x axis dialog
-  CQChartsEditAxisDlg*         editYAxisDlg_        { nullptr }; //! edit plot y axis dialog
-  QString                      plotId_;                          //! current plot id
-//bool                         modelDetailsValid_   { false };   //! model details valid
+  CQChartsWindow*              window_              { nullptr }; //!< parent window
+  CQTabWidget*                 tab_                 { nullptr }; //!< settings/palette tab
+  PropertiesWidgets            propertiesWidgets_;               //!< properties widgets
+  ModelsWidgets                modelsWidgets_;                   //!< models widgets
+  PlotsWidgets                 plotsWidgets_;                    //!< plots widgets
+  AnnotationsWidgets           annotationsWidgets_;              //!< annotations widgets
+  ThemeWidgets                 themeWidgets_;                    //!< theme widgets
+  LayersWidgets                layersWidgets_;                   //!< layers widgets
+  CQChartsLoadModelDlg*        loadModelDlg_        { nullptr }; //!< load dialog
+  CQChartsCreateAnnotationDlg* createAnnotationDlg_ { nullptr }; //!< create annotation dialog
+  CQChartsEditAnnotationDlg*   editAnnotationDlg_   { nullptr }; //!< edit annotation dialog
+  CQChartsEditTitleDlg*        editTitleDlg_        { nullptr }; //!< edit plot title dialog
+  CQChartsEditKeyDlg*          editKeyDlg_          { nullptr }; //!< edit plot key dialog
+  CQChartsEditAxisDlg*         editXAxisDlg_        { nullptr }; //!< edit plot x axis dialog
+  CQChartsEditAxisDlg*         editYAxisDlg_        { nullptr }; //!< edit plot y axis dialog
+  QString                      plotId_;                          //!< current plot id
+//bool                         modelDetailsValid_   { false };   //!< model details valid
 };
 
 //---
 
+/*!
+ * \brief View settings view properties widget
+ * \ingroup Charts
+ */
 class CQChartsViewSettingsViewPropertiesWidget : public QFrame {
   Q_OBJECT
 
@@ -263,6 +289,10 @@ class CQChartsViewSettingsViewPropertiesWidget : public QFrame {
 
 //---
 
+/*!
+ * \brief View settings plot properties widget
+ * \ingroup Charts
+ */
 class CQChartsViewSettingsPlotPropertiesWidget : public QFrame {
   Q_OBJECT
 
@@ -287,6 +317,10 @@ class CQChartsViewSettingsPlotPropertiesWidget : public QFrame {
 
 //---
 
+/*!
+ * \brief View settings filter edit widget
+ * \ingroup Charts
+ */
 class CQChartsViewSettingsFilterEdit : public QFrame {
   Q_OBJECT
 

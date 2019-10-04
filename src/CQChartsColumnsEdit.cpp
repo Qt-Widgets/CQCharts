@@ -28,7 +28,9 @@ CQChartsColumnsLineEdit(QWidget *parent) :
 
   menu_->setWidget(dataEdit_);
 
-  connect(dataEdit_, SIGNAL(columnsChanged()), this, SLOT(menuEditChanged()));
+  //---
+
+  connectSlots(true);
 }
 
 void
@@ -77,10 +79,10 @@ updateColumns(const CQChartsColumns &columns, bool updateText)
 
   dataEdit_->setColumns(columns);
 
+  connectSlots(true);
+
   if (updateText)
     columnsToWidgets();
-
-  connectSlots(true);
 
   emit columnsChanged();
 }
@@ -260,21 +262,39 @@ setEditorData(CQPropertyViewItem *item, const QVariant &value)
 
 void
 CQChartsColumnsPropertyViewType::
-draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
      const QStyleOptionViewItem &option, const QModelIndex &ind,
      const QVariant &value, bool inside)
 {
   delegate->drawBackground(painter, option, ind, inside);
 
   CQChartsColumns columns = value.value<CQChartsColumns>();
+  if (! columns.isValid()) return;
+
+  //---
 
   QString str = columns.toString();
+
+  CQChartsPlot *plot = qobject_cast<CQChartsPlot *>(item->object());
+
+  if (plot) {
+    QString str1;
+
+    for (const auto &column : columns.columns()) {
+      if (str1.length())
+        str1 += ", ";
+
+      str1 += plot->columnHeaderName(column);
+    }
+
+    str += " (" + str1 + ")";
+  }
+
+  //---
 
   QFontMetricsF fm(option.font);
 
   double w = fm.width(str);
-
-  //---
 
   QStyleOptionViewItem option1 = option;
 
@@ -359,26 +379,35 @@ CQChartsColumnsEdit(QWidget *parent) :
 {
   setObjectName("columnsEdit");
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setMargin(2); layout->setSpacing(2);
+  QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 2, 2);
 
-  controlFrame_ = new QFrame;
-  controlFrame_->setObjectName("controlFrame");
+  controlFrame_ = CQUtil::makeWidget<QFrame>("controlFrame");
 
-  QHBoxLayout *controlFrameLayout = new QHBoxLayout(controlFrame_);
-  controlFrameLayout->setMargin(2); controlFrameLayout->setSpacing(2);
+  QHBoxLayout *controlFrameLayout = CQUtil::makeLayout<QHBoxLayout>(controlFrame_, 2, 2);
 
-  countLabel_ = new QLabel;
-  countLabel_->setObjectName("countLabel");
+  countLabel_ = CQUtil::makeLabelWidget<QLabel>("", "countLabel");
 
-  QToolButton *addButton    = new QToolButton; addButton   ->setObjectName("add");
-  QToolButton *removeButton = new QToolButton; removeButton->setObjectName("remove");
+  //--
 
-  addButton   ->setIcon(CQPixmapCacheInst->getIcon("ADD"));
-  removeButton->setIcon(CQPixmapCacheInst->getIcon("REMOVE"));
+  auto createButton = [&](const QString &name, const QString &iconName, const QString &tip,
+                          const char *receiver) {
+    QToolButton *button = CQUtil::makeWidget<QToolButton>(name);
 
-  connect(addButton, SIGNAL(clicked()), this, SLOT(addSlot()));
-  connect(removeButton, SIGNAL(clicked()), this, SLOT(removeSlot()));
+    button->setIcon(CQPixmapCacheInst->getIcon(iconName));
+
+    connect(button, SIGNAL(clicked()), this, receiver);
+
+    button->setToolTip(tip);
+
+    return button;
+  };
+
+  //--
+
+  QToolButton *addButton    =
+    createButton("add"   , "ADD"   , "Add column"   , SLOT(addSlot()));
+  QToolButton *removeButton =
+    createButton("remove", "REMOVE", "Remove column", SLOT(removeSlot()));
 
   controlFrameLayout->addWidget(countLabel_);
   controlFrameLayout->addStretch(1);
@@ -387,11 +416,9 @@ CQChartsColumnsEdit(QWidget *parent) :
 
   layout->addWidget(controlFrame_);
 
-  columnsFrame_ = new QFrame;
-  columnsFrame_->setObjectName("columnsFrame");
+  columnsFrame_ = CQUtil::makeWidget<QFrame>("columnsFrame");
 
-  QVBoxLayout *columnsFrameLayout = new QVBoxLayout(columnsFrame_);
-  columnsFrameLayout->setMargin(2); columnsFrameLayout->setSpacing(2);
+  (void) CQUtil::makeLayout<QVBoxLayout>(columnsFrame_, 2, 2);
 
   layout->addWidget(columnsFrame_);
 

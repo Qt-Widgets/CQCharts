@@ -7,9 +7,12 @@
 #include <future>
 #include <boost/optional.hpp>
 
-class CQChartsPlot;
-class QPainter;
+class CQCharts;
 
+/*!
+ * \brief Charts object base class
+ * \ingroup Charts
+ */
 class CQChartsObj : public QObject {
   Q_OBJECT
 
@@ -20,7 +23,11 @@ class CQChartsObj : public QObject {
   Q_PROPERTY(bool    inside   READ isInside   WRITE setInside  )
 
  public:
-  CQChartsObj(QObject *parent=nullptr, const CQChartsGeom::BBox &rect=CQChartsGeom::BBox());
+  CQChartsObj(CQCharts *charts, const CQChartsGeom::BBox &rect=CQChartsGeom::BBox());
+
+  //---
+
+  CQCharts *charts() const { return charts_; }
 
   //---
 
@@ -35,13 +42,15 @@ class CQChartsObj : public QObject {
 
   //---
 
+  //! get set rect
   const CQChartsGeom::BBox &rect() const { return rect_; }
   virtual void setRect(const CQChartsGeom::BBox &r) { rect_ = r; }
 
   //---
 
-  QRectF qrect() const { return CQChartsUtil::toQRect(rect()); }
-  void setQRect(const QRectF &r) { setRect(CQChartsUtil::fromQRect(r)); }
+  //! get set qrect (for property)
+  QRectF qrect() const { return rect().qrect(); }
+  void setQRect(const QRectF &r) { setRect(CQChartsGeom::BBox(r)); }
 
   //---
 
@@ -50,38 +59,39 @@ class CQChartsObj : public QObject {
 
   const QString &tipId() const;
   void setTipId(const QString &s) { tipId_ = s; }
+  void resetTipId() { tipId_ = OptString(); }
 
   // calculate tip id (on demand)
   virtual QString calcTipId() const { return calcId(); }
 
   //---
 
-  // set/get selected
+  //! set/get selected
   bool isSelected() const { return selected_; }
   virtual void setSelected(bool b) { selected_ = b; }
 
   //---
 
-  // set/get inside
+  //! set/get inside
   bool isInside() const { return inside_; }
   virtual void setInside(bool b) { inside_ = b; }
 
   //---
 
-  void drawDebugRect(const CQChartsPlot *plot, QPainter *painter);
-
  signals:
+  //! emitted when object id changed
   void idChanged();
 
  protected:
   using OptString = boost::optional<QString>;
 
-  OptString          id_;                 //! id
-  CQChartsGeom::BBox rect_;               //! bbox
-  OptString          tipId_;              //! tip id
-  bool               selected_ { false }; //! is selected
-  bool               inside_   { false }; //! is mouse inside
-  mutable std::mutex mutex_;              //! mutex
+  CQCharts*          charts_   { nullptr }; //!< charts
+  OptString          id_;                   //!< id
+  CQChartsGeom::BBox rect_;                 //!< bbox
+  OptString          tipId_;                //!< tip id
+  bool               selected_ { false };   //!< is selected
+  bool               inside_   { false };   //!< is mouse inside
+  mutable std::mutex mutex_;                //!< mutex
 };
 
 #endif

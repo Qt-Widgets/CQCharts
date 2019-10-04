@@ -806,3 +806,154 @@
  + Add commands to create folded model, collapsed model, bucket model and stat model
 # 3/24/2019
  + cleanup pixelToWindow and windowToPixel conversions
+# 4/6/2019
+ + Add more property descriptions
+ + Get property list for view, plot, annotation in get_charts_data command
+# 4/7/2019
+ + Add CQChartsFont to support inheritance
+# 4/15/2019
+ + Add stats lines for xy and distribution plot
+ + Add under/over flow buckets for distribution plot
+ + Allow plot objects to be added to property tree
+# 4/21/2019
+ + Cleanup description text
+ + rename plot queue routines
+# 4/23/2019
+ + Improve description text
+ + Add better mouse feedback for distribution plot
+# 4/24/2019
+ + Support defaultPalette for plot and view when palette number not specified
+ + Fix edit of palette points
+# 4/25/2019
+ + Add theme palette list editor
+# 4/28/2019
+ + Support different color interpolation types (set, group, index, x/y value)
+ + Use view/plot interpColor where appropriate
+ + Improve view settings theme editor
+ + Support auto maximize/restore using scrolled plots
+ + Update get_charts_palette and set_charts_palette commands
+# 4/29/2019
+ + Add Maximize/Restore for multiple plots
+ + Add color type support to xy plot
+ + Update select/inside fill color on theme change
+# 5/2/2019
+ + Allow forced label tick positions
+ + Cleanup distribution plot type/value/empty/percent combinations
+# 5/5/2019
+ + Use ColorInd data for more plot objects and keys
+ + Support plot x/y color stops to interpolate color from x/y value
+# 5/6/2019
+ + ColorInd cleanup
+ + Key Header and Text support more text properties
+# 5/12/2019
+ + More ColorInd cleanup
+ + Add more property description test
+ + Rename some properties
+ + Add user name for types and add to property view
+# 5/19/2019
+ + Improve plot tip descriptions using new HTML builder class
+ + Improve tip widget to allow expand/collapse
+ + Add -properties to create_charts_annotation commands
+ + Update create_charts_annotation command options to use consistent option names (fill/stroke)
+ + Swap axis data when plot orientation changed so style options are retained
+ + Use more optional types for user customization properties
+ + Add axis tick and grid line enums to replace booleans
+ + Add probe support to scatter and geometry plot
+ + Add separator scatter points style options
+ + Add log support to scatter and barchart plots
+ + Add more support for tip columns in plot object tooltip
+ + Cleanup image style and options
+ + More plot help descriptions
+# 5/28/2019
+ + Fix missing axis swap code
+ + Use tcl format for command arguments (column_type and properties)
+ + Improve descriptions
+# 5/30/2019
+ + Use tcl format for more column type for more code
+ + Fix format for axes
+# 6/2/2019
+ + Move gradient/theme classes and editors into new CQColors/CQColorsEdit classes
+ + Support color value by interpolation and by index
+ + Improve view/plot/annotation write
+ + Support marking properties as style and allow show/hide style properties
+ + Tcl parsing support for color definition
+# 6/8/2019
+ + Update write code for mode input data and output annotation properties
+ + Add safe user format from variant
+ + Make some command options hidden
+# 6/10/2019
+ + Fix interp Hsv issue with gray color
+ + Show colors in table delegate
+# 6/17/2019
+ + Improve write code
+ + add mutex in tcl eval
+# 6/23/2019
+ + add help dialog
+ + improve clipping and handling of small text in hier bubble plot and sunburst plot
+# 6/30/2019
+ + rename rect to rectangle
+ + support size in tree map plot label
+ + improve consistency between symbol fill and stroke shapes
+# 7/7/2019
+ + Support select and edit of view annotations and key
+ + Fix border sides drawing in box object
+ + Remove unused CQChartsDisplayTransform
+# 7/16/2019
+ + Add hidden parameters
+# 7/18/2019
+ + Fix missing data in write plot
+ + Tree map text rendering improvements
+ + XY show vector even if no points
+# 7/21/2019
+ + Improve conistency between xy and scatter plots
+ + Support interp on xy smoothed line
+ + Support images for xy and scatter symbols
+# 7/24/2019
+ + improve draw of color, symbol, font and column editors
+# 7/28/2019
+ + Add pivot model and plot
+ + Support custom color/palette for coloring column background or barchart
+# 7/30/2019
+ + Common code for CQChartsPlotObj model indices
+# 8/4/2019
+ + Common code for drawing thin plot bars
+ + Add image annotation and cleanup common code
+ + Support checkable/checked for annotation
+ + Move selection model tracking from plot to model data and share across all model views
+ + Add match tcl function for process/search
+ + Add auto placement support for key using quad tree
+ + Improve pivot plot support when no y column
+ + Move move common scatter/xy plot to point plot base class
+ + Support full mapping for symbol size, symbol type and font in xy plot (from base class)
+ + Use tab/splitter widget to replace some splitters
+ + Add view layers to layers tab
+ + Add tcl access to mouse data
+ + Add tcl support for set hidden
+# 8/11/2019
+ + Move model code to CQBaseModel/CQModelUtil
+# 8/12/2019
+ + use CQTabSplit instead of CQDividedArea in plot/model dialog
+ + add title to csv meta data
+# 8/15/2019
+ + fix issues when making model writable
+ + add access to model properties from tcl
+# 8/18/2019
+ + support META comments in analyze file
+ + support ENUM column type params
+ + Add palette name meta type and editor
+ + Add export model to csv with meta data
+# 8/22/2019
+ + adjust const for no update
+# 8/25/2019
+ + add rgb model support for CQChartsColor
+ + add stops for table heatmap
+# 9/22/2019
+ + add support for abstract painter
+ + use painter to support writing plot to javascript
+# 9/24/2019
+ + add support for different front/tail arrows
+ + more javascript painter support
+# 9/28/2019
+ + improve arrow rendering and inside test
+# 9/29/2019
+ + add arrow type and update tcl command

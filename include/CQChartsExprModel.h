@@ -19,8 +19,14 @@ class CQTcl;
 
 //---
 
+/*!
+ * \brief Expression model
+ * \ingroup Charts
+ */
 class CQChartsExprModel : public QAbstractProxyModel {
   Q_OBJECT
+
+  Q_PROPERTY(bool debug READ debug WRITE setDebug)
 
  public:
   enum class Function {
@@ -58,6 +64,7 @@ class CQChartsExprModel : public QAbstractProxyModel {
   bool isOrigColumn (int column) const;
   bool isExtraColumn(int column) const;
 
+  bool isReadOnly() const;
   void setReadOnly(bool b);
 
   //---
@@ -86,6 +93,10 @@ class CQChartsExprModel : public QAbstractProxyModel {
 
   bool columnRange(int column, double &minVal, double &maxVal) const;
   bool columnRange(int column, int &minVal, int &maxVal) const;
+
+  int numExtraColumns() const { return extraColumns_.size(); }
+
+  bool getExtraColumnDetails(int column, QString &header, QString &expr) const;
 
   //---
 
@@ -125,7 +136,7 @@ class CQChartsExprModel : public QAbstractProxyModel {
 
   virtual QVariant processCmd(const QString &name, const Values &values);
 
-  void setVar(const QString &name, int row);
+  void setVar(const QString &name, int row, int column);
 
  private:
   bool calcColumnRange(int column, double &minVal, double &maxVal);
@@ -139,16 +150,16 @@ class CQChartsExprModel : public QAbstractProxyModel {
   using Args       = std::vector<QString>;
 
   struct ExtraColumn {
-    QString           expr;                                 //! expression
-    QString           header;                               //! header
-    CQBaseModelType   type       { CQBaseModelType::NONE }; //! value type
-    CQBaseModelType   baseType   { CQBaseModelType::NONE }; //! value base type
-    QString           typeValues;                           //! type extra values
-    NameValues        nameValues;                           //! type named values
-    VariantMap        variantMap;                           //! calculated values
-    Values            values;                               //! assign values
-    Function          function   { Function::EVAL };        //! current eval function
-    std::atomic<bool> evaluating { false };                 //! is evaluating column
+    QString           expr;                                 //!< expression
+    QString           header;                               //!< header
+    CQBaseModelType   type       { CQBaseModelType::NONE }; //!< value type
+    CQBaseModelType   baseType   { CQBaseModelType::NONE }; //!< value base type
+    QString           typeValues;                           //!< type extra values
+    NameValues        nameValues;                           //!< type named values
+    VariantMap        variantMap;                           //!< calculated values
+    Values            values;                               //!< assign values
+    Function          function   { Function::EVAL };        //!< current eval function
+    std::atomic<bool> evaluating { false };                 //!< is evaluating column
 
     ExtraColumn(const QString &expr, const QString &header="") :
      expr(expr), header(header) {
@@ -156,9 +167,9 @@ class CQChartsExprModel : public QAbstractProxyModel {
   };
 
   struct ColumnData {
-    CQBucketer bucketer;   //! bucketer
-    OptInt     imin, imax; //! integer range
-    OptReal    rmin, rmax; //! real range
+    CQBucketer bucketer;   //!< bucketer
+    OptInt     imin, imax; //!< integer range
+    OptReal    rmin, rmax; //!< real range
   };
 
   using TclCmds = std::vector<CQChartsExprModelFn *>;
@@ -171,8 +182,6 @@ class CQChartsExprModel : public QAbstractProxyModel {
   CQTcl *qtcl() const;
 
   //---
-
-  int numExtraColumns() const { return extraColumns_.size(); }
 
   const ExtraColumn &extraColumn(int i) const { return *extraColumns_[i]; }
 
@@ -195,28 +204,45 @@ class CQChartsExprModel : public QAbstractProxyModel {
 
   bool evaluateExpression(const QString &expr, QVariant &var) const;
 
+  //---
+
+  // get/set model data
   QVariant columnCmd   (const Values &values) const;
   QVariant rowCmd      (const Values &values) const;
   QVariant cellCmd     (const Values &values) const;
   QVariant setColumnCmd(const Values &values);
   QVariant setRowCmd   (const Values &values);
   QVariant setCellCmd  (const Values &values);
+
+  // get/set header data
   QVariant headerCmd   (const Values &values) const;
   QVariant setHeaderCmd(const Values &values);
-  QVariant typeCmd     (const Values &values) const;
-  QVariant setTypeCmd  (const Values &values);
-  QVariant mapCmd      (const Values &values) const;
-  QVariant bucketCmd   (const Values &values) const;
-  QVariant normCmd     (const Values &values) const;
-  QVariant scaleCmd    (const Values &values) const;
-  QVariant randCmd     (const Values &values) const;
-  QVariant rnormCmd    (const Values &values) const;
-//QVariant keyCmd      (const Values &values) const;
-//QVariant concatCmd   (const Values &values) const;
-  QVariant colorCmd    (const Values &values) const;
 
-  QVariant remapCmd    (const Values &values);
-  QVariant timevalCmd  (const Values &values);
+  // get/set column type
+  QVariant typeCmd   (const Values &values) const;
+  QVariant setTypeCmd(const Values &values);
+
+  // map values
+  QVariant mapCmd   (const Values &values) const;
+  QVariant remapCmd (const Values &values);
+  QVariant bucketCmd(const Values &values) const;
+  QVariant normCmd  (const Values &values) const;
+  QVariant scaleCmd (const Values &values) const;
+
+  // random
+  QVariant randCmd (const Values &values) const;
+  QVariant rnormCmd(const Values &values) const;
+
+  // string
+  QVariant matchCmd(const Values &values) const;
+
+  // color
+  QVariant colorCmd(const Values &values) const;
+
+  // time
+  QVariant timevalCmd(const Values &values);
+
+  //---
 
   QString replaceExprColumns(const QString &expr, int row, int column) const;
 
@@ -231,27 +257,30 @@ class CQChartsExprModel : public QAbstractProxyModel {
  protected:
   CQChartsModelData *getModelData() const;
 
+ protected slots:
+  void dataChangedSlot(const QModelIndex &from, const QModelIndex &to);
+
  protected:
   using ExtraColumns = std::vector<ExtraColumn *>;
   using ColumnDatas  = std::map<int,ColumnData>;
   using ColumnNames  = std::map<int,QString>;
   using NameColumns  = std::map<QString,int>;
 
-  CQCharts*            charts_     { nullptr }; //! charts
-  CQChartsModelFilter* filter_     { nullptr }; //! parent filter model
-  QAbstractItemModel*  model_      { nullptr }; //! child data model
-  CQChartsExprTcl*     qtcl_       { nullptr }; //! tcl expression
-  TclCmds              tclCmds_;                //! tcl commands
-  bool                 editable_   { true };    //! is editable
-  bool                 debug_      { false };   //! is debug
-  ExtraColumns         extraColumns_;           //! extra columns
-  mutable int          nr_         { 0 };       //! cached number of rows
-  mutable int          nc_         { 0 };       //! cached number of columns
-  mutable int          currentRow_ { 0 };       //! cached current row
-  mutable int          currentCol_ { 0 };       //! cached current column
-  ColumnDatas          columnDatas_;            //! cached column datas
-  ColumnNames          columnNames_;            //! cached column names
-  NameColumns          nameColumns_;            //! cached named columns
+  CQCharts*            charts_     { nullptr }; //!< charts
+  CQChartsModelFilter* filter_     { nullptr }; //!< parent filter model
+  QAbstractItemModel*  model_      { nullptr }; //!< child data model
+  CQChartsExprTcl*     qtcl_       { nullptr }; //!< tcl expression
+  TclCmds              tclCmds_;                //!< tcl commands
+  bool                 editable_   { true };    //!< is editable
+  bool                 debug_      { false };   //!< is debug
+  ExtraColumns         extraColumns_;           //!< extra columns
+  mutable int          nr_         { 0 };       //!< cached number of rows
+  mutable int          nc_         { 0 };       //!< cached number of columns
+  mutable int          currentRow_ { 0 };       //!< cached current row
+  mutable int          currentCol_ { 0 };       //!< cached current column
+  ColumnDatas          columnDatas_;            //!< cached column datas
+  ColumnNames          columnNames_;            //!< cached column names
+  NameColumns          nameColumns_;            //!< cached named columns
   mutable std::mutex   mutex_;
 };
 

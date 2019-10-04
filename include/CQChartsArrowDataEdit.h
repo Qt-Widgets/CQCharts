@@ -8,6 +8,10 @@ class CQChartsArrowDataEdit;
 class CQChartsPlot;
 class CQChartsView;
 
+/*!
+ * \brief Arrow data line edit
+ * \ingroup Charts
+ */
 class CQChartsArrowDataLineEdit : public CQChartsLineEditBase {
   Q_OBJECT
 
@@ -37,7 +41,7 @@ class CQChartsArrowDataLineEdit : public CQChartsLineEditBase {
   void connectSlots(bool b) override;
 
  private:
-  CQChartsArrowDataEdit* dataEdit_ { nullptr }; //! arrow data edit
+  CQChartsArrowDataEdit* dataEdit_ { nullptr }; //!< arrow data edit
 };
 
 //---
@@ -49,6 +53,10 @@ class CQChartsArrowDataEditPreview;
 class CQAngleSpinBox;
 class CQCheckBox;
 
+/*!
+ * \brief Arrow data edit
+ * \ingroup Charts
+ */
 class CQChartsArrowDataEdit : public CQChartsEditBase {
   Q_OBJECT
 
@@ -66,26 +74,33 @@ class CQChartsArrowDataEdit : public CQChartsEditBase {
   void arrowDataChanged();
 
  private:
+  void connectSlots(bool b);
+
   void dataToWidgets();
 
  private slots:
   void widgetsToData();
 
  private:
-  CQChartsArrowData             data_;                      //! arrow data
-  CQCheckBox*                   relativeEdit_  { nullptr }; //! relative edit
-  CQChartsLengthEdit*           lengthEdit_    { nullptr }; //! length edit
-  CQAngleSpinBox*               angleEdit_     { nullptr }; //! angle edit
-  CQAngleSpinBox*               backAngleEdit_ { nullptr }; //! back angle edit
-  CQCheckBox*                   fheadEdit_     { nullptr }; //! start head edit
-  CQCheckBox*                   theadEdit_     { nullptr }; //! end head edit
-  CQCheckBox*                   lineEndsEdit_  { nullptr }; //! line ends edit
-  CQChartsLengthEdit*           lineWidthEdit_ { nullptr }; //! line width edit
-  CQChartsArrowDataEditPreview* preview_       { nullptr }; //! preview
+  CQChartsArrowData             data_;                      //!< arrow data
+//CQCheckBox*                   relativeEdit_  { nullptr }; //!< relative edit
+  CQChartsLengthEdit*           lengthEdit_    { nullptr }; //!< length edit
+  CQAngleSpinBox*               angleEdit_     { nullptr }; //!< angle edit
+  CQAngleSpinBox*               backAngleEdit_ { nullptr }; //!< back angle edit
+  CQCheckBox*                   fheadEdit_     { nullptr }; //!< start head edit
+  CQCheckBox*                   theadEdit_     { nullptr }; //!< end head edit
+  CQCheckBox*                   lineEndsEdit_  { nullptr }; //!< line ends edit
+  CQChartsLengthEdit*           lineWidthEdit_ { nullptr }; //!< line width edit
+  CQChartsArrowDataEditPreview* preview_       { nullptr }; //!< preview
+  bool                          connected_  { false };      //!< is connected
 };
 
 //---
 
+/*!
+ * \brief Arrow data edit preview
+ * \ingroup Charts
+ */
 class CQChartsArrowDataEditPreview : public CQChartsEditPreview {
   Q_OBJECT
 
@@ -98,14 +113,17 @@ class CQChartsArrowDataEditPreview : public CQChartsEditPreview {
                    CQChartsPlot *plot, CQChartsView *view);
 
  private:
-  CQChartsArrowDataEdit *edit_ { nullptr }; //! arrow data edit
+  CQChartsArrowDataEdit *edit_ { nullptr }; //!< arrow data edit
 };
 
 //------
 
 #include <CQChartsPropertyViewEditor.h>
 
-// type for CQChartsArrowData
+/*!
+ * \brief type for CQChartsArrowData
+ * \ingroup Charts
+ */
 class CQChartsArrowDataPropertyViewType : public CQChartsPropertyViewType {
  public:
   CQPropertyViewEditorFactory *getEditor() const override;
@@ -114,11 +132,16 @@ class CQChartsArrowDataPropertyViewType : public CQChartsPropertyViewType {
                    CQChartsPlot *plot, CQChartsView *view) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "arrow_data"; }
 };
 
 //---
 
-// editor factory for CQChartsArrowData
+/*!
+ * \brief editor factory for CQChartsArrowData
+ * \ingroup Charts
+ */
 class CQChartsArrowDataPropertyViewEditor : public CQChartsPropertyViewEditorFactory {
  public:
   CQChartsLineEditBase *createPropertyEdit(QWidget *parent);

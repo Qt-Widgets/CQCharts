@@ -1,6 +1,7 @@
 #include <CQChartsEnumEdit.h>
 
 #include <CQPropertyView.h>
+#include <CQUtil.h>
 
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -11,16 +12,13 @@ CQChartsEnumEdit(QWidget *parent) :
 {
   setObjectName("enumEdit");
 
-  QHBoxLayout *layout = new QHBoxLayout(this);
-  layout->setMargin(0); layout->setSpacing(2);
+  QHBoxLayout *layout = CQUtil::makeLayout<QHBoxLayout>(this, 0, 2);
 
-  combo_ = new QComboBox;
-
-  combo_->setObjectName("combo");
+  combo_ = CQUtil::makeWidget<QComboBox>("combo");
 
   layout->addWidget(combo_);
 
-  QObject::connect(combo_, SIGNAL(currentIndexChanged(int)), this, SLOT(comboChanged()));
+  connectSlots(true);
 }
 
 void
@@ -32,24 +30,38 @@ init()
 
 void
 CQChartsEnumEdit::
+connectSlots(bool b)
+{
+  auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
+    if (b)
+      QObject::connect(w, from, this, to);
+    else
+      QObject::disconnect(w, from, this, to);
+  };
+
+  connectDisconnect(b, combo_, SIGNAL(currentIndexChanged(int)), SLOT(comboChanged()));
+}
+
+void
+CQChartsEnumEdit::
 setEnumString(const QString &str)
 {
-  QObject::disconnect(combo_, SIGNAL(currentIndexChanged(int)), this, SLOT(comboChanged()));
+  connectSlots(false);
 
   combo_->setCurrentIndex(combo_->findText(str));
 
-  QObject::connect(combo_, SIGNAL(currentIndexChanged(int)), this, SLOT(comboChanged()));
+  connectSlots(true);
 }
 
 void
 CQChartsEnumEdit::
 comboChanged()
 {
-  QObject::disconnect(combo_, SIGNAL(currentIndexChanged(int)), this, SLOT(comboChanged()));
+  connectSlots(false);
 
   setEnumFromString(combo_->currentText());
 
-  QObject::connect(combo_, SIGNAL(currentIndexChanged(int)), this, SLOT(comboChanged()));
+  connectSlots(true);
 
   emit enumChanged();
 }
@@ -73,7 +85,7 @@ setEditorData(CQPropertyViewItem *item, const QVariant &value)
 
 void
 CQChartsEnumPropertyViewType::
-draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+draw(CQPropertyViewItem *, const CQPropertyViewDelegate *delegate, QPainter *painter,
      const QStyleOptionViewItem &option, const QModelIndex &ind,
      const QVariant &value, bool inside)
 {

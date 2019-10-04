@@ -18,33 +18,30 @@ class CQChartsLineDash;
 class CQChartsStyle;
 class CQChartsPath;
 class CQStrParse;
-class QPainter;
+
+// conversion
 
 namespace CQChartsUtil {
 
 double toReal(const QString &str, bool &ok);
 bool   toReal(const QString &str, double &r);
 
-//------
+//---
 
 long toInt(const QString &str, bool &ok);
 bool toInt(const QString &str, long &i);
 
 long toInt(const char *str, bool &ok, const char **rstr);
 
-//------
-
-QString toString(double r, const QString &fmt="%g" );
-QString toString(long   i, const QString &fmt="%ld");
-
-//------
+//---
 
 QString toString(const std::vector<CQChartsColumn> &columns);
 
 bool fromString(const QString &str, std::vector<CQChartsColumn> &columns);
 
-//------
+//---
 
+#if 0
 inline QPointF toQPoint(const CQChartsGeom::Point &point) {
   return QPointF(point.x, point.y);
 }
@@ -60,7 +57,9 @@ inline CQChartsGeom::Point fromQPoint(const QPointF &point) {
 inline CQChartsGeom::Point fromQPointF(const QPoint &point) {
   return CQChartsGeom::Point(point.x(), point.y());
 }
+#endif
 
+#if 0
 inline QRectF toQRect(const CQChartsGeom::BBox &rect) {
   if (rect.isSet())
     return QRectF(toQPoint(rect.getLL()), toQPoint(rect.getUR())).normalized();
@@ -85,6 +84,9 @@ inline QRect toQRectI(const CQChartsGeom::BBox &rect) {
 inline CQChartsGeom::BBox fromQRect(const QRectF &rect) {
   return CQChartsGeom::BBox(fromQPoint(rect.bottomLeft()), fromQPoint(rect.topRight()));
 }
+#endif
+
+//------
 
 inline CQChartsGeom::BBox rangeBBox(const CQChartsGeom::Range &range) {
   if (range.isSet())
@@ -100,15 +102,47 @@ inline CQChartsGeom::Range bboxRange(const CQChartsGeom::BBox &bbox) {
     return CQChartsGeom::Range();
 }
 
+}
+
 //------
 
+// formatting
+
+namespace CQChartsUtil {
+
+QString formatVar    (const QVariant &var, const QString &fmt);
+QString formatReal   (double r, const QString &fmt="%g" );
+QString formatInteger(long   i, const QString &fmt="%ld");
+
+}
+
+//------
+
+// geometry
+
+namespace CQChartsUtil {
+
+// intersect lines
 bool intersectLines(const QPointF &l1s, const QPointF &l1e,
                     const QPointF &l2s, const QPointF &l2e, QPointF &pi);
 bool intersectLines(double x11, double y11, double x21, double y21,
                     double x12, double y12, double x22, double y22,
                     double &xi, double &yi);
 
+// distance between two points
+double PointPointDistance(const CQChartsGeom::Point &point1, const CQChartsGeom::Point &point2);
+
+// distance between point and line
+bool PointLineDistance(const CQChartsGeom::Point &point, const CQChartsGeom::Point &lineStart,
+                       const CQChartsGeom::Point &lineEnd, double *dist);
+
+}
+
 //---
+
+// colors
+
+namespace CQChartsUtil {
 
 QColor bwColor(const QColor &c);
 
@@ -117,11 +151,13 @@ QColor invColor(const QColor &c);
 QColor blendColors(const QColor &c1, const QColor &c2, double f);
 QColor blendColors(const std::vector<QColor> &colors);
 
+QColor rgbToColor(double r, double g, double b);
+
+}
+
 //------
 
-void penSetLineDash(QPen &pen, const CQChartsLineDash &dash);
-
-//------
+namespace CQChartsUtil {
 
 inline CQChartsGeom::Point AngleToPoint(const CQChartsGeom::Point &c,
                                         double xr, double yr, double a) {
@@ -137,16 +173,11 @@ inline CQChartsGeom::Point AngleToPoint(const CQChartsGeom::Point &c, double r, 
   return AngleToPoint(c, r, r, a);
 }
 
-//------
-
-// distance between two points
-double PointPointDistance(const CQChartsGeom::Point &point1, const CQChartsGeom::Point &point2);
-
-// distance between point and line
-bool PointLineDistance(const CQChartsGeom::Point &point, const CQChartsGeom::Point &lineStart,
-                       const CQChartsGeom::Point &lineEnd, double *dist);
+}
 
 //------
+
+namespace CQChartsUtil {
 
 bool fileToLines(const QString &filename, QStringList &lines, int maxLines=-1);
 
@@ -250,6 +281,8 @@ bool formatStringInRect(const QString &str, const QFont &font,
 
 namespace CQChartsUtil {
 
+void penSetLineDash(QPen &pen, const CQChartsLineDash &dash);
+
 void setPen(QPen &pen, bool stroked, const QColor &strokeColor, double strokeAlpha=1.0,
             double strokeWidth=0.0, const CQChartsLineDash &strokeDash=CQChartsLineDash());
 
@@ -286,6 +319,10 @@ QStringList unitTipNames(bool includeNone=false);
 
 #include <functional>
 
+/*!
+ * \brief Class to run function at end of scope
+ * \ingroup Charts
+ */
 class CQChartsScopeGuard {
  public:
   template<class Callable>
@@ -325,6 +362,83 @@ void testAndSet(T &t, const T &v, NOTIFIER &&notifier) {
 
     notifier();
   }
+}
+
+}
+
+//------
+
+namespace CQChartsUtil {
+
+struct ColorInd {
+  ColorInd() { }
+
+  ColorInd(int i, int n) :
+   isInt(true), i(i), n(n) {
+  }
+
+  explicit ColorInd(double r) :
+   isInt(false), r(r) {
+  }
+
+  bool isValid() const {
+    if (isInt) return (i >= 0 && i < n);
+    // TODO (r >= 0.0 && r <= 1.0);
+    return true;
+  }
+
+  double value() const {
+    if (! isInt)
+      return r;
+    else
+      return CMathUtil::map(i, 0, n - 1, 0.0, 1.0);
+  }
+
+  friend bool operator==(const ColorInd &lhs, const ColorInd &rhs) {
+    return (lhs.isInt == rhs.isInt &&
+            lhs.i     == rhs.i     &&
+            lhs.n     == rhs.n     &&
+            lhs.r     == rhs.r);
+  }
+
+  bool   isInt { true };
+  int    i     { 0 };
+  int    n     { 1 };
+  double r     { 0.0 };
+};
+
+}
+
+//------
+
+namespace CQChartsUtil {
+
+inline QImage *newImage(const QSize &size) {
+//return new QImage(size, QImage::Format_ARGB32);
+  return new QImage(size, QImage::Format_ARGB32_Premultiplied);
+}
+
+inline QImage initImage(const QSize &size) {
+//return QImage(size, QImage::Format_ARGB32);
+  return QImage(size, QImage::Format_ARGB32_Premultiplied);
+}
+
+}
+
+//------
+
+namespace CQChartsUtil {
+
+inline QString encodeScriptColor(const QColor &c) {
+  if (! c.isValid())
+    return "none";
+
+  if (c.alpha() >= 255)
+    return QString("rgb(%1,%2,%3)").
+             arg(c.red()).arg(c.green()).arg(c.blue());
+  else
+    return QString("rgba(%1,%2,%3,%4)").
+             arg(c.red()).arg(c.green()).arg(c.blue()).arg(c.alpha()/255.0);
 }
 
 }

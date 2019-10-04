@@ -9,6 +9,10 @@
 class CQChartsCmdProc;
 class CQTcl;
 
+/*!
+ * \brief Command Base Class
+ * \ingroup Charts
+ */
 class CQChartsCmdBase {
  public:
   using Args = std::vector<QString>;
@@ -45,6 +49,7 @@ class CQChartsCmdBase {
 
   void setCmdRc(int rc);
   void setCmdRc(double rc);
+  void setCmdRc(const std::string &rc);
   void setCmdRc(const QString &rc);
   void setCmdRc(const QVariant &rc);
   void setCmdRc(const QStringList &rc);
@@ -83,6 +88,10 @@ class CQChartsCmdBase {
 
 class CQChartsTclCmd;
 
+/*!
+ * \brief Command Callback Proc Base
+ * \ingroup Charts
+ */
 class CQChartsCmdProc {
  public:
   using Vars = std::vector<QVariant>;
@@ -110,6 +119,10 @@ class CQChartsCmdProc {
 
 //---
 
+/*!
+ * \brief Charts Named Basic Command
+ * \ingroup Charts
+ */
 #define CQCHARTS_BASE_DEF_CMD(NAME, PROC) \
 class CQChartsBase##NAME##Cmd : public CQChartsCmdProc { \
  public: \

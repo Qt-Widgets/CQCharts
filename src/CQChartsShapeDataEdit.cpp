@@ -4,8 +4,9 @@
 #include <CQChartsFillDataEdit.h>
 #include <CQChartsView.h>
 #include <CQChartsPlot.h>
+#include <CQChartsDrawUtil.h>
+#include <CQChartsPaintDevice.h>
 #include <CQCharts.h>
-#include <CQChartsRoundedPolygon.h>
 
 #include <CQPropertyView.h>
 #include <CQWidgetMenu.h>
@@ -13,7 +14,6 @@
 
 #include <QLabel>
 #include <QVBoxLayout>
-#include <QPainter>
 
 CQChartsShapeDataLineEdit::
 CQChartsShapeDataLineEdit(QWidget *parent) :
@@ -27,9 +27,9 @@ CQChartsShapeDataLineEdit(QWidget *parent) :
 
   menu_->setWidget(dataEdit_);
 
-  connect(dataEdit_, SIGNAL(shapeDataChanged()), this, SLOT(menuEditChanged()));
-
   //---
+
+  connectSlots(true);
 
   shapeDataToWidgets();
 }
@@ -56,10 +56,10 @@ updateShapeData(const CQChartsShapeData &shapeData, bool updateText)
 
   dataEdit_->setData(shapeData);
 
+  connectSlots(true);
+
   if (updateText)
     shapeDataToWidgets();
-
-  connectSlots(true);
 
   emit shapeDataChanged();
 }
@@ -197,8 +197,7 @@ CQChartsShapeDataEdit(QWidget *parent, bool tabbed) :
 {
   setObjectName("shapeDataEdit");
 
-  QGridLayout *layout = new QGridLayout(this);
-  layout->setMargin(0); layout->setSpacing(2);
+  QGridLayout *layout = CQUtil::makeLayout<QGridLayout>(this, 0, 2);
 
   int row = 0;
 
@@ -214,14 +213,13 @@ CQChartsShapeDataEdit(QWidget *parent, bool tabbed) :
     // fill frame
     QFrame *fillFrame = CQUtil::makeWidget<QFrame>("fillFrame");
 
-    QVBoxLayout *fillFrameLayout = new QVBoxLayout(fillFrame);
-    fillFrameLayout->setMargin(0); fillFrameLayout->setSpacing(2);
+    QVBoxLayout *fillFrameLayout = CQUtil::makeLayout<QVBoxLayout>(fillFrame, 0, 2);
 
     tab->addTab(fillFrame, "Fill");
 
     //--
 
-    // background
+    // fill
     fillEdit_ = new CQChartsFillDataEdit;
 
     fillEdit_->setPreview(false);
@@ -233,14 +231,13 @@ CQChartsShapeDataEdit(QWidget *parent, bool tabbed) :
     // stroke frame
     QFrame *strokeFrame = CQUtil::makeWidget<QFrame>("strokeFrame");
 
-    QVBoxLayout *strokeFrameLayout = new QVBoxLayout(strokeFrame);
-    strokeFrameLayout->setMargin(0); strokeFrameLayout->setSpacing(2);
+    QVBoxLayout *strokeFrameLayout = CQUtil::makeLayout<QVBoxLayout>(strokeFrame, 0, 2);
 
     tab->addTab(strokeFrame, "Stroke");
 
     //--
 
-    // border
+    // stroke
     strokeEdit_ = new CQChartsStrokeDataEdit;
 
     strokeEdit_->setPreview(false);
@@ -248,7 +245,7 @@ CQChartsShapeDataEdit(QWidget *parent, bool tabbed) :
     strokeFrameLayout->addWidget(strokeEdit_);
   }
   else {
-    // background
+    // fill
     fillEdit_ = new CQChartsFillDataEdit;
 
     fillEdit_->setTitle("Fill");
@@ -258,7 +255,7 @@ CQChartsShapeDataEdit(QWidget *parent, bool tabbed) :
 
     //--
 
-    // border
+    // stroke
     strokeEdit_ = new CQChartsStrokeDataEdit;
 
     strokeEdit_->setTitle("Stroke");
@@ -266,9 +263,6 @@ CQChartsShapeDataEdit(QWidget *parent, bool tabbed) :
 
     layout->addWidget(strokeEdit_, row, 0, 1, 2); ++row;
   }
-
-  connect(fillEdit_  , SIGNAL(fillDataChanged())  , this, SLOT(widgetsToData()));
-  connect(strokeEdit_, SIGNAL(strokeDataChanged()), this, SLOT(widgetsToData()));
 
   //---
 
@@ -282,6 +276,8 @@ CQChartsShapeDataEdit(QWidget *parent, bool tabbed) :
   layout->setRowStretch(row, 1);
 
   //---
+
+  connectSlots(true);
 
   dataToWidgets();
 }
@@ -337,18 +333,31 @@ setPreview(bool b)
 
 void
 CQChartsShapeDataEdit::
+connectSlots(bool b)
+{
+  auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
+    if (b)
+      QObject::connect(w, from, this, to);
+    else
+      QObject::disconnect(w, from, this, to);
+  };
+
+  connectDisconnect(b, fillEdit_, SIGNAL(fillDataChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, strokeEdit_, SIGNAL(strokeDataChanged()), SLOT(widgetsToData()));
+}
+
+void
+CQChartsShapeDataEdit::
 dataToWidgets()
 {
-  disconnect(fillEdit_, SIGNAL(fillDataChanged()), this, SLOT(widgetsToData()));
-  disconnect(strokeEdit_, SIGNAL(strokeDataChanged()), this, SLOT(widgetsToData()));
+  connectSlots(false);
 
-  fillEdit_  ->setData(data_.background());
-  strokeEdit_->setData(data_.border());
+  fillEdit_  ->setData(data_.fill());
+  strokeEdit_->setData(data_.stroke());
 
   preview_->update();
 
-  connect(fillEdit_, SIGNAL(fillDataChanged()), this, SLOT(widgetsToData()));
-  connect(strokeEdit_, SIGNAL(strokeDataChanged()), this, SLOT(widgetsToData()));
+  connectSlots(true);
 
 }
 
@@ -356,8 +365,8 @@ void
 CQChartsShapeDataEdit::
 widgetsToData()
 {
-  data_.setBackground(fillEdit_  ->data());
-  data_.setBorder    (strokeEdit_->data());
+  data_.setFill  (fillEdit_  ->data());
+  data_.setStroke(strokeEdit_->data());
 
   preview_->update();
 
@@ -387,20 +396,20 @@ draw(QPainter *painter, const CQChartsShapeData &data, const QRect &rect,
      CQChartsPlot *plot, CQChartsView *view)
 {
   // set pen and brush
-  QColor pc = interpColor(plot, view, data.border    ().color());
-  QColor fc = interpColor(plot, view, data.background().color());
+  QColor pc = interpColor(plot, view, data.stroke().color());
+  QColor fc = interpColor(plot, view, data.fill  ().color());
 
-  double width = CQChartsUtil::limitLineWidth(data.border().width().value());
+  double width = CQChartsUtil::limitLineWidth(data.stroke().width().value());
 
   QPen pen;
 
-  CQChartsUtil::setPen(pen, data.border().isVisible(), pc, data.border().alpha(),
-                       width, data.border().dash());
+  CQChartsUtil::setPen(pen, data.stroke().isVisible(), pc, data.stroke().alpha(),
+                       width, data.stroke().dash());
 
   QBrush brush;
 
-  CQChartsUtil::setBrush(brush, data.background().isVisible(), fc, data.background().alpha(),
-                         data.background().pattern());
+  CQChartsUtil::setBrush(brush, data.fill().isVisible(), fc, data.fill().alpha(),
+                         data.fill().pattern());
 
   painter->setPen  (pen);
   painter->setBrush(brush);
@@ -408,8 +417,8 @@ draw(QPainter *painter, const CQChartsShapeData &data, const QRect &rect,
   //---
 
   // draw shape
-  double cxs = data.border().cornerSize().value();
-  double cys = data.border().cornerSize().value();
+  CQChartsPixelPainter device(painter);
 
-  CQChartsRoundedPolygon::draw(painter, rect, cxs, cys);
+  CQChartsDrawUtil::drawRoundedPolygon(&device, rect, data.stroke().cornerSize(),
+                                       data.stroke().cornerSize());
 }

@@ -4,11 +4,12 @@
 #include <CQChartsUtil.h>
 #include <CQCharts.h>
 #include <CQChartsDelaunay.h>
+#include <CQChartsPaintDevice.h>
+#include <CQChartsHtml.h>
 
 #include <CQPropertyViewItem.h>
 #include <CQPerfMonitor.h>
 
-#include <QPainter>
 #include <QMenu>
 
 CQChartsDelaunayPlotType::
@@ -44,8 +45,16 @@ QString
 CQChartsDelaunayPlotType::
 description() const
 {
-  return "<h2>Summary</h2>\n"
-         "<p>Draws delaunay triangulation for a set of points.<p>\n";
+  auto IMG = [](const QString &src) { return CQChartsHtml::Str::img(src); };
+
+  return CQChartsHtml().
+   h2("Delaunay Plot").
+    h3("Summary").
+     p("Draws delaunay triangulation for a set of points.").
+    h3("Limitations").
+     p("None.").
+    h3("Example").
+     p(IMG("images/delaunay.png"));
 }
 
 CQChartsPlot *
@@ -86,21 +95,21 @@ void
 CQChartsDelaunayPlot::
 setXColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(xColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(xColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsDelaunayPlot::
 setYColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(yColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(yColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsDelaunayPlot::
 setNameColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(nameColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(nameColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 //---
@@ -109,14 +118,14 @@ void
 CQChartsDelaunayPlot::
 setVoronoi(bool b)
 {
-  CQChartsUtil::testAndSet(voronoi_, b, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(voronoi_, b, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsDelaunayPlot::
 setVoronoiPointSize(double r)
 {
-  CQChartsUtil::testAndSet(voronoiPointSize_, r, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(voronoiPointSize_, r, [&]() { drawObjs(); } );
 }
 
 //---
@@ -125,25 +134,32 @@ void
 CQChartsDelaunayPlot::
 addProperties()
 {
+  auto addProp = [&](const QString &path, const QString &name, const QString &alias,
+                     const QString &desc) {
+    return &(this->addProperty(path, this, name, alias)->setDesc(desc));
+  };
+
+  //---
+
   CQChartsPlot::addProperties();
 
-  addProperty("columns", this, "xColumn", "x")->setDesc("X column");
-  addProperty("columns", this, "yColumn", "y")->setDesc("Y column");
+  // columns
+  addProp("columns", "xColumn", "x", "X column");
+  addProp("columns", "yColumn", "y", "Y column");
 
-  addProperty("voronoi", this, "voronoi"         , "enabled"  )->
-    setDesc("Show voronoi connections");
-  addProperty("voronoi", this, "voronoiPointSize", "pointSize")->
-    setDesc("Voronoi point symbol size");
+  // voronoi
+  addProp("voronoi", "voronoi"         , "visible"  , "Show voronoi connections");
+  addProp("voronoi", "voronoiPointSize", "pointSize", "Voronoi point symbol size");
 
   // points
-  addProperty("points", this, "points", "visible")->setDesc("Show center points");
+  addProp("points", "points", "visible", "Center points visible");
 
-  addSymbolProperties("points/symbol");
+  addSymbolProperties("points/symbol", "", "Center points");
 
   // lines
-  addProperty("lines", this, "lines", "visible")->setDesc("Show connecting lines");
+  addProp("lines", "lines", "visible", "Connecting lines visible");
 
-  addLineProperties("lines", "lines");
+  addLineProperties("lines/stroke", "lines", "Lines");
 }
 
 CQChartsGeom::Range
@@ -224,9 +240,9 @@ createObjs(PlotObjs &objs) const
 {
   CQPerfTrace trace("CQChartsDelaunayPlot::createObjs");
 
-  CQChartsDelaunayPlot *th = const_cast<CQChartsDelaunayPlot *>(this);
+  NoUpdate noUpdate(this);
 
-  NoUpdate noUpdate(th);
+  CQChartsDelaunayPlot *th = const_cast<CQChartsDelaunayPlot *>(this);
 
   //---
 
@@ -308,8 +324,13 @@ addPointObj(double x, double y, const QModelIndex &xind, int r, int nr, PlotObjs
 
   CQChartsGeom::BBox bbox(x - sw/2.0, y - sh/2.0, x + sw/2.0, y + sh/2.0);
 
+  ColorInd iv;
+
+  if (nr > 0)
+    iv = ColorInd(r, nr);
+
   CQChartsDelaunayPointObj *pointObj =
-    new CQChartsDelaunayPointObj(this, bbox, x, y, xind1, r, nr);
+    new CQChartsDelaunayPointObj(this, bbox, x, y, xind1, iv);
 
   objs.push_back(pointObj);
 }
@@ -348,23 +369,23 @@ hasForeground() const
 
 void
 CQChartsDelaunayPlot::
-drawForeground(QPainter *painter) const
+execDrawForeground(CQChartsPaintDevice *device) const
 {
-  painter->save();
+  device->save();
 
-  setClipRect(painter);
+  setClipRect(device);
 
   if (! isVoronoi())
-    drawDelaunay(painter);
+    drawDelaunay(device);
   else
-    drawVoronoi(painter);
+    drawVoronoi(device);
 
-  painter->restore();
+  device->restore();
 }
 
 void
 CQChartsDelaunayPlot::
-drawDelaunay(QPainter *painter) const
+drawDelaunay(CQChartsPaintDevice *device) const
 {
   if (! delaunay_)
     return;
@@ -372,7 +393,7 @@ drawDelaunay(QPainter *painter) const
   if (isLines()) {
     QPen pen;
 
-    setLineDataPen(pen, 0, 1);
+    setLineDataPen(pen, ColorInd());
 
     //---
 
@@ -385,9 +406,9 @@ drawDelaunay(QPainter *painter) const
       auto *v2 = f->vertex(1);
       auto *v3 = f->vertex(2);
 
-      CQChartsGeom::Point p1 = windowToPixel(CQChartsGeom::Point(v1->x(), v1->y()));
-      CQChartsGeom::Point p2 = windowToPixel(CQChartsGeom::Point(v2->x(), v2->y()));
-      CQChartsGeom::Point p3 = windowToPixel(CQChartsGeom::Point(v3->x(), v3->y()));
+      CQChartsGeom::Point p1(v1->x(), v1->y());
+      CQChartsGeom::Point p2(v2->x(), v2->y());
+      CQChartsGeom::Point p3(v3->x(), v3->y());
 
       QPainterPath path;
 
@@ -397,14 +418,14 @@ drawDelaunay(QPainter *painter) const
 
       path.closeSubpath();
 
-      painter->strokePath(path, pen);
+      device->strokePath(path, pen);
     }
   }
 }
 
 void
 CQChartsDelaunayPlot::
-drawVoronoi(QPainter *painter) const
+drawVoronoi(CQChartsPaintDevice *device) const
 {
   if (! delaunay_)
     return;
@@ -413,10 +434,10 @@ drawVoronoi(QPainter *painter) const
     QPen   pen;
     QBrush brush;
 
-    setSymbolPenBrush(pen, brush, 0, 1);
+    setSymbolPenBrush(pen, brush, ColorInd());
 
-    painter->setPen  (pen);
-    painter->setBrush(brush);
+    device->setPen  (pen);
+    device->setBrush(brush);
 
     for (auto pf = delaunay_->facesBegin(); pf != delaunay_->facesEnd(); ++pf) {
       const CQChartsHull3D::Face *f = *pf;
@@ -428,9 +449,9 @@ drawVoronoi(QPainter *painter) const
 
       double d = voronoiPointSize();
 
-      QRectF rect(p.x - d, p.y - d, 2.0*d, 2.0*d);
+      QRectF prect(p.x - d, p.y - d, 2.0*d, 2.0*d);
 
-      painter->drawArc(rect, 0, 16*360);
+      device->drawArc(device->pixelToWindow(prect), 0, 360); // circle
     }
   }
 
@@ -439,11 +460,11 @@ drawVoronoi(QPainter *painter) const
   if (isLines()) {
     QPen pen;
 
-    QColor lc = interpLinesColor(0, 1);
+    QColor lc = interpLinesColor(ColorInd());
 
     setPen(pen, true, lc, linesAlpha(), linesWidth(), linesDash());
 
-    painter->setPen(pen);
+    device->setPen(pen);
 
     for (auto pve = delaunay_->voronoiEdgesBegin(); pve != delaunay_->voronoiEdgesEnd(); ++pve) {
       const CQChartsHull3D::Edge *e = *pve;
@@ -451,10 +472,10 @@ drawVoronoi(QPainter *painter) const
       auto *v1 = e->start();
       auto *v2 = e->end  ();
 
-      CQChartsGeom::Point p1 = windowToPixel(CQChartsGeom::Point(v1->x(), v1->y()));
-      CQChartsGeom::Point p2 = windowToPixel(CQChartsGeom::Point(v2->x(), v2->y()));
+      QPointF p1(v1->x(), v1->y());
+      QPointF p2(v2->x(), v2->y());
 
-      painter->drawLine(QPointF(p1.x, p1.y), QPointF(p2.x, p2.y));
+      device->drawLine(p1, p2);
     }
   }
 }
@@ -463,10 +484,11 @@ drawVoronoi(QPainter *painter) const
 
 CQChartsDelaunayPointObj::
 CQChartsDelaunayPointObj(const CQChartsDelaunayPlot *plot, const CQChartsGeom::BBox &rect,
-                         double x, double y, const QModelIndex &ind, int i, int n) :
- CQChartsPlotObj(const_cast<CQChartsDelaunayPlot *>(plot), rect), plot_(plot),
- x_(x), y_(y), ind_(ind), i_(i), n_(n)
+                         double x, double y, const QModelIndex &ind, const ColorInd &iv) :
+ CQChartsPlotObj(const_cast<CQChartsDelaunayPlot *>(plot), rect, ColorInd(), ColorInd(), iv),
+ plot_(plot), x_(x), y_(y)
 {
+  setModelInd(ind);
 }
 
 QString
@@ -478,15 +500,15 @@ calcId() const
   if (plot_->nameColumn().isValid()) {
     bool ok;
 
-    name1 = plot_->modelString(ind_.row(), plot_->nameColumn(), ind_.parent(), ok);
+    name1 = plot_->modelString(modelInd().row(), plot_->nameColumn(), modelInd().parent(), ok);
   }
   else
     name1 = plot_->yname();
 
   if (name1.length())
-    return QString("point:%1:%2:%3").arg(name1).arg(x_).arg(y_);
+    return QString("%1:%2:%3:%4").arg(typeName()).arg(name1).arg(x_).arg(y_);
   else
-    return QString("point:%1:%2:%3").arg(i_).arg(x_).arg(y_);
+    return QString("%1:%2:%3:%4").arg(typeName()).arg(iv_.i).arg(x_).arg(y_);
 }
 
 bool
@@ -529,43 +551,34 @@ getSelectIndices(Indices &inds) const
 
 void
 CQChartsDelaunayPointObj::
-addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const
-{
-  if (column.isValid())
-    addSelectIndex(inds, ind_.row(), column, ind_.parent());
-}
-
-void
-CQChartsDelaunayPointObj::
-draw(QPainter *painter)
+draw(CQChartsPaintDevice *device)
 {
   if (! visible())
     return;
 
   // calc pen and brush
+  ColorInd colorInd = calcColorInd();
+
   QPen   pen;
   QBrush brush;
 
-  plot_->setSymbolPenBrush(pen, brush, 0, 1);
+  plot_->setSymbolPenBrush(pen, brush, colorInd);
 
   plot_->updateObjPenBrushState(this, pen, brush, CQChartsPlot::DrawType::SYMBOL);
 
-  painter->setPen  (pen);
-  painter->setBrush(brush);
+  device->setPen  (pen);
+  device->setBrush(brush);
 
   //---
 
   // get symbol type and size
-  double sx, sy;
-
-  plot_->pixelSymbolSize(plot_->symbolSize(), sx, sy);
-
-  CQChartsSymbol symbol = plot_->symbolType();
+  CQChartsSymbol symbolType = plot_->symbolType();
+  CQChartsLength symbolSize = plot_->symbolSize();
 
   //---
 
   // draw symbol
-  CQChartsGeom::Point p = plot_->windowToPixel(CQChartsGeom::Point(x_, y_));
+  CQChartsGeom::Point p(x_, y_);
 
-  plot_->drawSymbol(painter, p.qpoint(), symbol, CMathUtil::avg(sx, sy), pen, brush);
+  plot_->drawSymbol(device, p.qpoint(), symbolType, symbolSize, pen, brush);
 }

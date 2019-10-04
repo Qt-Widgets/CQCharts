@@ -21,8 +21,6 @@ class CQChartsModelData;
 class CQChartsPlotType;
 class CQChartsAnnotation;
 
-struct CQChartsPaletteColorData;
-
 class CQChartsCmds;
 
 class CQTcl;
@@ -32,6 +30,10 @@ class QItemSelectionModel;
 
 //---
 
+/*!
+ * \brief Charts Tcl Commands
+ * \ingroup Charts
+ */
 class CQChartsCmds : public QObject {
   Q_OBJECT
 
@@ -58,8 +60,10 @@ class CQChartsCmds : public QObject {
 
   static QString fixTypeName(const QString &typeName);
 
-  void setViewProperties(CQChartsView *view, const QString &properties);
-  void setPlotProperties(CQChartsPlot *plot, const QString &properties);
+  //void setViewProperties(CQChartsView *view, const QString &properties);
+  //void setPlotProperties(CQChartsPlot *plot, const QString &properties);
+
+  bool setAnnotationProperties(CQChartsAnnotation *annotation, const QString &properties);
 
   //---
 
@@ -73,7 +77,7 @@ class CQChartsCmds : public QObject {
 
   //---
 
-  CQChartsPlot *createPlot(CQChartsView *view, const ModelP &model, QItemSelectionModel *sm,
+  CQChartsPlot *createPlot(CQChartsView *view, const ModelP &model,
                            CQChartsPlotType *type, bool reuse);
 
   bool initPlot(CQChartsPlot *plot, const CQChartsNameValueData &nameValueData,
@@ -108,6 +112,7 @@ class CQChartsCmds : public QObject {
   bool flattenChartsModelCmd(CQChartsCmdArgs &args);
   bool copyChartsModelCmd   (CQChartsCmdArgs &args);
   bool writeChartsModelCmd  (CQChartsCmdArgs &args);
+  bool removeChartsModelCmd (CQChartsCmdArgs &args);
 
   bool createChartsCorrelationModelCmd(CQChartsCmdArgs &args);
   bool createChartsFoldedModelCmd     (CQChartsCmdArgs &args);
@@ -116,6 +121,7 @@ class CQChartsCmds : public QObject {
   bool createChartsTransposeModelCmd  (CQChartsCmdArgs &args);
   bool createChartsSummaryModelCmd    (CQChartsCmdArgs &args);
   bool createChartsCollapseModelCmd   (CQChartsCmdArgs &args);
+  bool createChartsPivotModelCmd      (CQChartsCmdArgs &args);
   bool createChartsStatsModelCmd      (CQChartsCmdArgs &args);
 
   bool exportChartsModelCmd(CQChartsCmdArgs &args);
@@ -124,8 +130,10 @@ class CQChartsCmds : public QObject {
   bool placeChartsPlotsCmd(CQChartsCmdArgs &args);
 
   bool measureChartsTextCmd(CQChartsCmdArgs &args);
+  bool encodeChartsTextCmd (CQChartsCmdArgs &args);
 
   bool createChartsViewCmd(CQChartsCmdArgs &args);
+  bool removeChartsViewCmd(CQChartsCmdArgs &args);
 
   bool createChartsPlotCmd(CQChartsCmdArgs &args);
   bool removeChartsPlotCmd(CQChartsCmdArgs &args);
@@ -136,17 +144,19 @@ class CQChartsCmds : public QObject {
   bool getChartsDataCmd(CQChartsCmdArgs &args);
   bool setChartsDataCmd(CQChartsCmdArgs &args);
 
-  bool getChartsPaletteCmd(CQChartsCmdArgs &args);
-  bool setChartsPaletteCmd(CQChartsCmdArgs &args);
+  bool createChartsPaletteCmd(CQChartsCmdArgs &args);
+  bool getChartsPaletteCmd   (CQChartsCmdArgs &args);
+  bool setChartsPaletteCmd   (CQChartsCmdArgs &args);
 
-  bool createChartsTextAnnotationCmd    (CQChartsCmdArgs &args);
-  bool createChartsArrowAnnotationCmd   (CQChartsCmdArgs &args);
-  bool createChartsRectAnnotationCmd    (CQChartsCmdArgs &args);
-  bool createChartsEllipseAnnotationCmd (CQChartsCmdArgs &args);
-  bool createChartsPolygonAnnotationCmd (CQChartsCmdArgs &args);
-  bool createChartsPolylineAnnotationCmd(CQChartsCmdArgs &args);
-  bool createChartsPointAnnotationCmd   (CQChartsCmdArgs &args);
-  bool removeChartsAnnotationCmd        (CQChartsCmdArgs &args);
+  bool createChartsArrowAnnotationCmd    (CQChartsCmdArgs &args);
+  bool createChartsEllipseAnnotationCmd  (CQChartsCmdArgs &args);
+  bool createChartsImageAnnotationCmd    (CQChartsCmdArgs &args);
+  bool createChartsPointAnnotationCmd    (CQChartsCmdArgs &args);
+  bool createChartsPolygonAnnotationCmd  (CQChartsCmdArgs &args);
+  bool createChartsPolylineAnnotationCmd (CQChartsCmdArgs &args);
+  bool createChartsRectangleAnnotationCmd(CQChartsCmdArgs &args);
+  bool createChartsTextAnnotationCmd     (CQChartsCmdArgs &args);
+  bool removeChartsAnnotationCmd         (CQChartsCmdArgs &args);
 
   bool connectChartsSignalCmd(CQChartsCmdArgs &args);
 
@@ -156,17 +166,13 @@ class CQChartsCmds : public QObject {
   bool showChartsLoadModelDlgCmd   (CQChartsCmdArgs &args);
   bool showChartsManageModelsDlgCmd(CQChartsCmdArgs &args);
   bool showChartsCreatePlotDlgCmd  (CQChartsCmdArgs &args);
+  bool showChartsHelpDlgCmd        (CQChartsCmdArgs &args);
 
   bool testEditCmd(CQChartsCmdArgs &args);
 
   //---
 
  private:
-  bool setPaletteData(CQChartsGradientPalette *palette,
-                      const CQChartsPaletteColorData &paletteData);
-
-  //---
-
   QAbstractItemModel *loadFile(const QString &filename, CQChartsFileType type,
                                const CQChartsInputData &inputData, bool &hierarchical);
 
@@ -198,6 +204,10 @@ class CQChartsCmds : public QObject {
 
 //---
 
+/*!
+ * \brief Charts Tcl Command
+ * \ingroup Charts
+ */
 #define CQCHARTS_DEF_CMD(NAME, PROC) \
 class CQCharts##NAME##Cmd : public CQChartsCmdProc { \
  public: \
@@ -220,6 +230,7 @@ CQCHARTS_DEF_CMD(FilterChartsModel , filterChartsModelCmd)
 CQCHARTS_DEF_CMD(FlattenChartsModel, flattenChartsModelCmd)
 CQCHARTS_DEF_CMD(CopyChartsModel   , copyChartsModelCmd)
 CQCHARTS_DEF_CMD(WriteChartsModel  , writeChartsModelCmd)
+CQCHARTS_DEF_CMD(RemoveChartsModel , removeChartsModelCmd)
 
 //---
 
@@ -230,6 +241,7 @@ CQCHARTS_DEF_CMD(CreateChartsSubsetModel     , createChartsSubsetModelCmd)
 CQCHARTS_DEF_CMD(CreateChartsTransposeModel  , createChartsTransposeModelCmd)
 CQCHARTS_DEF_CMD(CreateChartsSummaryModel    , createChartsSummaryModelCmd)
 CQCHARTS_DEF_CMD(CreateChartsCollapseModel   , createChartsCollapseModelCmd)
+CQCHARTS_DEF_CMD(CreateChartsPivotModel      , createChartsPivotModelCmd)
 CQCHARTS_DEF_CMD(CreateChartsStatsModel      , createChartsStatsModelCmd)
 
 //---
@@ -242,8 +254,10 @@ CQCHARTS_DEF_CMD(GroupChartsPlots, groupChartsPlotsCmd)
 CQCHARTS_DEF_CMD(PlaceChartsPlots, placeChartsPlotsCmd)
 
 CQCHARTS_DEF_CMD(MeasureChartsText, measureChartsTextCmd)
+CQCHARTS_DEF_CMD(EncodeChartsText , encodeChartsTextCmd )
 
 CQCHARTS_DEF_CMD(CreateChartsView, createChartsViewCmd)
+CQCHARTS_DEF_CMD(RemoveChartsView, removeChartsViewCmd)
 
 CQCHARTS_DEF_CMD(CreateChartsPlot, createChartsPlotCmd)
 CQCHARTS_DEF_CMD(RemoveChartsPlot, removeChartsPlotCmd)
@@ -254,18 +268,20 @@ CQCHARTS_DEF_CMD(SetChartsProperty, setChartsPropertyCmd)
 CQCHARTS_DEF_CMD(GetChartsData, getChartsDataCmd)
 CQCHARTS_DEF_CMD(SetChartsData, setChartsDataCmd)
 
-CQCHARTS_DEF_CMD(GetChartsPalette, getChartsPaletteCmd)
-CQCHARTS_DEF_CMD(SetChartsPalette, setChartsPaletteCmd)
+CQCHARTS_DEF_CMD(CreateChartsPalette, createChartsPaletteCmd)
+CQCHARTS_DEF_CMD(GetChartsPalette   , getChartsPaletteCmd   )
+CQCHARTS_DEF_CMD(SetChartsPalette   , setChartsPaletteCmd   )
 
 //---
 
-CQCHARTS_DEF_CMD(CreateChartsTextAnnotation    , createChartsTextAnnotationCmd)
-CQCHARTS_DEF_CMD(CreateChartsArrowAnnotation   , createChartsArrowAnnotationCmd)
-CQCHARTS_DEF_CMD(CreateChartsRectAnnotation    , createChartsRectAnnotationCmd)
-CQCHARTS_DEF_CMD(CreateChartsEllipseAnnotation , createChartsEllipseAnnotationCmd)
-CQCHARTS_DEF_CMD(CreateChartsPolygonAnnotation , createChartsPolygonAnnotationCmd)
-CQCHARTS_DEF_CMD(CreateChartsPolylineAnnotation, createChartsPolylineAnnotationCmd)
-CQCHARTS_DEF_CMD(CreateChartsPointAnnotation   , createChartsPointAnnotationCmd)
+CQCHARTS_DEF_CMD(CreateChartsArrowAnnotation    , createChartsArrowAnnotationCmd)
+CQCHARTS_DEF_CMD(CreateChartsEllipseAnnotation  , createChartsEllipseAnnotationCmd)
+CQCHARTS_DEF_CMD(CreateChartsImageAnnotation    , createChartsImageAnnotationCmd)
+CQCHARTS_DEF_CMD(CreateChartsPointAnnotation    , createChartsPointAnnotationCmd)
+CQCHARTS_DEF_CMD(CreateChartsPolygonAnnotation  , createChartsPolygonAnnotationCmd)
+CQCHARTS_DEF_CMD(CreateChartsPolylineAnnotation , createChartsPolylineAnnotationCmd)
+CQCHARTS_DEF_CMD(CreateChartsRectangleAnnotation, createChartsRectangleAnnotationCmd)
+CQCHARTS_DEF_CMD(CreateChartsTextAnnotation     , createChartsTextAnnotationCmd)
 
 CQCHARTS_DEF_CMD(RemoveChartsAnnotation, removeChartsAnnotationCmd)
 
@@ -283,6 +299,7 @@ CQCHARTS_DEF_CMD(WriteChartsData , writeChartsDataCmd)
 CQCHARTS_DEF_CMD(ShowChartsLoadModelDlg   , showChartsLoadModelDlgCmd)
 CQCHARTS_DEF_CMD(ShowChartsManageModelsDlg, showChartsManageModelsDlgCmd)
 CQCHARTS_DEF_CMD(ShowChartsCreatePlotDlg  , showChartsCreatePlotDlgCmd)
+CQCHARTS_DEF_CMD(ShowChartsHelpDlg        , showChartsHelpDlgCmd)
 
 //---
 

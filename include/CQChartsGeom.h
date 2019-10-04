@@ -14,6 +14,7 @@
 
 namespace CQChartsGeom {
 
+//! Point class
 class Point {
  public:
   Point() { }
@@ -26,9 +27,11 @@ class Point {
    x(point.x), y(point.y) {
   }
 
-  Point(const QPointF &point) :
+  explicit Point(const QPointF &point) :
    x(point.x()), y(point.y()) {
   }
+
+  //---
 
   Point &operator=(const Point &point) {
     x = point.x;
@@ -87,21 +90,18 @@ class Point {
 
   QPointF qpoint() const { return QPointF(x, y); }
 
+  QPoint qpointi() const { return QPoint(x, y); }
+
   //-----
 
-  Point operator+() const {
-    return Point(x, y);
-  }
-
-  Point operator-() const {
-    return Point(-x, -y);
-  }
+  Point operator+() const { return Point( x,  y); }
+  Point operator-() const { return Point(-x, -y); }
 
   //-----
 
   bool equal(const Point &rhs, double tol=1E-6) const {
-    double dx = fabs(x - rhs.x);
-    double dy = fabs(y - rhs.y);
+    double dx = std::abs(x - rhs.x);
+    double dy = std::abs(y - rhs.y);
 
     return (dx < tol && dy < tol);
   }
@@ -121,96 +121,46 @@ class Point {
   // Addition of points makes no mathematical sense but
   // is useful for weighted sum
 
-  Point &operator+=(const Point &rhs) {
-    x += rhs.x; y += rhs.y;
+  Point &operator+=(const Point &rhs) { x += rhs.x; y += rhs.y; return *this; }
 
-    return *this;
-  }
+  Point &operator+=(double rhs) { x += rhs; y += rhs; return *this; }
 
-  Point &operator+=(double rhs) {
-    x += rhs; y += rhs;
+  Point operator+(const Point &rhs) const { return Point(x + rhs.x, y + rhs.y); }
 
-    return *this;
-  }
+  friend Point operator+(const Point &lhs, double rhs) { return Point(lhs.x + rhs, lhs.y + rhs); }
 
-  Point operator+(const Point &rhs) const {
-    return Point(x + rhs.x, y + rhs.y);
-  }
-
-  friend Point operator+(const Point &lhs, double rhs) {
-    return Point(lhs.x + rhs, lhs.y + rhs);
-  }
-
-  friend Point operator+(double lhs, const Point &rhs) {
-    return Point(rhs.x + lhs, rhs.y + lhs);
-  }
+  friend Point operator+(double lhs, const Point &rhs) { return Point(rhs.x + lhs, rhs.y + lhs); }
 
   //------
 
   // Subtraction of points makes no mathematical sense but is useful for weighted sum
-  Point &operator-=(const Point &rhs) {
-    x -= rhs.x; y -= rhs.y;
+  Point &operator-=(const Point &rhs) { x -= rhs.x; y -= rhs.y; return *this; }
 
-    return *this;
-  }
+  Point &operator-=(double rhs) { x -= rhs; y -= rhs; return *this; }
 
-  Point &operator-=(double rhs) {
-    x -= rhs; y -= rhs;
-
-    return *this;
-  }
-
-  Point operator-(const Point &rhs) const {
-    return Point(x - rhs.x, y - rhs.y);
-  }
+  Point operator-(const Point &rhs) const { return Point(x - rhs.x, y - rhs.y); }
 
   //------
 
   // Multiplication of points makes no mathematical sense but is useful for weighted sum
-  Point &operator*=(double rhs) {
-    x *= rhs; y *= rhs;
+  Point &operator*=(double rhs) { x *= rhs; y *= rhs; return *this; }
 
-    return *this;
-  }
+  Point &operator*=(const Point &rhs) { x *= rhs.x; y *= rhs.y; return *this; }
 
-  Point &operator*=(const Point &rhs) {
-    x *= rhs.x; y *= rhs.y;
+  Point operator*(const Point &rhs) const { return Point(x*rhs.x, y*rhs.y); }
 
-    return *this;
-  }
+  friend Point operator*(const Point &lhs, double rhs) { return Point(lhs.x*rhs, lhs.y*rhs); }
 
-  Point operator*(const Point &rhs) const {
-    return Point(x*rhs.x, y*rhs.y);
-  }
-
-  friend Point operator*(const Point &lhs, double rhs) {
-    return Point(lhs.x*rhs, lhs.y*rhs);
-  }
-
-  friend Point operator*(double lhs, const Point &rhs) {
-    return Point(rhs.x*lhs, rhs.y*lhs);
-  }
+  friend Point operator*(double lhs, const Point &rhs) { return Point(rhs.x*lhs, rhs.y*lhs); }
 
   //------
 
   // Division of points makes no mathematical sense but is useful for weighted sum
-  Point &operator/=(double rhs) {
-    double irhs = 1.0/rhs;
+  Point &operator/=(double rhs) { double irhs = 1.0/rhs; x *= irhs; y *= irhs; return *this; }
 
-    x *= irhs; y *= irhs;
+  Point &operator/=(const Point &rhs) { x /= rhs.x; y /= rhs.y; return *this; }
 
-    return *this;
-  }
-
-  Point &operator/=(const Point &rhs) {
-    x /= rhs.x; y /= rhs.y;
-
-    return *this;
-  }
-
-  Point operator/(const Point &rhs) const {
-    return Point(x/rhs.x, y/rhs.y);
-  }
+  Point operator/(const Point &rhs) const { return Point(x/rhs.x, y/rhs.y); }
 
   friend Point operator/(const Point &lhs, double rhs) {
     double irhs = 1.0/rhs;
@@ -218,19 +168,12 @@ class Point {
     return Point(lhs.x*irhs, lhs.y*irhs);
   }
 
-  friend Point operator/(double lhs, const Point &rhs) {
-    return Point(lhs/rhs.x, lhs/rhs.y);
-  }
+  friend Point operator/(double lhs, const Point &rhs) { return Point(lhs/rhs.x, lhs/rhs.y); }
 
   //------
 
-  double minComponent() const {
-    return std::min(x, y);
-  }
-
-  double maxComponent() const {
-    return std::max(x, y);
-  }
+  double minComponent() const { return std::min(x, y); }
+  double maxComponent() const { return std::max(x, y); }
 
   //-----
 
@@ -300,13 +243,25 @@ class Point {
   double y { 0 };
 };
 
+inline Point makeDirPoint(bool flipped, double x, double y) {
+  if (! flipped)
+    return Point(x, y);
+  else
+    return Point(y, x);
+}
+
 }
 
 //-----
 
 namespace CQChartsGeom {
 
-// TODO: enforce min/max order always ? Same as BBox
+/*!
+ * \brief Range class
+ * \ingroup Charts
+ *
+ * TODO: enforce min/max order always ? Same as BBox
+ */
 class Range {
  public:
   Range() { }
@@ -314,6 +269,8 @@ class Range {
   Range(double x1, double y1, double x2, double y2) :
    set_(true), x1_(x1), y1_(y1), x2_(x2), y2_(y2) {
   }
+
+  //---
 
   bool isSet() const { return set_; }
 
@@ -346,6 +303,9 @@ class Range {
   double xmax() const { assert(set_); return std::max(x1_, x2_); }
   double ymax() const { assert(set_); return std::max(y1_, y2_); }
 
+  double min(bool horizontal) const { return (horizontal ? xmin() : ymin()); }
+  double max(bool horizontal) const { return (horizontal ? xmax() : ymax()); }
+
   double left  () const { assert(set_); return x1_; }
   double bottom() const { assert(set_); return y1_; }
   double right () const { assert(set_); return x2_; }
@@ -356,8 +316,21 @@ class Range {
   void setRight (double t) { set_ = true; x2_ = t; }
   void setTop   (double t) { set_ = true; y2_ = t; }
 
-  double xsize() const { assert(set_); return fabs(x2_ - x1_); }
-  double ysize() const { assert(set_); return fabs(y2_ - y1_); }
+  double xsize() const { assert(set_); return std::abs(x2_ - x1_); }
+  double ysize() const { assert(set_); return std::abs(y2_ - y1_); }
+
+  double size(bool horizontal) const { return (horizontal ? xsize() : ysize()); }
+
+  //---
+
+  QRectF qrect() const {
+    if (isSet())
+      return QRectF(xmin(), ymin(), xsize(), ysize()).normalized();
+    else
+      return QRectF();
+  }
+
+  //---
 
   bool isZero() const { return isXZero() || isYZero(); }
 
@@ -490,6 +463,10 @@ class Range {
 
 namespace CQChartsGeom {
 
+/*!
+ * \brief Bounding Box class
+ * \ingroup Charts
+ */
 class BBox {
  public:
   BBox() :
@@ -514,8 +491,9 @@ class BBox {
     update();
   }
 
-  BBox(const QRectF &rect) :
+  explicit BBox(const QRectF &rect) :
    pmin_(rect.bottomLeft()), pmax_(rect.topRight()), set_(rect.isValid()) {
+    update();
   }
 
 #if 0
@@ -525,6 +503,8 @@ class BBox {
   }
 #endif
 
+  //---
+
   void reset() { set_ = false; }
 
   bool isSet() const { return set_; }
@@ -532,7 +512,17 @@ class BBox {
   //---
 
   QRectF qrect() const {
-    return QRectF(getLL().qpoint(), getUR().qpoint()).normalized();
+    if (isSet())
+      return QRectF(getLL().qpoint(), getUR().qpoint()).normalized();
+    else
+      return QRectF();
+  }
+
+  QRect qrecti() const {
+    if (isSet())
+      return QRect(getLL().qpointi(), getUR().qpointi()).normalized();
+    else
+      return QRect();
   }
 
   //---
@@ -693,6 +683,36 @@ class BBox {
             (bbox.pmin_.y >= pmin_.y && bbox.pmax_.y <= pmax_.y));
   }
 
+  bool insideX(double x) const {
+    if (! set_) return false;
+
+    return (x >= pmin_.x && x <= pmax_.x);
+  }
+
+  bool insideY(double y) const {
+    if (! set_) return false;
+
+    return (y >= pmin_.y && y <= pmax_.y);
+  }
+
+  double distanceTo(const Point &p) const {
+    if      (p.x < pmin_.x) {
+      if      (p.y < pmin_.y) return getLL().distanceTo(p);
+      else if (p.y > pmax_.y) return getUL().distanceTo(p);
+      else                    return pmin_.x - p.x;
+    }
+    else if (p.x > pmax_.x) {
+      if      (p.y < pmin_.y) return getLR().distanceTo(p);
+      else if (p.y > pmax_.y) return getUR().distanceTo(p);
+      else                    return p.x - pmax_.x;
+    }
+    else {
+      if      (p.y < pmin_.y) return pmin_.y - p.y;
+      else if (p.y > pmax_.y) return p.y - pmax_.y;
+      else                    return 0.0;
+    }
+  }
+
   double distanceTo(const BBox &bbox) const {
     if (! set_) return 1E50; // assert
 
@@ -799,9 +819,7 @@ class BBox {
 
   double getXYMid(bool horizontal) const { return (horizontal ? getXMid() : getYMid()); }
 
-  Point getCenter() const {
-    return 0.5*(getMin() + getMax());
-  }
+  Point getCenter() const { return 0.5*(getMin() + getMax()); }
 
   void setCenter(const Point &point) {
     double dx = point.x - getCenter().x;
@@ -868,11 +886,14 @@ class BBox {
     set_    = true;
   }
 
-  double getMinExtent(bool horizontal) { return (horizontal ? getXMin() : getYMin()); }
-  double getMaxExtent(bool horizontal) { return (horizontal ? getXMax() : getYMax()); }
+  double getMinExtent(bool horizontal) const { return (horizontal ? getXMin() : getYMin()); }
+  double getMaxExtent(bool horizontal) const { return (horizontal ? getXMax() : getYMax()); }
 
-  void setExtent(double smin, double smax, bool horizontal) {
-    (horizontal ? setXRange(smin, smax) : setYRange(smin, smax));
+  void setMinExtent(bool horizontal, double e) { horizontal ? setXMin(e) : setYMin(e); }
+  void setMaxExtent(bool horizontal, double e) { horizontal ? setXMax(e) : setYMax(e); }
+
+  void setExtent(double emin, double emax, bool horizontal) {
+    (horizontal ? setXRange(emin, emax) : setYRange(emin, emax));
   }
 
   void expandExtent(double emin, double emax, bool horizontal) {
@@ -924,24 +945,17 @@ class BBox {
   double getRadius() const {
     if (! set_) return 0.0;
 
-    double dx = fabs(pmax_.x - pmin_.x);
-    double dy = fabs(pmax_.y - pmin_.y);
+    double dx = std::abs(pmax_.x - pmin_.x);
+    double dy = std::abs(pmax_.y - pmin_.y);
 
-    return 0.5*sqrt(dx*dx + dy*dy);
+    return 0.5*std::hypot(dx, dy);
   }
 #endif
 
-  double getSize(bool horizontal) const {
-    return (horizontal ? getWidth() : getHeight());
-  }
+  double getSize(bool horizontal) const { return (horizontal ? getWidth() : getHeight()); }
 
-  double getWidth() const {
-    return fabs(getXMax() - getXMin());
-  }
-
-  double getHeight() const {
-    return fabs(getYMax() - getYMin());
-  }
+  double getWidth () const { return std::abs(getXMax() - getXMin()); }
+  double getHeight() const { return std::abs(getYMax() - getYMin()); }
 
   BBox &moveXTo(double x) {
     assert(set_);
@@ -1047,12 +1061,23 @@ class BBox {
   bool  set_ { false };
 };
 
+inline BBox makeDirBBox(bool flipped, double x1, double y1, double x2, double y2) {
+  if (! flipped)
+    return BBox(x1, y1, x2, y2);
+  else
+    return BBox(y1, x1, y2, x2);
+}
+
 }
 
 //------
 
 namespace CQChartsGeom {
 
+/*!
+ * \brief Minimum/Maximum class
+ * \ingroup Charts
+ */
 template<typename T>
 class MinMax {
  public:
@@ -1102,14 +1127,17 @@ using IMinMax = MinMax<int>;
 
 namespace CQChartsGeom {
 
-/* / a b tx \ */
-/* | c d ty | */
-/* \ 0 0 1  / */
-
-/* / m00 m01 m02 \ */
-/* | m10 m11 m12 | */
-/* \ m20 m21 m22 / */
-
+/*!
+ * \brief Matrix class
+ * \ingroup Charts
+ * / a b tx \
+ * | c d ty |
+ * \ 0 0 1  /
+ *
+ * / m00 m01 m02 \
+ * | m10 m11 m12 |
+ * \ m20 m21 m22 /
+ */
 class Matrix {
  public:
   enum class Type {
@@ -1520,7 +1548,7 @@ class Matrix {
   bool invert(Matrix &imatrix) const {
     double d = determinant();
 
-    if (::fabs(d) == 0.0)
+    if (std::abs(d) == 0.0)
       return false;
 
     double id = 1.0/d;
@@ -1592,7 +1620,7 @@ class Matrix {
   static bool solveAXeqB(const Matrix &a, Point &x, const Point &b) {
     double det_a = a.determinant();
 
-    if (::fabs(det_a) <= 0.0)
+    if (std::abs(det_a) <= 0.0)
       return false;
 
     double idet_a = 1.0/det_a;
@@ -1641,8 +1669,8 @@ class Matrix {
   }
 
   void getSize(double *sx, double *sy) const {
-    *sx = fabs(m00_ + m01_);
-    *sy = fabs(m10_ + m11_);
+    *sx = std::abs(m00_ + m01_);
+    *sy = std::abs(m10_ + m11_);
   }
 
   void getTranslate(double *tx, double *ty) const {
@@ -1848,7 +1876,7 @@ class Matrix {
   }
 
   void setInnerReflection(double dx, double dy) {
-    double l = sqrt(dx*dx + dy*dy);
+    double l = std::hypot(dx, dy);
 
     setUnitInnerReflection(dx/l, dy/l);
   }
@@ -1898,7 +1926,7 @@ class Matrix {
 
  private:
   static bool realEq(double r1, double r2) {
-    return (fabs((r1) - (r2)) < 1E-5);
+    return (std::abs((r1) - (r2)) < 1E-5);
   }
 
   static double calcDeterminant(double m00, double m01, double m10, double m11) {
@@ -1910,6 +1938,38 @@ class Matrix {
   double m10_ { 0.0 }, m11_ { 0.0 }, m12_ { 0.0 };
   double m20_ { 0.0 }, m21_ { 0.0 }, m22_ { 0.0 };
 };
+
+}
+
+//------
+
+namespace CQChartsGeom {
+
+struct RangeValue {
+  RangeValue(double v=0.0, double min=0.0, double max=1.0) :
+   v(v), min(min), max(max) {
+  }
+
+  double map() const { return map(v); }
+
+  double map  (double v1) const { return CMathUtil::map(v1, min, max, 0.0, 1.0); }
+  double unmap(double v1) const { return CMathUtil::map(v1, 0.0, 1.0, min, max); }
+
+  double v   { 0.0 };
+  double min { 0.0 };
+  double max { 1.0 };
+};
+
+}
+
+//------
+
+namespace CQChartsGeom {
+
+// point on circle perimeter (center (c), radius(r), radian angle (a))
+inline CQChartsGeom::Point circlePoint(const CQChartsGeom::Point &c, double r, double a) {
+  return CQChartsGeom::Point(c.x + r*cos(a), c.y + r*sin(a));
+}
 
 }
 

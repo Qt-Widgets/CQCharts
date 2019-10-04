@@ -1,6 +1,9 @@
 #include <CQChartsSymbolEdit.h>
+#include <CQChartsDrawUtil.h>
+#include <CQChartsPaintDevice.h>
 
 #include <CQPropertyView.h>
+#include <CQUtil.h>
 
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -11,18 +14,29 @@ CQChartsSymbolEdit(QWidget *parent) :
 {
   setObjectName("symbol");
 
-  QHBoxLayout *layout = new QHBoxLayout(this);
-  layout->setMargin(0); layout->setSpacing(2);
+  QHBoxLayout *layout = CQUtil::makeLayout<QHBoxLayout>(this, 0, 2);
 
-  combo_ = new QComboBox;
+  combo_ = CQUtil::makeWidget<QComboBox>("combo");
 
   combo_->addItems(CQChartsSymbol::typeNames());
 
-  combo_->setObjectName("combo");
-
   layout->addWidget(combo_);
 
-  connect(combo_, SIGNAL(currentIndexChanged(int)), this, SLOT(comboChanged()));
+  connectSlots(true);
+}
+
+void
+CQChartsSymbolEdit::
+connectSlots(bool b)
+{
+  auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
+    if (b)
+      QObject::connect(w, from, this, to);
+    else
+      QObject::disconnect(w, from, this, to);
+  };
+
+  connectDisconnect(b, combo_, SIGNAL(currentIndexChanged(int)), SLOT(comboChanged()));
 }
 
 const CQChartsSymbol &
@@ -36,24 +50,24 @@ void
 CQChartsSymbolEdit::
 setSymbol(const CQChartsSymbol &symbol)
 {
-  disconnect(combo_, SIGNAL(currentIndexChanged(int)), this, SLOT(comboChanged()));
+  connectSlots(false);
 
   symbol_ = symbol;
 
   combo_->setCurrentIndex(combo_->findText(symbol_.toString()));
 
-  connect(combo_, SIGNAL(currentIndexChanged(int)), this, SLOT(comboChanged()));
+  connectSlots(true);
 }
 
 void
 CQChartsSymbolEdit::
 comboChanged()
 {
-  disconnect(combo_, SIGNAL(currentIndexChanged(int)), this, SLOT(comboChanged()));
+  connectSlots(false);
 
   symbol_ = CQChartsSymbol(combo_->currentText());
 
-  connect(combo_, SIGNAL(currentIndexChanged(int)), this, SLOT(comboChanged()));
+  connectSlots(true);
 
   emit symbolChanged();
 }
@@ -84,25 +98,50 @@ setEditorData(CQPropertyViewItem *item, const QVariant &value)
 
 void
 CQChartsSymbolPropertyViewType::
-draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+draw(CQPropertyViewItem *, const CQPropertyViewDelegate *delegate, QPainter *painter,
      const QStyleOptionViewItem &option, const QModelIndex &ind,
      const QVariant &value, bool inside)
 {
   delegate->drawBackground(painter, option, ind, inside);
 
-  CQChartsSymbol symbol = value.value<CQChartsSymbol>();
+  CQChartsSymbol symbolType = value.value<CQChartsSymbol>();
 
-  QString str = symbol.toString();
+  //---
 
-  QFontMetricsF fm(option.font);
+  // draw symbol
+  painter->save();
 
-  double w = fm.width(str);
+  int ss = std::max(option.rect.height()/2 - 2, 1);
+
+  QRect rect1(option.rect.left(), option.rect.center().y() - ss, 2*ss, 2*ss);
+
+  painter->setClipRect(rect1.adjusted(-1, -1, 1, 1));
+
+  painter->setPen  (Qt::black);
+  painter->setBrush(Qt::white);
+
+  CQChartsPixelPainter device(painter);
+
+  CQChartsDrawUtil::drawSymbol(&device, symbolType, rect1);
+
+  painter->restore();
+
+  int x = rect1.right() + 2;
+
+  //--
+
+  // draw symbol name
+  QString str = symbolType.toString();
+
+  QFontMetrics fm(option.font);
+
+  int w = fm.width(str);
 
   //---
 
   QStyleOptionViewItem option1 = option;
 
-  option1.rect.setRight(option1.rect.left() + w + 8);
+  option1.rect = QRect(x, option1.rect.top(), w + 8, option1.rect.height());
 
   delegate->drawString(painter, option1, str, ind, inside);
 }

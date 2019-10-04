@@ -8,6 +8,10 @@
 
 //---
 
+/*!
+ * \brief Delaunay plot type
+ * \ingroup Charts
+ */
 class CQChartsDelaunayPlotType : public CQChartsPlotType {
  public:
   CQChartsDelaunayPlotType();
@@ -18,6 +22,8 @@ class CQChartsDelaunayPlotType : public CQChartsPlotType {
   Dimension dimension() const override { return Dimension::TWO_D; }
 
   void addParameters() override;
+
+  bool canProbe() const override { return false; }
 
   QString description() const override;
 
@@ -31,12 +37,18 @@ class CQChartsDelaunay;
 
 //---
 
+/*!
+ * \brief Delaunay Plot Point object
+ * \ingroup Charts
+ */
 class CQChartsDelaunayPointObj : public CQChartsPlotObj {
   Q_OBJECT
 
  public:
   CQChartsDelaunayPointObj(const CQChartsDelaunayPlot *plot, const CQChartsGeom::BBox &rect,
-                           double x, double y, const QModelIndex &ind, int i, int n);
+                           double x, double y, const QModelIndex &ind, const ColorInd &iv);
+
+  QString typeName() const override { return "point"; }
 
   QString calcId() const override;
 
@@ -46,21 +58,20 @@ class CQChartsDelaunayPointObj : public CQChartsPlotObj {
 
   void getSelectIndices(Indices &inds) const override;
 
-  void addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const override;
-
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
  private:
   const CQChartsDelaunayPlot* plot_ { nullptr };
   double                      x_    { 0.0 };
   double                      y_    { 0.0 };
-  QModelIndex                 ind_;
-  int                         i_    { -1 };
-  int                         n_    { -1 };
 };
 
 //---
 
+/*!
+ * \brief Delaunay Plot
+ * \ingroup Charts
+ */
 class CQChartsDelaunayPlot : public CQChartsPlot,
  public CQChartsObjLineData <CQChartsDelaunayPlot>,
  public CQChartsObjPointData<CQChartsDelaunayPlot> {
@@ -129,23 +140,23 @@ class CQChartsDelaunayPlot : public CQChartsPlot,
 
   bool hasForeground() const override;
 
-  void drawForeground(QPainter *painter) const override;
+  void execDrawForeground(CQChartsPaintDevice *device) const override;
 
  public slots:
   void setVoronoi(bool b);
 
  private:
-  void drawDelaunay(QPainter *p) const;
-  void drawVoronoi (QPainter *p) const;
+  void drawDelaunay(CQChartsPaintDevice *device) const;
+  void drawVoronoi (CQChartsPaintDevice *device) const;
 
  private:
-  CQChartsColumn    xColumn_;                      //! x column
-  CQChartsColumn    yColumn_;                      //! y column
-  CQChartsColumn    nameColumn_;                   //! name column
-  bool              voronoi_          { true };    //! is voronoi
-  double            voronoiPointSize_ { 2 };       //! voronoi point size
-  CQChartsDelaunay* delaunay_         { nullptr }; //! delaunay data
-  QString           yname_;                        //! y name
+  CQChartsColumn    xColumn_;                      //!< x column
+  CQChartsColumn    yColumn_;                      //!< y column
+  CQChartsColumn    nameColumn_;                   //!< name column
+  bool              voronoi_          { true };    //!< is voronoi
+  double            voronoiPointSize_ { 2 };       //!< voronoi point size
+  CQChartsDelaunay* delaunay_         { nullptr }; //!< delaunay data
+  QString           yname_;                        //!< y name
 };
 
 #endif

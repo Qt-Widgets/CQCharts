@@ -9,7 +9,8 @@ class CQChartsPlot;
 class CQChartsView;
 
 /*!
- * \brief line edit like widget for text data
+ * \brief Text Data line edit
+ * \ingroup Charts
  */
 class CQChartsTextDataLineEdit : public CQChartsLineEditBase {
   Q_OBJECT
@@ -42,7 +43,7 @@ class CQChartsTextDataLineEdit : public CQChartsLineEditBase {
   void connectSlots(bool b) override;
 
  private:
-  CQChartsTextDataEdit* dataEdit_ { nullptr }; //! text data edit widget
+  CQChartsTextDataEdit* dataEdit_ { nullptr }; //!< text data edit widget
 };
 
 //---
@@ -52,14 +53,15 @@ class CQChartsTextDataLineEdit : public CQChartsLineEditBase {
 class CQChartsColorLineEdit;
 class CQChartsAlphaEdit;
 class CQChartsTextDataEditPreview;
-class CQFontEdit;
+class CQChartsFontLineEdit;
 class CQAngleSpinBox;
 class CQAlignEdit;
 class CQGroupBox;
 class CQCheckBox;
 
 /*!
- * \brief widget to edit text data values
+ * \brief Text data edit
+ * \ingroup Charts
  */
 class CQChartsTextDataEdit : public CQChartsEditBase {
   Q_OBJECT
@@ -82,30 +84,34 @@ class CQChartsTextDataEdit : public CQChartsEditBase {
  private:
   void dataToWidgets();
 
+  void connectSlots(bool b);
+
  private slots:
   void widgetsToData();
 
  private:
-  CQChartsPlot*                plot_          { nullptr };
-  CQChartsView*                view_          { nullptr };
-  CQChartsTextData             data_;
-  CQGroupBox*                  groupBox_      { nullptr };
-  CQFontEdit*                  fontEdit_      { nullptr };
-  CQChartsColorLineEdit*       colorEdit_     { nullptr };
-  CQChartsAlphaEdit*           alphaEdit_     { nullptr };
-  CQAngleSpinBox*              angleEdit_     { nullptr };
-  CQCheckBox*                  contrastEdit_  { nullptr };
-  CQAlignEdit*                 alignEdit_     { nullptr };
-  CQCheckBox*                  formattedEdit_ { nullptr };
-  CQCheckBox*                  scaledEdit_    { nullptr };
-  CQCheckBox*                  htmlEdit_      { nullptr };
-  CQChartsTextDataEditPreview* preview_       { nullptr };
+  CQChartsPlot*                plot_          { nullptr }; //!< parent plot
+  CQChartsView*                view_          { nullptr }; //!< parent view
+  CQChartsTextData             data_;                      //!< text data
+  CQGroupBox*                  groupBox_      { nullptr }; //!< group box
+  CQChartsFontLineEdit*        fontEdit_      { nullptr }; //!< font edit
+  CQChartsColorLineEdit*       colorEdit_     { nullptr }; //!< color edit
+  CQChartsAlphaEdit*           alphaEdit_     { nullptr }; //!< alpha edit
+  CQAngleSpinBox*              angleEdit_     { nullptr }; //!< angle edit
+  CQCheckBox*                  contrastEdit_  { nullptr }; //!< contrast edit
+  CQAlignEdit*                 alignEdit_     { nullptr }; //!< align edit
+  CQCheckBox*                  formattedEdit_ { nullptr }; //!< formatted edit
+  CQCheckBox*                  scaledEdit_    { nullptr }; //!< scaled edit
+  CQCheckBox*                  htmlEdit_      { nullptr }; //!< html edit
+  CQChartsTextDataEditPreview* preview_       { nullptr }; //!< preview
+  bool                         connected_     { false };   //!< is connected
 };
 
 //---
 
 /*!
- * \brief preview widget for text data
+ * \brief Text data edit preview
+ * \ingroup Charts
  */
 class CQChartsTextDataEditPreview : public CQChartsEditPreview {
   Q_OBJECT
@@ -128,6 +134,7 @@ class CQChartsTextDataEditPreview : public CQChartsEditPreview {
 
 /*!
  * \brief type for CQChartsTextData
+ * \ingroup Charts
  */
 class CQChartsTextDataPropertyViewType : public CQChartsPropertyViewType {
  public:
@@ -137,6 +144,8 @@ class CQChartsTextDataPropertyViewType : public CQChartsPropertyViewType {
                    CQChartsPlot *plot, CQChartsView *view) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "text_data"; }
 };
 
 //---
@@ -145,6 +154,7 @@ class CQChartsTextDataPropertyViewType : public CQChartsPropertyViewType {
 
 /*!
  * \brief editor factory for CQChartsTextData
+ * \ingroup Charts
  */
 class CQChartsTextDataPropertyViewEditor : public CQChartsPropertyViewEditorFactory {
  public:

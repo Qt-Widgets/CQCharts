@@ -7,6 +7,7 @@
 #include <CQChartsPlot.h>
 #include <CQCharts.h>
 #include <CQChartsWidgetUtil.h>
+#include <CQChartsPaintDevice.h>
 
 #include <CQWidgetMenu.h>
 #include <CQCheckBox.h>
@@ -14,7 +15,6 @@
 
 #include <QLabel>
 #include <QVBoxLayout>
-#include <QPainter>
 
 CQChartsArrowDataLineEdit::
 CQChartsArrowDataLineEdit(QWidget *parent) :
@@ -28,9 +28,9 @@ CQChartsArrowDataLineEdit(QWidget *parent) :
 
   menu_->setWidget(dataEdit_);
 
-  connect(dataEdit_, SIGNAL(arrowDataChanged()), this, SLOT(menuEditChanged()));
-
   //---
+
+  connectSlots(true);
 
   arrowDataToWidgets();
 }
@@ -57,10 +57,10 @@ updateArrowData(const CQChartsArrowData &arrowData, bool updateText)
 
   dataEdit_->setData(arrowData);
 
+  connectSlots(true);
+
   if (updateText)
     arrowDataToWidgets();
-
-  connectSlots(true);
 
   emit arrowDataChanged();
 }
@@ -207,26 +207,23 @@ CQChartsArrowDataEdit(QWidget *parent) :
 
   int row = 0;
 
-  QGridLayout *layout = new QGridLayout(this);
-  layout->setMargin(0); layout->setSpacing(2);
+  QGridLayout *layout = CQUtil::makeLayout<QGridLayout>(this, 0, 2);
 
   //---
 
+#if 0
   // relative
   relativeEdit_ = CQUtil::makeWidget<CQCheckBox>("relative");
 
   relativeEdit_->setToolTip("Is end point a delta from start point");
 
-  connect(relativeEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-
   CQChartsWidgetUtil::addGridLabelWidget(layout, "Relative", relativeEdit_, row);
+#endif
 
   // length
   lengthEdit_ = CQUtil::makeWidget<CQChartsLengthEdit>("length");
 
   lengthEdit_->setToolTip("arrow head length");
-
-  connect(lengthEdit_, SIGNAL(lengthChanged()), this, SLOT(widgetsToData()));
 
   CQChartsWidgetUtil::addGridLabelWidget(layout, "Length", lengthEdit_, row);
 
@@ -235,16 +232,12 @@ CQChartsArrowDataEdit(QWidget *parent) :
 
   angleEdit_->setToolTip("arrow head angle");
 
-  connect(angleEdit_, SIGNAL(angleChanged(const CAngle &)), this, SLOT(widgetsToData()));
-
   CQChartsWidgetUtil::addGridLabelWidget(layout, "Angle", angleEdit_, row);
 
   // back angle
   backAngleEdit_ = CQUtil::makeWidget<CQAngleSpinBox>("back_angle");
 
   backAngleEdit_->setToolTip("arrow head back angle");
-
-  connect(backAngleEdit_, SIGNAL(angleChanged(const CAngle &)), this, SLOT(widgetsToData()));
 
   CQChartsWidgetUtil::addGridLabelWidget(layout, "Back Angle", backAngleEdit_, row);
 
@@ -253,16 +246,12 @@ CQChartsArrowDataEdit(QWidget *parent) :
 
   fheadEdit_->setToolTip("draw arrow head at start");
 
-  connect(fheadEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-
   CQChartsWidgetUtil::addGridLabelWidget(layout, "Front Head", fheadEdit_, row);
 
   // fhead
   theadEdit_ = CQUtil::makeWidget<CQCheckBox>("thead");
 
   theadEdit_->setToolTip("draw arrow head at end");
-
-  connect(theadEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
 
   CQChartsWidgetUtil::addGridLabelWidget(layout, "Tail Head", theadEdit_, row);
 
@@ -271,16 +260,12 @@ CQChartsArrowDataEdit(QWidget *parent) :
 
   lineEndsEdit_->setToolTip("draw lines for arrow heads");
 
-  connect(lineEndsEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-
   CQChartsWidgetUtil::addGridLabelWidget(layout, "Line Ends", lineEndsEdit_, row);
 
   // line width
   lineWidthEdit_ = CQUtil::makeWidget<CQChartsLengthEdit>("line_width");
 
   lineWidthEdit_->setToolTip("connecting line width");
-
-  connect(lineWidthEdit_, SIGNAL(lengthChanged()), this, SLOT(widgetsToData()));
 
   CQChartsWidgetUtil::addGridLabelWidget(layout, "Line Width", lineWidthEdit_, row);
 
@@ -295,6 +280,8 @@ CQChartsArrowDataEdit(QWidget *parent) :
   layout->setRowStretch(9, 1);
 
   //---
+
+  connectSlots(true);
 
   dataToWidgets();
 }
@@ -323,18 +310,38 @@ setPreview(bool b)
 
 void
 CQChartsArrowDataEdit::
+connectSlots(bool b)
+{
+  assert(b != connected_);
+
+  connected_ = b;
+
+  //---
+
+  auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
+    if (b)
+      connect(w, from, this, to);
+    else
+      disconnect(w, from, this, to);
+  };
+
+//connectDisconnect(b, relativeEdit_, SIGNAL(stateChanged(int)), SLOT(widgetsToData()));
+  connectDisconnect(b, lengthEdit_, SIGNAL(lengthChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, angleEdit_, SIGNAL(angleChanged(const CAngle &)), SLOT(widgetsToData()));
+  connectDisconnect(b, backAngleEdit_, SIGNAL(angleChanged(const CAngle &)), SLOT(widgetsToData()));
+  connectDisconnect(b, fheadEdit_, SIGNAL(stateChanged(int)), SLOT(widgetsToData()));
+  connectDisconnect(b, theadEdit_, SIGNAL(stateChanged(int)), SLOT(widgetsToData()));
+  connectDisconnect(b, lineEndsEdit_, SIGNAL(stateChanged(int)), SLOT(widgetsToData()));
+  connectDisconnect(b, lineWidthEdit_, SIGNAL(lengthChanged()), SLOT(widgetsToData()));
+}
+
+void
+CQChartsArrowDataEdit::
 dataToWidgets()
 {
-  disconnect(relativeEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  disconnect(lengthEdit_, SIGNAL(lengthChanged()), this, SLOT(widgetsToData()));
-  disconnect(angleEdit_, SIGNAL(angleChanged(const CAngle &)), this, SLOT(widgetsToData()));
-  disconnect(backAngleEdit_, SIGNAL(angleChanged(const CAngle &)), this, SLOT(widgetsToData()));
-  disconnect(fheadEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  disconnect(theadEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  disconnect(lineEndsEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  disconnect(lineWidthEdit_, SIGNAL(lengthChanged()), this, SLOT(widgetsToData()));
+  connectSlots(false);
 
-  relativeEdit_ ->setChecked(data_.isRelative());
+//relativeEdit_ ->setChecked(data_.isRelative());
   lengthEdit_   ->setLength (data_.length());
   angleEdit_    ->setAngle  (CAngle(data_.angle()));
   backAngleEdit_->setAngle  (CAngle(data_.backAngle()));
@@ -345,21 +352,14 @@ dataToWidgets()
 
   preview_->update();
 
-  connect(relativeEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  connect(lengthEdit_, SIGNAL(lengthChanged()), this, SLOT(widgetsToData()));
-  connect(angleEdit_, SIGNAL(angleChanged(const CAngle &)), this, SLOT(widgetsToData()));
-  connect(backAngleEdit_, SIGNAL(angleChanged(const CAngle &)), this, SLOT(widgetsToData()));
-  connect(fheadEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  connect(theadEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  connect(lineEndsEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  connect(lineWidthEdit_, SIGNAL(lengthChanged()), this, SLOT(widgetsToData()));
+  connectSlots(true);
 }
 
 void
 CQChartsArrowDataEdit::
 widgetsToData()
 {
-  data_.setRelative (relativeEdit_->isChecked());
+//data_.setRelative (relativeEdit_->isChecked());
   data_.setLength   (lengthEdit_->length());
   data_.setAngle    (angleEdit_->getAngle().value());
   data_.setBackAngle(backAngleEdit_->getAngle().value());
@@ -402,5 +402,7 @@ draw(QPainter *painter, const CQChartsArrowData &data, const QRect &rect,
 
   arrow.setData(data);
 
-  arrow.draw(painter);
+  CQChartsPixelPainter device(painter);
+
+  arrow.draw(&device);
 }

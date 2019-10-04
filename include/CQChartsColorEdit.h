@@ -6,6 +6,10 @@
 
 class CQChartsColorEdit;
 
+/*!
+ * \brief Color line edit
+ * \ingroup Charts
+ */
 class CQChartsColorLineEdit : public CQChartsLineEditBase {
   Q_OBJECT
 
@@ -37,20 +41,28 @@ class CQChartsColorLineEdit : public CQChartsLineEditBase {
   void connectSlots(bool b) override;
 
  private:
-  CQChartsColorEdit* dataEdit_ { nullptr };
+  CQChartsColorEdit* dataEdit_ { nullptr }; //!< color data edit
 };
 
 //---
 
 #include <CQChartsEditBase.h>
 
+class CQColorsEditModel;
 class CQRealSpin;
 class CQColorEdit;
 class CQCheckBox;
 
 class QComboBox;
 class QSpinBox;
+class QLabel;
+class QCheckBox;
+class QStackedWidget;
 
+/*!
+ * \brief Color edit
+ * \ingroup Charts
+ */
 class CQChartsColorEdit : public CQChartsEditBase {
   Q_OBJECT
 
@@ -59,10 +71,13 @@ class CQChartsColorEdit : public CQChartsEditBase {
  public:
   CQChartsColorEdit(QWidget *parent=nullptr);
 
-  const CQChartsColor &color() const;
+  const CQChartsColor &color() const { return color_; }
   void setColor(const CQChartsColor &c);
 
   void setNoFocus();
+
+  QSize sizeHint() const override;
+  QSize minimumSizeHint() const override;
 
  signals:
   void colorChanged();
@@ -70,6 +85,7 @@ class CQChartsColorEdit : public CQChartsEditBase {
  private slots:
   void widgetsToColor();
 
+  void indPalSlot(int ind);
   void updateState();
 
  private:
@@ -78,19 +94,38 @@ class CQChartsColorEdit : public CQChartsEditBase {
   void connectSlots(bool b);
 
  private:
-  CQChartsColor color_;
-  QComboBox*    typeCombo_  { nullptr };
-  QSpinBox*     indEdit_    { nullptr };
-  CQRealSpin*   valueEdit_  { nullptr };
-  CQColorEdit*  colorEdit_  { nullptr };
-  CQCheckBox*   scaleCheck_ { nullptr };
+  using WidgetLabels = std::map<QWidget*,QWidget*>;
+
+  CQChartsColor      color_;                     //!< color
+  QComboBox*         typeCombo_     { nullptr }; //!< palette index/type combo
+  QComboBox*         indPalCombo_   { nullptr }; //!< type combo
+  QStackedWidget*    indPalStack_   { nullptr }; //!< palette index/type edit stack
+  QSpinBox*          indEdit_       { nullptr }; //!< index edit
+  QComboBox*         paletteEdit_   { nullptr }; //!< palette edit
+  QFrame*            rFrame_        { nullptr }; //!< r edit frame
+  CQColorsEditModel* rEdit_         { nullptr }; //!< r edit
+  QCheckBox*         rNeg_          { nullptr }; //!< r negate
+  QFrame*            gFrame_        { nullptr }; //!< g edit frame
+  CQColorsEditModel* gEdit_         { nullptr }; //!< g edit
+  QCheckBox*         gNeg_          { nullptr }; //!< g negate
+  QFrame*            bFrame_        { nullptr }; //!< b edit frame
+  CQColorsEditModel* bEdit_         { nullptr }; //!< b edit
+  QCheckBox*         bNeg_          { nullptr }; //!< b negate
+  CQRealSpin*        valueEdit_     { nullptr }; //!< value edit
+  CQColorEdit*       colorEdit_     { nullptr }; //!< color edit
+  CQCheckBox*        scaleCheck_    { nullptr }; //!< scale check
+  WidgetLabels       widgetLabels_;              //!< widget labels
+  bool               connected_     { false };   //!< is connected
 };
 
 //------
 
 #include <CQPropertyViewType.h>
 
-// type for CQChartsColor
+/*!
+ * \brief type for CQChartsColor
+ * \ingroup Charts
+ */
 class CQChartsColorPropertyViewType : public CQPropertyViewType {
  public:
   CQChartsColorPropertyViewType();
@@ -99,18 +134,23 @@ class CQChartsColorPropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &index,
             const QVariant &value, bool inside) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "color"; }
 };
 
 //---
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsColor
+/*!
+ * \brief editor factory for CQChartsColor
+ * \ingroup Charts
+ */
 class CQChartsColorPropertyViewEditor : public CQPropertyViewEditorFactory {
  public:
   CQChartsColorPropertyViewEditor();

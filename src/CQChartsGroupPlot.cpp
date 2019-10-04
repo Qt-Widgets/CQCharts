@@ -7,7 +7,8 @@
 #include <CQPerfMonitor.h>
 
 CQChartsGroupPlotType::
-CQChartsGroupPlotType()
+CQChartsGroupPlotType() :
+ CQChartsPlotType()
 {
 }
 
@@ -37,10 +38,10 @@ addParameters()
       setTip("Use row number for group");
 
   addBoolParameter("exactValue", "Exact Value", "exactValue", true).
-   setTip("use exact value for grouping");
+   setTip("Use exact value for grouping");
 
   addBoolParameter("autoRange", "Auto Range", "autoRange", true).
-   setTip("automatically determine value range");
+   setTip("Automatically determine value range");
 
   addRealParameter("start", "Start", "startValue", 0.0).
     setRequired().setTip("Start value for manual range");
@@ -75,33 +76,119 @@ void
 CQChartsGroupPlot::
 setGroupColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(groupColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(groupColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
+
+//---
+
+void
+CQChartsGroupPlot::
+setRowGrouping(bool b)
+{
+  CQChartsUtil::testAndSet(groupData_.rowGrouping, b, [&]() { updateRangeAndObjs(); } );
+}
+
+void
+CQChartsGroupPlot::
+setUsePath(bool b)
+{
+  CQChartsUtil::testAndSet(groupData_.usePath, b, [&]() { updateRangeAndObjs(); } );
+}
+
+void
+CQChartsGroupPlot::
+setUseRow(bool b)
+{
+  CQChartsUtil::testAndSet(groupData_.useRow, b, [&]() { updateRangeAndObjs(); } );
+}
+
+//---
+
+void
+CQChartsGroupPlot::
+setExactValue(bool b)
+{
+  CQChartsUtil::testAndSet(groupData_.exactValue, b, [&]() { updateRangeAndObjs(); } );
+}
+
+void
+CQChartsGroupPlot::
+setAutoRange(bool b)
+{
+  CQBucketer::Type type = (b ? CQBucketer::Type::REAL_AUTO : CQBucketer::Type::REAL_RANGE);
+
+  if (type != groupData_.bucketer.type()) {
+    groupData_.bucketer.setType(type);
+
+    updateRangeAndObjs();
+  }
+}
+
+void
+CQChartsGroupPlot::
+setStartValue(double r)
+{
+  if (r != groupData_.bucketer.rstart()) {
+    groupData_.bucketer.setRStart(r);
+
+    updateRangeAndObjs();
+  }
+}
+
+void
+CQChartsGroupPlot::
+setDeltaValue(double r)
+{
+  if (r != groupData_.bucketer.rdelta()) {
+    groupData_.bucketer.setRDelta(r);
+
+    updateRangeAndObjs();
+  }
+}
+
+void
+CQChartsGroupPlot::
+setNumAuto(int i)
+{
+  if (i != groupData_.bucketer.numAuto()) {
+    groupData_.bucketer.setNumAuto(i);
+
+    updateRangeAndObjs();
+  }
+}
+
+//---
 
 void
 CQChartsGroupPlot::
 addProperties()
 {
+  auto addProp = [&](const QString &path, const QString &name, const QString &alias,
+                     const QString &desc) {
+    return &(this->addProperty(path, this, name, alias)->setDesc(desc));
+  };
+
+  //---
+
   CQChartsGroupPlotType *type = dynamic_cast<CQChartsGroupPlotType *>(this->type());
   assert(type);
 
-  addProperty("dataGrouping", this, "groupColumn", "group")->setDesc("Group column");
+  addProp("dataGrouping", "groupColumn", "group", "Group column");
 
   if (type->allowRowGrouping())
-    addProperty("dataGrouping", this, "rowGrouping", "rowGroups")->
-      setDesc("Group by rows instead of column headers");
+    addProp("dataGrouping", "rowGrouping", "rowGroups", "Group by rows instead of column headers");
 
   if (type->allowUsePath())
-    addProperty("dataGrouping", this, "usePath", "path")->setDesc("Use path for group");
+    addProp("dataGrouping", "usePath", "path", "Use path for group");
 
   if (type->allowUseRow())
-    addProperty("dataGrouping", this, "useRow", "row")->setDesc("Use row number for grouping");
+    addProp("dataGrouping", "useRow", "row", "Use row number for grouping");
 
-  addProperty("dataGrouping/bucket", this, "exactValue", "exact"  )->setDesc("Use exact value");
-  addProperty("dataGrouping/bucket", this, "autoRange" , "auto"   )->setDesc("Bucket auto range");
-  addProperty("dataGrouping/bucket", this, "startValue", "start"  )->setDesc("Bucket start value");
-  addProperty("dataGrouping/bucket", this, "deltaValue", "delta"  )->setDesc("Bucket delta value");
-  addProperty("dataGrouping/bucket", this, "numAuto"   , "numAuto")->setDesc("Num Auto");
+  addProp("dataGrouping/bucket", "exactValue", "exact"  , "Use exact value");
+  addProp("dataGrouping/bucket", "autoRange" , "auto"   , "Bucket auto range");
+  addProp("dataGrouping/bucket", "startValue", "start"  , "Bucket start value");
+  addProp("dataGrouping/bucket", "deltaValue", "delta"  , "Bucket delta value");
+  addProp("dataGrouping/bucket", "numAuto"   , "numAuto", "Number of automatic buckets");
 }
 
 void

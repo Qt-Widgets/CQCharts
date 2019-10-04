@@ -6,8 +6,14 @@
 
 class QStyleOptionComboBox;
 
+/*!
+ * \brief rectangle sides edit
+ * \ingroup Charts
+ */
 class CQChartsSidesEdit : public QFrame {
   Q_OBJECT
+
+  Q_PROPERTY(CQChartsSides sides READ sides WRITE setSides)
 
  public:
   CQChartsSidesEdit(QWidget *parent=nullptr);
@@ -34,6 +40,10 @@ class CQChartsSidesEdit : public QFrame {
 
 //------
 
+/*!
+ * \brief rectangle sides menu widget
+ * \ingroup Charts
+ */
 class CQChartsSidesEditMenuWidget : public QFrame {
   Q_OBJECT
 
@@ -73,7 +83,10 @@ class CQChartsSidesEditMenuWidget : public QFrame {
 
 #include <CQPropertyViewType.h>
 
-// type for CQChartsLength
+/*!
+ * \brief type for CQChartsSides
+ * \ingroup Charts
+ */
 class CQChartsSidesPropertyViewType : public CQPropertyViewType {
  public:
   CQChartsSidesPropertyViewType();
@@ -82,18 +95,23 @@ class CQChartsSidesPropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &index,
             const QVariant &value, bool inside) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "sides"; }
 };
 
 //---
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsLength
+/*!
+ * \brief editor factory for CQChartsSides
+ * \ingroup Charts
+ */
 class CQChartsSidesPropertyViewEditor : public CQPropertyViewEditorFactory {
  public:
   CQChartsSidesPropertyViewEditor();

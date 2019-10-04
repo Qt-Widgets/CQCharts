@@ -7,8 +7,14 @@
 class CQChartsUnitsEdit;
 class CQRectEdit;
 
+/*!
+ * \brief rectangle edit
+ * \ingroup Charts
+ */
 class CQChartsRectEdit : public QFrame {
   Q_OBJECT
+
+  Q_PROPERTY(CQChartsRect rect READ rect WRITE setRect)
 
  public:
   CQChartsRectEdit(QWidget *parent=nullptr);
@@ -30,16 +36,20 @@ class CQChartsRectEdit : public QFrame {
   void connectSlots(bool b);
 
  private:
-  CQChartsRect       rect_;
-  CQRectEdit*        edit_       { nullptr };
-  CQChartsUnitsEdit* unitsEdit_ { nullptr };
+  CQChartsRect       rect_;                  //!< rect data
+  CQRectEdit*        edit_      { nullptr }; //!< rect edit
+  CQChartsUnitsEdit* unitsEdit_ { nullptr }; //!< units edit
+  bool               connected_ { false };   //!< is connected
 };
 
 //------
 
 #include <CQPropertyViewType.h>
 
-// type for CQChartsRect
+/*!
+ * \brief type for CQChartsRect
+ * \ingroup Charts
+ */
 class CQChartsRectPropertyViewType : public CQPropertyViewType {
  public:
   CQChartsRectPropertyViewType();
@@ -48,18 +58,23 @@ class CQChartsRectPropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &index,
             const QVariant &value, bool inside) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "rectangle"; }
 };
 
 //---
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsRect
+/*!
+ * \brief editor factory for CQChartsRect
+ * \ingroup Charts
+ */
 class CQChartsRectPropertyViewEditor : public CQPropertyViewEditorFactory {
  public:
   CQChartsRectPropertyViewEditor();

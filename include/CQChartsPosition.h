@@ -6,6 +6,10 @@
 #include <QPointF>
 #include <iostream>
 
+/*!
+ * \brief Position class
+ * ingroup Charts
+ */
 class CQChartsPosition {
  public:
   static void registerMetaType();

@@ -1,4 +1,5 @@
 #include <CQChartsKeyLocation.h>
+#include <CQPropertyView.h>
 
 CQUTIL_DEF_META_TYPE(CQChartsKeyLocation, toString, fromString)
 
@@ -9,6 +10,8 @@ CQChartsKeyLocation::
 registerMetaType()
 {
   metaTypeId = CQUTIL_REGISTER_META(CQChartsKeyLocation);
+
+  CQPropertyViewMgrInst->setUserName("CQChartsKeyLocation", "key_location");
 }
 
 QString
@@ -16,6 +19,7 @@ CQChartsKeyLocation::
 toString() const
 {
   switch (type_) {
+    case Type::AUTO:          return "AUTO";
     case Type::TOP_LEFT:      return "TOP_LEFT";
     case Type::TOP_CENTER:    return "TOP_CENTER";
     case Type::TOP_RIGHT:     return "TOP_RIGHT";
@@ -37,7 +41,8 @@ decodeString(const QString &str, Type &type)
 {
   QString lstr = str.toLower();
 
-  if      (lstr == "top_left"     ) type = Type::TOP_LEFT;
+  if      (lstr == "auto"         ) type = Type::AUTO;
+  else if (lstr == "top_left"     ) type = Type::TOP_LEFT;
   else if (lstr == "top_center"   ) type = Type::TOP_CENTER;
   else if (lstr == "top_right"    ) type = Type::TOP_RIGHT;
   else if (lstr == "center_left"  ) type = Type::CENTER_LEFT;
@@ -58,7 +63,7 @@ CQChartsKeyLocation::
 enumNames() const
 {
   static QStringList names = QStringList() <<
-    "TOP_LEFT" << "TOP_CENTER" << "TOP_RIGHT" <<
+    "AUTO" << "TOP_LEFT" << "TOP_CENTER" << "TOP_RIGHT" <<
     "CENTER_LEFT" << "CENTER_CENTER" << "CENTER_RIGHT" <<
     "BOTTOM_LEFT" << "BOTTOM_CENTER" << "BOTTOM_RIGHT" <<
     "ABS_POSITION" << "ABS_RECT";

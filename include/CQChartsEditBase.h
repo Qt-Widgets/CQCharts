@@ -9,6 +9,10 @@ class CQChartsColor;
 
 class QGridLayout;
 
+/*!
+ * \brief base class for editor
+ * \ingroup Charts
+ */
 class CQChartsEditBase : public QFrame {
   Q_OBJECT
 
@@ -34,6 +38,10 @@ class CQChartsEditBase : public QFrame {
 
 //------
 
+/*!
+ * \brief base class for edit preview
+ * \ingroup Charts
+ */
 class CQChartsEditPreview : public QFrame {
   Q_OBJECT
 

@@ -6,6 +6,10 @@
 
 //----
 
+/*!
+ * \brief Hierarchical base plot
+ * \ingroup Charts
+ */
 class CQChartsHierPlot : public CQChartsPlot {
   Q_OBJECT
 
@@ -36,9 +40,9 @@ class CQChartsHierPlot : public CQChartsPlot {
   void addProperties() override;
 
  protected:
-  CQChartsColumns nameColumns_;         //! multiple name columns
-  CQChartsColumn  valueColumn_;         //! value column
-  QString         separator_   { "/" }; //! hierarchical name separator
+  CQChartsColumns nameColumns_;         //!< multiple name columns
+  CQChartsColumn  valueColumn_;         //!< value column
+  QString         separator_   { "/" }; //!< hierarchical name separator
 };
 
 #endif

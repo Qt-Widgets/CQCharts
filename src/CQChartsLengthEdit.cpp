@@ -3,8 +3,10 @@
 
 #include <CQPropertyView.h>
 #include <CQRealSpin.h>
+#include <CQUtil.h>
 
 #include <QHBoxLayout>
+#include <cassert>
 
 CQChartsLengthEdit::
 CQChartsLengthEdit(QWidget *parent) :
@@ -12,18 +14,13 @@ CQChartsLengthEdit(QWidget *parent) :
 {
   setObjectName("lengthEdit");
 
-  QHBoxLayout *layout = new QHBoxLayout(this);
-  layout->setMargin(0); layout->setSpacing(2);
+  QHBoxLayout *layout = CQUtil::makeLayout<QHBoxLayout>(this, 0, 2);
 
   //---
 
-  edit_ = new CQRealSpin;
-
-  edit_->setObjectName("real");
+  edit_ = CQUtil::makeWidget<CQRealSpin>("real");
 
   layout->addWidget(edit_);
-
-  connect(edit_, SIGNAL(valueChanged(double)), this, SLOT(editChanged()));
 
   //---
 
@@ -31,7 +28,9 @@ CQChartsLengthEdit(QWidget *parent) :
 
   layout->addWidget(unitsEdit_);
 
-  connect(unitsEdit_, SIGNAL(unitsChanged()), this, SLOT(unitsChanged()));
+  //---
+
+  connectSlots(true);
 }
 
 const CQChartsLength &
@@ -119,14 +118,21 @@ void
 CQChartsLengthEdit::
 connectSlots(bool b)
 {
-  if (b) {
-    connect(edit_, SIGNAL(valueChanged(double)), this, SLOT(editChanged()));
-    connect(unitsEdit_, SIGNAL(unitsChanged()), this, SLOT(unitsChanged()));
-  }
-  else {
-    disconnect(edit_, SIGNAL(valueChanged(double)), this, SLOT(editChanged()));
-    disconnect(unitsEdit_, SIGNAL(unitsChanged()), this, SLOT(unitsChanged()));
-  }
+  assert(b != connected_);
+
+  connected_ = b;
+
+  //---
+
+  auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
+    if (b)
+      connect(w, from, this, to);
+    else
+      disconnect(w, from, this, to);
+  };
+
+  connectDisconnect(b, edit_, SIGNAL(valueChanged(double)), SLOT(editChanged()));
+  connectDisconnect(b, unitsEdit_, SIGNAL(unitsChanged()), SLOT(unitsChanged()));
 }
 
 //------
@@ -155,7 +161,7 @@ setEditorData(CQPropertyViewItem *item, const QVariant &value)
 
 void
 CQChartsLengthPropertyViewType::
-draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+draw(CQPropertyViewItem *, const CQPropertyViewDelegate *delegate, QPainter *painter,
      const QStyleOptionViewItem &option, const QModelIndex &ind,
      const QVariant &value, bool inside)
 {

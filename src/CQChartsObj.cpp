@@ -3,9 +3,10 @@
 #include <CQChartsUtil.h>
 
 CQChartsObj::
-CQChartsObj(QObject *parent, const CQChartsGeom::BBox &rect) :
- QObject(parent), rect_(rect)
+CQChartsObj(CQCharts *charts, const CQChartsGeom::BBox &rect) :
+ QObject(nullptr), charts_(charts), rect_(rect)
 {
+  assert(charts_);
 }
 
 const QString &
@@ -49,11 +50,4 @@ tipId() const
   }
 
   return *tipId_;
-}
-
-void
-CQChartsObj::
-drawDebugRect(const CQChartsPlot *plot, QPainter *painter)
-{
-  plot->drawWindowColorBox(painter, rect_);
 }

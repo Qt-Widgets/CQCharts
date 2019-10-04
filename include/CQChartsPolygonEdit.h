@@ -6,6 +6,10 @@
 
 class CQChartsPolygonEdit;
 
+/*!
+ * \brief Polygon line edit
+ * \ingroup Charts
+ */
 class CQChartsPolygonLineEdit : public CQChartsLineEditBase {
   Q_OBJECT
 
@@ -17,9 +21,9 @@ class CQChartsPolygonLineEdit : public CQChartsLineEditBase {
   const CQChartsPolygon &polygon() const;
   void setPolygon(const CQChartsPolygon &pos);
 
-  void updateMenu();
+  void updateMenu() override;
 
-  void drawPreview(QPainter *painter, const QRect &rect);
+  void drawPreview(QPainter *painter, const QRect &rect) override;
 
  signals:
   void polygonChanged();
@@ -37,7 +41,7 @@ class CQChartsPolygonLineEdit : public CQChartsLineEditBase {
   void connectSlots(bool b) override;
 
  private:
-  CQChartsPolygonEdit* dataEdit_ { nullptr };
+  CQChartsPolygonEdit* dataEdit_ { nullptr }; //!< polygon edit
 };
 
 //---
@@ -48,6 +52,10 @@ class CQChartsUnitsEdit;
 class CQPoint2DEdit;
 class QScrollArea;
 
+/*!
+ * \brief Polygon edit
+ * \ingroup Charts
+ */
 class CQChartsPolygonEdit : public CQChartsEditBase {
   Q_OBJECT
 
@@ -83,22 +91,28 @@ class CQChartsPolygonEdit : public CQChartsEditBase {
  private:
   void polygonToWidgets();
 
+  void connectSlots(bool b);
+
  private:
   using PointEdits = std::vector<CQPoint2DEdit *>;
 
-  CQChartsPolygon    polygon_;
-  CQChartsUnitsEdit* unitsEdit_    { nullptr };
-  QFrame*            controlFrame_ { nullptr };
-  QScrollArea*       scrollArea_   { nullptr };
-  QFrame*            pointsFrame_  { nullptr };
-  PointEdits         pointEdits_;
+  CQChartsPolygon    polygon_;                  //!< polygon
+  CQChartsUnitsEdit* unitsEdit_    { nullptr }; //!< units edit
+  QFrame*            controlFrame_ { nullptr }; //!< control frame
+  QScrollArea*       scrollArea_   { nullptr }; //!< scroll area
+  QFrame*            pointsFrame_  { nullptr }; //!< points frame
+  PointEdits         pointEdits_;               //!< point edits
+  bool               connected_    { false };   //!< is connected
 };
 
 //------
 
 #include <CQPropertyViewType.h>
 
-// type for CQChartsPolygon
+/*!
+ * \brief type for CQChartsPolygon
+ * \ingroup Charts
+ */
 class CQChartsPolygonPropertyViewType : public CQPropertyViewType {
  public:
   CQChartsPolygonPropertyViewType();
@@ -107,18 +121,23 @@ class CQChartsPolygonPropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &index,
             const QVariant &value, bool inside) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "polygon"; }
 };
 
 //------
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsPolygon
+/*!
+ * \brief editor factory for CQChartsPolygon
+ * \ingroup Charts
+ */
 class CQChartsPolygonPropertyViewEditor : public CQPropertyViewEditorFactory {
  public:
   CQChartsPolygonPropertyViewEditor();

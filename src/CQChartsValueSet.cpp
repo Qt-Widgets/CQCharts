@@ -1,8 +1,8 @@
 #include <CQChartsValueSet.h>
 #include <CQChartsPlot.h>
 #include <CQChartsUtil.h>
-#include <CQChartsTrie.h>
 #include <CQChartsVariant.h>
+#include <CQTrie.h>
 
 CQChartsValueSet::
 CQChartsValueSet(const CQChartsPlot *plot) :
@@ -40,9 +40,9 @@ CQChartsValueSet::
 addProperties(const QString &path)
 {
   if (plot_) {
-    plot_->addProperty(path, this, "mapped", "mapped");
-    plot_->addProperty(path, this, "mapMin", "mapMin");
-    plot_->addProperty(path, this, "mapMax", "mapMax");
+    plot_->addProperty(path, this, "mapped", "mapped")->setDesc("Is mapped");
+    plot_->addProperty(path, this, "mapMin", "mapMin")->setDesc("Map min");
+    plot_->addProperty(path, this, "mapMax", "mapMax")->setDesc("Map max");
   }
 }
 #endif
@@ -83,6 +83,81 @@ hasInd(int i) const
     return (i >= 0 && i < tvals_.size());
   else
     return false;
+}
+
+int
+CQChartsValueSet::
+iset(const QVariant &value) const
+{
+  bool ok;
+
+  if      (type() == Type::INTEGER) {
+    int i = CQChartsVariant::toInt(value, ok);
+
+    if (ok)
+      return ivals_.id(i);
+  }
+  else if (type() == Type::REAL) {
+    double r = CQChartsVariant::toReal(value, ok);
+
+    if (! isAllowNaN() && CMathUtil::isNaN(r))
+      ok = false;
+
+    if (ok)
+      return rvals_.id(r);
+  }
+  else if (type() == Type::STRING) {
+    QString s;
+
+    CQChartsVariant::toString(value, s);
+
+    return svals_.id(s);
+  }
+  else if (type() == Type::COLOR) {
+    CQChartsColor c = CQChartsVariant::toColor(value, ok);
+
+    if (ok)
+      return cvals_.id(c);
+  }
+  else if (type() == Type::TIME) {
+    double t = CQChartsVariant::toReal(value, ok);
+
+    if (ok)
+      return rvals_.id(t);
+  }
+
+  return 0;
+}
+
+int
+CQChartsValueSet::
+numUnique() const
+{
+  if      (type() == Type::INTEGER)
+    return ivals_.numUnique();
+  else if (type() == Type::REAL)
+    return rvals_.numUnique();
+  else if (type() == Type::STRING)
+    return svals_.numUnique();
+  else if (type() == Type::COLOR)
+    return cvals_.numUnique();
+  else if (type() == Type::TIME)
+    return rvals_.numUnique();
+
+  return 0;
+}
+
+double
+CQChartsValueSet::
+imap(const QVariant &value) const
+{
+  int i = iset(value);
+  int n = numUnique();
+
+  if (n == 0)
+    return 0.0;
+
+  return (1.0*i)/n;
 }
 
 double
@@ -621,12 +696,7 @@ calc()
   //---
 
   // init statistics
-  sum_         = 0.0;
-  mean_        = 0.0;
-  stddev_      = 0.0;
-  median_      = 0.0;
-  lowerMedian_ = 0.0;
-  upperMedian_ = 0.0;
+  statData_.reset();
 
   outliers_.clear();
 
@@ -646,103 +716,40 @@ calc()
 
     double r = *v;
 
-    sum_ += r;
-
     svalues_.push_back(r);
   }
 
   if (svalues_.empty())
     return;
 
-  int n = svalues_.size();
-
-  mean_ = sum_/n;
-
-  //---
-
-  double sum2 = 0.0;
-
-  for (auto &v : values_) {
-    if (! v) continue;
-
-    double r = *v;
-
-    double dr = (r - mean_);
-
-    sum2 += dr*dr;
-  }
-
-  stddev_ = (n > 1 ? sqrt(sum2)/(n - 1) : 0.0);
-
   //---
 
   // sort values
   std::sort(svalues_.begin(), svalues_.end());
 
-  int nv = svalues_.size();
-
   //---
 
-  // calc median
-  int nv1, nv2;
-
-  medianInd(0, nv - 1, nv1, nv2);
-
-  median_ = (svalues_[nv1] + svalues_[nv2])/2.0;
-
-  // calc lower median
-  if (nv1 > 0) {
-    int nl1, nl2;
-
-    medianInd(0, nv1 - 1, nl1, nl2);
-
-    lowerMedian_ = (svalues_[nl1] + svalues_[nl2])/2.0;
-  }
-  else
-    lowerMedian_ = svalues_[0];
-
-  // calc upper median
-  if (nv2 < nv - 1) {
-    int nu1, nu2;
-
-    medianInd(nv2 + 1, nv - 1, nu1, nu2);
-
-    upperMedian_ = (svalues_[nu1] + svalues_[nu2])/2.0;
-  }
-  else
-    upperMedian_ = svalues_[nv - 1];
+  statData_.calcStatValues(svalues_);
 
   //---
-
-  // calc outliers outside range()*(upper - lower)
-  double routlier = upperMedian_ - lowerMedian_;
-  double loutlier = lowerMedian_ - outlierRange_*routlier;
-  double uoutlier = upperMedian_ + outlierRange_*routlier;
 
   int i = 0;
 
   for (auto v : svalues_) {
-    if (v < loutlier || v > uoutlier)
+    if (statData_.isOutlier(v))
       outliers_.push_back(i);
 
     ++i;
   }
 }
 
-void
+bool
 CQChartsRValues::
-medianInd(int i1, int i2, int &n1, int &n2)
+isOutlier(double v) const
 {
-  int n = i2 - i1 + 1;
+  initCalc();
 
-  if (n & 1) {
-    n1 = i1 + n/2;
-    n2 = n1;
-  }
-  else {
-    n2 = i1 + n/2;
-    n1 = n2 - 1;
-  }
+  return statData_.isOutlier(v);
 }
 
 //------
@@ -794,11 +801,7 @@ calc()
   //---
 
   // init statistics
-  sum_         = 0.0;
-  mean_        = 0.0;
-  median_      = 0.0;
-  lowerMedian_ = 0.0;
-  upperMedian_ = 0.0;
+  statData_.reset();
 
   outliers_.clear();
 
@@ -818,103 +821,38 @@ calc()
 
     int i = *v;
 
-    sum_ += i;
-
     svalues_.push_back(i);
   }
 
   if (svalues_.empty())
     return;
 
-  int n = svalues_.size();
-
-  mean_ = sum_/n;
-
-  //---
-
-  double sum2 = 0.0;
-
-  for (auto &v : values_) {
-    if (! v) continue;
-
-    double r = *v;
-
-    double dr = (r - mean_);
-
-    sum2 += dr*dr;
-  }
-
-  stddev_ = (n > 1 ? sqrt(sum2)/(n - 1) : 0.0);
-
   //---
 
   // sort values
   std::sort(svalues_.begin(), svalues_.end());
 
-  int nv = svalues_.size();
-
   //---
 
-  // calc median
-  int nv1, nv2;
-
-  medianInd(0, nv - 1, nv1, nv2);
-
-  median_ = (svalues_[nv1] + svalues_[nv2])/2.0;
-
-  // calc lower median
-  if (nv1 > 0) {
-    int nl1, nl2;
-
-    medianInd(0, nv1 - 1, nl1, nl2);
-
-    lowerMedian_ = (svalues_[nl1] + svalues_[nl2])/2.0;
-  }
-  else
-    lowerMedian_ = svalues_[0];
-
-  // calc upper median
-  if (nv2 < nv - 1) {
-    int nu1, nu2;
-
-    medianInd(nv2 + 1, nv - 1, nu1, nu2);
-
-    upperMedian_ = (svalues_[nu1] + svalues_[nu2])/2.0;
-  }
-  else
-    upperMedian_ = svalues_[nv - 1];
-
-  //---
-
-  // calc outliers outside range()*(upper - lower)
-  double routlier = upperMedian_ - lowerMedian_;
-  double loutlier = lowerMedian_ - outlierRange_*routlier;
-  double uoutlier = upperMedian_ + outlierRange_*routlier;
+  statData_.calcStatValues(svalues_);
 
   int i = 0;
 
   for (auto v : svalues_) {
-    if (v < loutlier || v > uoutlier)
+    if (statData_.isOutlier(v))
       outliers_.push_back(i);
 
     ++i;
   }
 }
 
-void
+bool
 CQChartsIValues::
-medianInd(int i1, int i2, int &n1, int &n2)
+isOutlier(int v) const
 {
-  int n = i2 - i1 + 1;
+  initCalc();
 
-  if (n & 1) {
-    n1 = i1 + n/2;
-    n2 = n1;
-  }
-  else {
-    n2 = i1 + n/2;
-    n1 = n2 - 1;
-  }
+  return statData_.isOutlier(v);
 }
 
 //------
@@ -922,8 +860,8 @@ medianInd(int i1, int i2, int &n1, int &n2)
 CQChartsSValues::
 CQChartsSValues()
 {
-  trie_      = new CQChartsTrie;
-  spatterns_ = new CQChartsTriePatterns;
+  trie_      = new CQTrie;
+  spatterns_ = new CQTriePatterns;
 }
 
 CQChartsSValues::
@@ -1016,12 +954,12 @@ initPatterns(int numIdeal) const
   if (! spatternsSet_) {
     CQChartsSValues *th = const_cast<CQChartsSValues *>(this);
 
-    using DepthCountMap = std::map<int,CQChartsTriePatterns>;
+    using DepthCountMap = std::map<int,CQTriePatterns>;
 
     DepthCountMap depthCountMap;
 
     for (int depth = 1; depth <= 3; ++depth) {
-      CQChartsTriePatterns patterns;
+      CQTriePatterns patterns;
 
       trie_->patterns(depth, patterns);
 

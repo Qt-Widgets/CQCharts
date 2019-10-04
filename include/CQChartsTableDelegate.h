@@ -6,31 +6,44 @@
 #include <QItemDelegate>
 #include <future>
 
+class CQCharts;
 class CQChartsTable;
+class CQChartsTree;
+class CQChartsModelView;
 class CQChartsColor;
 class CQChartsSymbol;
+class CQChartsModelDetails;
+class CQChartsModelColumnDetails;
 class QPainter;
 
+/*!
+ * \brief Custom delegate for table view
+ * \ingroup Charts
+ */
 class CQChartsTableDelegate : public QItemDelegate {
  public:
   struct ColumnData {
-    CQBaseModelType    type;
-    CQBaseModelType    baseType;
-    CQChartsNameValues nameValues;
+    CQChartsModelColumnDetails* details { nullptr };
   };
+
+  using ModelP = QSharedPointer<QAbstractItemModel>;
 
  public:
   CQChartsTableDelegate(CQChartsTable *table);
+  CQChartsTableDelegate(CQChartsTree *tree);
+  CQChartsTableDelegate(CQChartsModelView *tree);
 
   void paint(QPainter *painter, const QStyleOptionViewItem &option,
-             const QModelIndex &index) const;
+             const QModelIndex &index) const override;
 
   QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &item,
-                        const QModelIndex &index) const;
+                        const QModelIndex &index) const override;
 
   void click(const QModelIndex &index) const;
 
   void getColumnData(const QModelIndex &index, ColumnData &data) const;
+
+  void resetColumnData();
 
   void drawCheckInside(QPainter *painter, const QStyleOptionViewItem &option,
                        bool checked, const QModelIndex &index) const;
@@ -50,9 +63,21 @@ class CQChartsTableDelegate : public QItemDelegate {
   void updateBoolean();
 
  private:
+  bool drawType(QPainter *painter, const QStyleOptionViewItem &option,
+                const QModelIndex &index) const;
+
+  CQCharts *charts() const;
+
+  ModelP modelP() const;
+
+  CQChartsModelDetails *getDetails() const;
+
+ private:
   using ColumnDataMap = std::map<int,ColumnData>;
 
   CQChartsTable*      table_ { nullptr };
+  CQChartsTree*       tree_  { nullptr };
+  CQChartsModelView*  view_  { nullptr };
   ColumnDataMap       columnDataMap_;
   mutable QModelIndex currentIndex_;
   mutable std::mutex  mutex_;

@@ -7,6 +7,10 @@
 
 //---
 
+/*!
+ * \brief Radar plot type
+ * \ingroup Charts
+ */
 class CQChartsRadarPlotType : public CQChartsPlotType {
  public:
   CQChartsRadarPlotType();
@@ -19,6 +23,11 @@ class CQChartsRadarPlotType : public CQChartsPlotType {
   void addParameters() override;
 
   bool hasAxes() const override { return false; }
+
+  bool allowXLog() const override { return false; }
+  bool allowYLog() const override { return false; }
+
+  bool canProbe() const override { return false; }
 
   QString description() const override;
 
@@ -34,8 +43,14 @@ class CQChartsRadarPlotType : public CQChartsPlotType {
 
 class CQChartsRadarPlot;
 
+/*!
+ * \brief Radar Plot object
+ * \ingroup Charts
+ */
 class CQChartsRadarObj : public CQChartsPlotObj {
   Q_OBJECT
+
+  Q_PROPERTY(QString name READ name)
 
  public:
   using NameValues = std::map<QString,double>;
@@ -43,11 +58,24 @@ class CQChartsRadarObj : public CQChartsPlotObj {
  public:
   CQChartsRadarObj(const CQChartsRadarPlot *plot, const CQChartsGeom::BBox &rect,
                    const QString &name, const QPolygonF &poly, const NameValues &nameValues,
-                   const QModelIndex &ind, int i, int n);
+                   const QModelIndex &ind, const ColorInd &iv);
+
+  QString typeName() const override { return "poly"; }
+
+  const QString &name() const { return name_; }
 
   QString calcId() const override;
 
   QString calcTipId() const override;
+
+  //---
+
+  bool isPolygon() const override { return true; }
+  QPolygonF polygon() const override { return poly_; }
+
+  //---
+
+  void addProperties(CQPropertyViewModel *model, const QString &path) override;
 
   bool inside(const CQChartsGeom::Point &p) const override;
 
@@ -55,22 +83,21 @@ class CQChartsRadarObj : public CQChartsPlotObj {
 
   void getSelectIndices(Indices &inds) const override;
 
-  void addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const override;
-
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
  private:
-  const CQChartsRadarPlot* plot_       { nullptr }; //! parent plot
-  QString                  name_;                   //! row name
-  QPolygonF                poly_;                   //! polygon
-  NameValues               nameValues_;             //! column values
-  QModelIndex              ind_;                    //! data index
-  int                      i_          { 0 };       //! value ind
-  int                      n_          { 1 };       //! value count
+  const CQChartsRadarPlot* plot_       { nullptr }; //!< parent plot
+  QString                  name_;                   //!< row name
+  QPolygonF                poly_;                   //!< polygon
+  NameValues               nameValues_;             //!< column values
 };
 
 //---
 
+/*!
+ * \brief Radar Plot
+ * \ingroup Charts
+ */
 class CQChartsRadarPlot : public CQChartsPlot,
  public CQChartsObjShapeData   <CQChartsRadarPlot>,
  public CQChartsObjTextData    <CQChartsRadarPlot>,
@@ -137,7 +164,7 @@ class CQChartsRadarPlot : public CQChartsPlot,
 
   bool hasBackground() const override;
 
-  void drawBackground(QPainter *) const override;
+  void execDrawBackground(CQChartsPaintDevice *device) const override;
 
  private:
   void addRow(const ModelVisitor::VisitData &data, int nr, PlotObjs &objs) const;
@@ -179,12 +206,12 @@ class CQChartsRadarPlot : public CQChartsPlot,
 
   using ValueDatas = std::map<int,ValueData>;
 
-  CQChartsColumn  nameColumn_;             //! name column
-  CQChartsColumns valueColumns_;           //! value columns
-  double          angleStart_   { 90.0 };  //! angle start
-  double          angleExtent_  { 360.0 }; //! angle extent
-  ValueDatas      valueDatas_;             //! value
-  double          valueRadius_  { 1.0 };   //! max value (radius)
+  CQChartsColumn  nameColumn_;             //!< name column
+  CQChartsColumns valueColumns_;           //!< value columns
+  double          angleStart_   { 90.0 };  //!< angle start
+  double          angleExtent_  { 360.0 }; //!< angle extent
+  ValueDatas      valueDatas_;             //!< value
+  double          valueRadius_  { 1.0 };   //!< max value (radius)
 };
 
 #endif

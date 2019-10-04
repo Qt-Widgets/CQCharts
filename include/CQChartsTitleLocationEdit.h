@@ -4,9 +4,14 @@
 #include <CQChartsTitleLocation.h>
 #include <CQChartsEnumEdit.h>
 
-// editor for CQChartsTitleLocation
+/*!
+ * \brief editor for CQChartsTitleLocation
+ * \ingroup Charts
+ */
 class CQChartsTitleLocationEdit : public CQChartsEnumEdit {
   Q_OBJECT
+
+  Q_PROPERTY(CQChartsTitleLocation titleLocation READ titleLocation WRITE setTitleLocation)
 
  public:
   CQChartsTitleLocationEdit(QWidget *parent=nullptr);
@@ -35,7 +40,10 @@ class CQChartsTitleLocationEdit : public CQChartsEnumEdit {
 
 //------
 
-// type for CQChartsTitleLocation
+/*!
+ * \brief type for CQChartsTitleLocation
+ * \ingroup Charts
+ */
 class CQChartsTitleLocationPropertyViewType : public CQChartsEnumPropertyViewType {
  public:
   CQPropertyViewEditorFactory *getEditor() const override;
@@ -45,7 +53,10 @@ class CQChartsTitleLocationPropertyViewType : public CQChartsEnumPropertyViewTyp
 
 //---
 
-// editor factory for CQChartsTitleLocation
+/*!
+ * \brief editor factory for CQChartsTitleLocation
+ * \ingroup Charts
+ */
 class CQChartsTitleLocationPropertyViewEditorFactory :
   public CQChartsEnumPropertyViewEditorFactory {
  public:

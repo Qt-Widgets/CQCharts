@@ -29,18 +29,19 @@ class QGridLayout;
 
 /*!
  * \brief dialog to create a new annotation
+ * \ingroup Charts
  */
 class CQChartsEditAnnotationDlg : public QDialog {
   Q_OBJECT
 
  public:
-  CQChartsEditAnnotationDlg(CQChartsAnnotation *annotation);
+  CQChartsEditAnnotationDlg(QWidget *parent, CQChartsAnnotation *annotation);
 
  private:
   struct Widgets {
     QFrame*                 frame              { nullptr };
     CQChartsFillDataEdit*   backgroundDataEdit { nullptr };
-    CQChartsStrokeDataEdit* borderDataEdit     { nullptr };
+    CQChartsStrokeDataEdit* strokeDataEdit     { nullptr };
     CQChartsSidesEdit*      borderSidesEdit    { nullptr };
   };
 
@@ -78,8 +79,8 @@ class CQChartsEditAnnotationDlg : public QDialog {
     CQChartsPositionEdit*  startEdit       { nullptr };
     CQChartsPositionEdit*  endEdit         { nullptr };
     CQChartsArrowDataEdit* dataEdit        { nullptr };
-    CQChartsLengthEdit*    borderWidthEdit { nullptr };
-    CQChartsColorLineEdit* borderColorEdit { nullptr };
+    CQChartsLengthEdit*    strokeWidthEdit { nullptr };
+    CQChartsColorLineEdit* strokeColorEdit { nullptr };
     CQCheckBox*            filledCheck     { nullptr };
     CQChartsColorLineEdit* fillColorEdit   { nullptr };
   };
@@ -107,13 +108,13 @@ class CQChartsEditAnnotationDlg : public QDialog {
 
   QHBoxLayout *addLabelWidget(QBoxLayout *playout, const QString &label, QWidget *widget);
 
-  bool updateRectAnnotation    ();
-  bool updateEllipseAnnotation ();
-  bool updatePolygonAnnotation ();
-  bool updatePolylineAnnotation();
-  bool updateTextAnnotation    ();
-  bool updateArrowAnnotation   ();
-  bool updatePointAnnotation   ();
+  bool updateRectangleAnnotation();
+  bool updateEllipseAnnotation  ();
+  bool updatePolygonAnnotation  ();
+  bool updatePolylineAnnotation ();
+  bool updateTextAnnotation     ();
+  bool updateArrowAnnotation    ();
+  bool updatePointAnnotation    ();
 
  private slots:
   void textPositionSlot(bool);
@@ -123,17 +124,17 @@ class CQChartsEditAnnotationDlg : public QDialog {
   void cancelSlot();
 
  private:
-  CQChartsAnnotation* annotation_       { nullptr }; //! annotation
-  CQLineEdit*         idEdit_           { nullptr }; //! id edit
-  CQLineEdit*         tipEdit_          { nullptr }; //! tip edit
-  QVBoxLayout*        frameLayout_      { nullptr }; //! frame layout
-  RectWidgets         rectWidgets_;                  //! rect edit widgets
-  EllipseWidgets      ellipseWidgets_;               //! ellipse edit widgets
-  PolygonWidgets      polygonWidgets_;               //! polygon edit widgets
-  PolylineWidgets     polylineWidgets_;              //! polyline edit widgets
-  TextWidgets         textWidgets_;                  //! text edit widgets
-  ArrowWidgets        arrowWidgets_;                 //! arrow edit widgets
-  PointWidgets        pointWidgets_;                 //! point edit widgets
+  CQChartsAnnotation* annotation_       { nullptr }; //!< annotation
+  CQLineEdit*         idEdit_           { nullptr }; //!< id edit
+  CQLineEdit*         tipEdit_          { nullptr }; //!< tip edit
+  QVBoxLayout*        frameLayout_      { nullptr }; //!< frame layout
+  RectWidgets         rectWidgets_;                  //!< rect edit widgets
+  EllipseWidgets      ellipseWidgets_;               //!< ellipse edit widgets
+  PolygonWidgets      polygonWidgets_;               //!< polygon edit widgets
+  PolylineWidgets     polylineWidgets_;              //!< polyline edit widgets
+  TextWidgets         textWidgets_;                  //!< text edit widgets
+  ArrowWidgets        arrowWidgets_;                 //!< arrow edit widgets
+  PointWidgets        pointWidgets_;                 //!< point edit widgets
 };
 
 #endif

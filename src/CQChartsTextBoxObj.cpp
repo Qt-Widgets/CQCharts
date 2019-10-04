@@ -2,13 +2,12 @@
 #include <CQChartsView.h>
 #include <CQChartsPlot.h>
 #include <CQChartsUtil.h>
+#include <CQChartsVariant.h>
 #include <CQCharts.h>
 #include <CQChartsDrawUtil.h>
 
 #include <CQPropertyViewModel.h>
 #include <CQPropertyViewItem.h>
-
-#include <QPainter>
 
 CQChartsTextBoxObj::
 CQChartsTextBoxObj(CQChartsView *view) :
@@ -19,8 +18,8 @@ CQChartsTextBoxObj(CQChartsView *view) :
 
   setTextColor(themeFg);
 
-  setBorder(false);
-  setFilled(false);
+  setFilled (false);
+  setStroked(false);
 }
 
 CQChartsTextBoxObj::
@@ -32,104 +31,56 @@ CQChartsTextBoxObj(CQChartsPlot *plot) :
 
   setTextColor(themeFg);
 
-  setBorder(false);
-  setFilled(false);
+  setFilled (false);
+  setStroked(false);
 }
 
 void
 CQChartsTextBoxObj::
-addProperties(CQPropertyViewModel *model, const QString &path)
+addProperties(CQPropertyViewModel *model, const QString &path, const QString &desc)
 {
-  CQChartsBoxObj::addProperties(model, path);
+  CQChartsBoxObj::addProperties(model, path, desc);
 
   QString textPath = path + "/text";
 
-  model->addProperty(textPath, this, "textStr", "text");
+  QString desc1 = (desc.length() ? desc + " text" : "Text");
 
-  addTextDataProperties(model, textPath);
+  model->addProperty(textPath, this, "textStr", "string")->setDesc(desc1 + " string");
+
+  addTextDataProperties(model, textPath, desc);
 }
 
 void
 CQChartsTextBoxObj::
-addTextDataProperties(CQPropertyViewModel *model, const QString &path)
+addTextDataProperties(CQPropertyViewModel *model, const QString &path, const QString &desc,
+                      bool addVisible)
 {
-  model->addProperty(path, this, "textColor"   , "color"   )->setDesc("Text color");
-  model->addProperty(path, this, "textAlpha"   , "alpha"   )->setDesc("Text alpha");
-  model->addProperty(path, this, "textFont"    , "font"    )->setDesc("Text font");
-  model->addProperty(path, this, "textAngle"   , "angle"   );
-  model->addProperty(path, this, "textContrast", "contrast");
-  model->addProperty(path, this, "textHtml"    , "html"    );
-  model->addProperty(path, this, "textAlign"   , "align"   );
-}
+  auto addProp = [&](const QString &path, const QString &name, const QString &alias,
+                     const QString &desc) {
+    return &(model->addProperty(path, this, name, alias)->setDesc(desc));
+  };
 
-void
-CQChartsTextBoxObj::
-draw(QPainter *painter, const QRectF &rect) const
-{
-  if (! isTextVisible())
-    return;
-
-  CQChartsBoxObj::draw(painter, rect);
+  auto addStyleProp = [&](const QString &path, const QString &name, const QString &alias,
+                          const QString &desc) {
+    CQPropertyViewItem *item = addProp(path, name, alias, desc);
+    CQCharts::setItemIsStyle(item);
+    return item;
+  };
 
   //---
 
-  drawText(painter, rect, textStr());
-}
+  QString desc1 = (desc.length() ? desc + " text" : "Text");
 
-void
-CQChartsTextBoxObj::
-draw(QPainter *painter, const QPolygonF &poly) const
-{
-  CQChartsBoxObj::draw(painter, poly);
+  if (addVisible)
+    addProp(path, "textVisible", "visible", desc1 + " visible");
 
-  //---
-
-  QRectF rect = poly.boundingRect();
-
-  drawText(painter, rect, textStr());
-}
-
-void
-CQChartsTextBoxObj::
-drawText(QPainter *painter, const QRectF &rect, const QString &text) const
-{
-  if      (plot())
-    view()->setPlotPainterFont(plot(), painter, textFont());
-  else if (view())
-    view()->setPainterFont(painter, textFont());
-
-  QFontMetricsF fm(painter->font());
-
-  QColor c = interpTextColor(0, 1);
-
-  QPen pen;
-
-  if      (plot())
-    plot()->setPen(pen, true, c, textAlpha());
-  else if (view())
-    view()->setPen(pen, true, c, textAlpha());
-
-  painter->setPen(pen);
-
-  //---
-
-  // set text options
-  CQChartsTextOptions textOptions;
-
-  textOptions.contrast  = isTextContrast();
-  textOptions.formatted = isTextFormatted();
-  textOptions.scaled    = isTextScaled();
-  textOptions.html      = isTextHtml();
-  textOptions.align     = textAlign();
-
-  if (plot())
-    textOptions = plot()->adjustTextOptions(textOptions);
-
-  //---
-
-  QPointF tp(rect.left() + margin(), rect.bottom() - margin() - fm.descent());
-
-  CQChartsDrawUtil::drawTextAtPoint(painter, tp, text, textOptions);
+  addStyleProp(path, "textColor"   , "color"   , desc1 + " color");
+  addStyleProp(path, "textAlpha"   , "alpha"   , desc1 + " alpha");
+  addStyleProp(path, "textFont"    , "font"    , desc1 + " font");
+  addStyleProp(path, "textAngle"   , "angle"   , desc1 + " angle");
+  addStyleProp(path, "textContrast", "contrast", desc1 + " contrast");
+  addStyleProp(path, "textHtml"    , "html"    , desc1 + " is HTML");
+  addStyleProp(path, "textAlign"   , "align"   , desc1 + " alignment");
 }
 
 void
@@ -137,4 +88,35 @@ CQChartsTextBoxObj::
 textBoxDataInvalidate()
 {
   boxDataInvalidate();
+}
+
+//---
+
+void
+CQChartsTextBoxObj::
+write(std::ostream &os, const QString &varName) const
+{
+  assert(plot());
+
+  auto plotName = [&]() {
+    return (varName != "" ? varName : "plot");
+  };
+
+  CQPropertyViewModel::NameValues nameValues;
+
+  plot()->propertyModel()->getChangedNameValues(this, nameValues, /*tcl*/true);
+
+  if (! nameValues.empty())
+    os << "\n";
+
+  for (const auto &nv : nameValues) {
+    QString str;
+
+    if (! CQChartsVariant::toString(nv.second, str))
+      str = "";
+
+    os << "set_charts_property -plot $" << plotName().toStdString();
+
+    os << " -name " << nv.first.toStdString() << " -value {" << str.toStdString() << "}\n";
+  }
 }

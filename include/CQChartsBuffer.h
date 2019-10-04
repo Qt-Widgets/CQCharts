@@ -7,6 +7,10 @@
 class QImage;
 class QPainter;
 
+/*!
+ * \brief Draw image/pixmap buffer
+ * \ingroup Charts
+ */
 class CQChartsBuffer : public QObject {
   Q_OBJECT
 
@@ -28,7 +32,7 @@ class CQChartsBuffer : public QObject {
   static Type nameType(const QString &name);
 
  public:
-  CQChartsBuffer(const Type &type);
+  CQChartsBuffer(const Type &type=CQChartsBuffer::Type::NONE);
  ~CQChartsBuffer();
 
   const Type &type() const { return type_; }

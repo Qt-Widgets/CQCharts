@@ -13,7 +13,7 @@ proc annotationSlot { view plot id } {
 proc addAnnotations { view plot } {
   echo "addAnnotations: $view $plot"
 
-  remove_annotation -plot $plot -all
+  remove_charts_annotation -plot $plot -all
 
   set horizontal [get_charts_property -plot $plot -name options.horizontal]
 
@@ -38,7 +38,7 @@ proc addAnnotations { view plot } {
   }
 
   set polyId [create_charts_polyline_annotation -plot $plot -id mean_line -points $points \
-   -background 1 -background_color red -background_alpha 0.5]
+   -filled 1 -fill_color red -fill_alpha 0.5]
 }
 
 set model [load_charts_model -csv data/ToothGrowth.csv -first_line_header]
@@ -46,7 +46,7 @@ set model [load_charts_model -csv data/ToothGrowth.csv -first_line_header]
 set view [create_charts_view]
 qt_sync
 
-set plot1 [create_charts_plot -view $view -model $model -type boxplot -columns "group=dose,value=len"]
+set plot1 [create_charts_plot -view $view -model $model -type boxplot -columns {{group dose} {value len}}]
 qt_sync
 
 connect_charts_signal -plot $plot1 -from plotObjsAdded -to addAnnotations

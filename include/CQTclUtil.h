@@ -9,14 +9,20 @@
 #include <QPointF>
 #include <QRectF>
 #include <QPolygonF>
+#include <set>
+//#include <mutex>
 
 namespace CQTclUtil {
 
 using Vars = std::vector<QVariant>;
 
+//---
+
 inline int eval(Tcl_Interp *interp, const QString &str) {
   return Tcl_EvalEx(interp, str.toLatin1().constData(), -1, 0);
 }
+
+//---
 
 inline QString modelIndexToString(const QModelIndex &ind) {
   int row = ind.row   ();
@@ -24,6 +30,8 @@ inline QString modelIndexToString(const QModelIndex &ind) {
 
   return QString("%1:%2").arg(row).arg(col);
 }
+
+//---
 
 inline bool stringToModelIndex(const QString &str, int &row, int &col) {
   int pos = str.indexOf(':');
@@ -41,6 +49,8 @@ inline bool stringToModelIndex(const QString &str, int &row, int &col) {
 
   return (ok1 && ok2);
 }
+
+//---
 
 inline Tcl_Obj *variantToObj(Tcl_Interp *interp, const QVariant &var) {
   if      (var.type() == QVariant::Double) {
@@ -154,6 +164,8 @@ inline Tcl_Obj *variantToObj(Tcl_Interp *interp, const QVariant &var) {
   }
 }
 
+//---
+
 inline QVariant variantFromObj(Tcl_Interp *interp, const Tcl_Obj *obj) {
   static const Tcl_ObjType *itype;
   static const Tcl_ObjType *rtype;
@@ -228,6 +240,8 @@ inline QVariant variantFromObj(Tcl_Interp *interp, const Tcl_Obj *obj) {
   return var;
 }
 
+//---
+
 inline void createVar(Tcl_Interp *interp, const QString &name, const QVariant &var) {
   if (var.isValid()) {
     Tcl_Obj *nameObj  = variantToObj(interp, name);
@@ -238,6 +252,8 @@ inline void createVar(Tcl_Interp *interp, const QString &name, const QVariant &v
     Tcl_IncrRefCount(nameObj); Tcl_DecrRefCount(nameObj);
   }
 }
+
+//---
 
 inline QVariant getVar(Tcl_Interp *interp, const QString &name) {
   Tcl_Obj *nameObj = variantToObj(interp, name);
@@ -251,6 +267,8 @@ inline QVariant getVar(Tcl_Interp *interp, const QString &name) {
 
   return variantFromObj(interp, obj);
 }
+
+//---
 
 inline Vars getListVar(Tcl_Interp *interp, const QString &name) {
   Tcl_Obj *obj = Tcl_ObjGetVar2(interp, variantToObj(interp, name), nullptr, TCL_GLOBAL_ONLY);
@@ -275,10 +293,14 @@ inline Vars getListVar(Tcl_Interp *interp, const QString &name) {
   return vars;
 }
 
+//---
+
 inline void setResult(Tcl_Interp *interp, const QVariant &var) {
   if (var.isValid())
     Tcl_SetObjResult(interp, variantToObj(interp, var));
 }
+
+//---
 
 inline void setResult(Tcl_Interp *interp, const QStringList &strs) {
   Tcl_Obj *obj = variantToObj(interp, strs);
@@ -286,11 +308,15 @@ inline void setResult(Tcl_Interp *interp, const QStringList &strs) {
   Tcl_SetObjResult(interp, obj);
 }
 
+//---
+
 inline void setResult(Tcl_Interp *interp, const QVariantList &vars) {
   Tcl_Obj *obj = variantToObj(interp, vars);
 
   Tcl_SetObjResult(interp, obj);
 }
+
+//---
 
 inline QVariant getResult(Tcl_Interp *interp) {
   Tcl_Obj *res = Tcl_GetObjResult(interp);
@@ -304,6 +330,44 @@ inline QVariant getResult(Tcl_Interp *interp) {
   return var;
 }
 
+//---
+
+inline double toReal(const QVariant &var, bool &ok) {
+  ok = true;
+
+  if (var.type() == QVariant::Double)
+    return var.value<double>();
+
+  QString str = var.toString();
+
+  return str.toDouble(&ok);
+}
+
+//---
+
+inline long toInt(const QVariant &var, bool &ok) {
+  ok = true;
+
+  if (var.type() == QVariant::Int)
+    return var.value<int>();
+
+  if (var.type() == QVariant::Double) {
+    double r = var.value<double>();
+
+//  if (isInteger(r))
+    return int(r);
+  }
+
+  QString str = var.toString();
+
+  if (! ok)
+    return 0;
+
+  int i = var.toInt(&ok);
+
+  return i;
+}
+
 }
 
 //---
@@ -313,11 +377,15 @@ class CQTcl : public CTcl {
   using Vars       = std::vector<QVariant>;
   using ObjCmdProc = Tcl_ObjCmdProc *;
   using ObjCmdData = ClientData;
+  using Traces     = std::set<QString>;
 
  public:
   CQTcl() { }
 
-  virtual ~CQTcl() { }
+  virtual ~CQTcl() {
+    for (const auto &name : traces_)
+      untraceVar(name);
+  }
 
   void createVar(const QString &name, const QVariant &var) {
     CQTclUtil::createVar(interp(), name, var);
@@ -411,15 +479,68 @@ class CQTcl : public CTcl {
     return CQTclUtil::variantFromObj(interp(), obj);
   }
 
+  static bool splitList(const QString &str, QStringList &strs) {
+    int    argc;
+    char **argv;
+
+    std::string cstr = str.toStdString();
+
+    int rc = Tcl_SplitList(0, cstr.c_str(), &argc, (const char ***) &argv);
+
+    if (rc != TCL_OK)
+      return false;
+
+    for (int i = 0; i < argc; ++i)
+      strs << QString(argv[i]);
+
+    Tcl_Free((char *) argv);
+
+    return true;
+  }
+
+  static QString mergeList(const QStringList &strs) {
+    int argc = strs.size();
+
+    std::vector<char *> argv;
+
+    argv.resize(argc);
+
+    for (int i = 0; i < argc; ++i)
+      argv[i] = strdup(strs[i].toLatin1().constData());
+
+    char *res = Tcl_Merge(argc, &argv[0]);
+
+    QString str(res);
+
+    for (int i = 0; i < argc; ++i)
+      free(argv[i]);
+
+    Tcl_Free((char *) res);
+
+    return str;
+  }
+
   void traceVar(const QString &name) {
     int flags = TCL_TRACE_READS | TCL_TRACE_WRITES | TCL_TRACE_UNSETS | TCL_GLOBAL_ONLY;
 
     ClientData data =
       Tcl_VarTraceInfo(interp(), name.toLatin1().constData(), flags, &CQTcl::traceProc, 0);
 
-    if (! data)
+    if (! data) {
       Tcl_TraceVar(interp(), name.toLatin1().constData(), flags,
         &CQTcl::traceProc, (ClientData) this);
+
+      traces_.insert(name);
+    }
+  }
+
+  void untraceVar(const QString &name) {
+    int flags = TCL_TRACE_READS | TCL_TRACE_WRITES | TCL_TRACE_UNSETS | TCL_GLOBAL_ONLY;
+
+    Tcl_UntraceVar(interp(), name.toLatin1().constData(), flags,
+      &CQTcl::traceProc, (ClientData) this);
+
+    traces_.erase(name);
   }
 
   virtual void handleTrace(const char *name, int flags) {
@@ -457,6 +578,12 @@ class CQTcl : public CTcl {
     return CTclUtil::errorInfo(interp(), rc).c_str();
   }
 
+  Tcl_Interp *interp() const {
+    //std::unique_lock<std::mutex> lock(mutex_);
+
+    return CTcl::interp();
+  }
+
  private:
   static char *traceProc(ClientData data, Tcl_Interp *, const char *name1,
                          const char *, int flags) {
@@ -467,6 +594,10 @@ class CQTcl : public CTcl {
 
     return 0;
   }
+
+ private:
+  Traces             traces_;
+//mutable std::mutex mutex_;
 };
 
 #endif

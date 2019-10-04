@@ -8,6 +8,8 @@ CQTsvModel()
 
   // default read only
   setReadOnly(true);
+
+  setDataType(CQBaseModelDataType::TSV);
 }
 
 bool
@@ -233,7 +235,7 @@ encodeVariant(const QVariant &var) const
 
 QString
 CQTsvModel::
-encodeString(const QString &str) const
+encodeString(const QString &str)
 {
   // TOD0: handle tab in string
   return str;

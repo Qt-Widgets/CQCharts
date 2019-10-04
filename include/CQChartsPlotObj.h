@@ -1,55 +1,70 @@
 #ifndef CQChartsPlotObj_H
 #define CQChartsPlotObj_H
 
-#include <CQChartsPlot.h>
 #include <CQChartsObj.h>
 #include <CQChartsGeom.h>
-#include <QPen>
-#include <QBrush>
+#include <set>
 
+class CQChartsPlot;
+class CQChartsPenBrush;
+class CQChartsLength;
+class CQChartsPaintDevice;
+class CQPropertyViewModel;
+
+/*!
+ * \brief Plot Object base class
+ * \ingroup Charts
+ *
+ * Maintains three indices (set, group and value) and x, y values for color interpolation
+ */
 class CQChartsPlotObj : public CQChartsObj {
   Q_OBJECT
 
   Q_PROPERTY(QString typeName READ typeName)
-  Q_PROPERTY(int     colorInd READ colorInd   WRITE setColorInd)
-  Q_PROPERTY(bool    visible  READ isVisible  WRITE setVisible )
-  Q_PROPERTY(QBrush  fill     READ fill       WRITE setFill    )
-  Q_PROPERTY(QPen    stroke   READ stroke     WRITE setStroke  )
+  Q_PROPERTY(bool    visible  READ isVisible WRITE setVisible)
 
  public:
-  using Indices = std::set<QModelIndex>;
+  enum class DetailHint {
+    MAJOR,
+    MINOR
+  };
+
+  using ModelIndices = std::vector<QModelIndex>;
+  using Indices      = std::set<QModelIndex>;
+  using ColorInd     = CQChartsUtil::ColorInd;
 
  public:
-  CQChartsPlotObj(CQChartsPlot *plot, const CQChartsGeom::BBox &rect=CQChartsGeom::BBox());
+  CQChartsPlotObj(CQChartsPlot *plot, const CQChartsGeom::BBox &rect=CQChartsGeom::BBox(),
+                  const ColorInd &is=ColorInd(), const ColorInd &ig=ColorInd(),
+                  const ColorInd &iv=ColorInd());
 
   virtual ~CQChartsPlotObj() { }
 
   //---
 
+  //! get parent plot
   CQChartsPlot *plot() const { return plot_; }
-
-  virtual QString typeName() const { return ""; }
 
   //---
 
-  // get id from idColumn for index (if defined)
+  //! get type name (for id)
+  virtual QString typeName() const = 0;
+
+  //---
+
+  //! get id from idColumn for index (if defined)
   bool calcColumnId(const QModelIndex &ind, QString &str) const;
 
   //---
 
-  virtual int colorInd() const { return colorInd_; }
-  void setColorInd(int i) { colorInd_ = i; }
+  const DetailHint &detailHint() const { return detailHint_; }
+  void setDetailHint(const DetailHint &h) { detailHint_ = h; }
 
   //---
 
+  //! get/set visible
   bool isVisible() const { return visible_; }
   void setVisible(bool b) { visible_ = b; }
-
-  const QBrush &fill() const { return fill_; }
-  void setFill(const QBrush &b) { fill_ = b; }
-
-  const QPen &stroke() const { return stroke_; }
-  void setStroke(const QPen &p) { stroke_ = p; }
 
   //---
 
@@ -57,10 +72,57 @@ class CQChartsPlotObj : public CQChartsObj {
 
   //---
 
+  virtual bool isPolygon() const { return false; }
+  virtual QPolygonF polygon() const { return QPolygonF(); }
+
+  //---
+
+  virtual CQChartsColorType colorType() const { return CQChartsColorType::AUTO; }
+
+  const ColorInd &is() const { return is_; }
+  void setIs(const ColorInd &is) { is_ = is; }
+
+  const ColorInd &ig() const { return ig_; }
+  void setIg(const ColorInd &ig) { ig_ = ig; }
+
+  const ColorInd &iv() const { return iv_; }
+  void setIv(const ColorInd &iv) { iv_ = iv; }
+
+  virtual ColorInd calcColorInd() const;
+
+  virtual double xColorValue(bool relative=true) const;
+  virtual double yColorValue(bool relative=true) const;
+
+  //---
+
+  QModelIndex modelInd() const {
+    return (! modelInds_.empty() ? modelInds_[0] : QModelIndex()); }
+  void setModelInd(const QModelIndex &ind) {
+    modelInds_.clear(); addModelInd(ind); }
+
+  const ModelIndices &modelInds() const { return modelInds_; }
+  void setModelInds(const ModelIndices &inds) { modelInds_ = inds; }
+
+  void addModelInd(const QModelIndex &ind) { modelInds_.push_back(ind); }
+
+  //---
+
   // is point inside (override if not simple rect shape)
   virtual bool inside(const CQChartsGeom::Point &p) const {
     if (! isVisible()) return false;
-    return rect_.inside(p);
+    return rect().inside(p);
+  }
+
+  // is x inside (override if not simple rect shape)
+  virtual bool insideX(double x) const {
+    if (! isVisible()) return false;
+    return rect().insideX(x);
+  }
+
+  // is y inside (override if not simple rect shape)
+  virtual bool insideY(double y) const {
+    if (! isVisible()) return false;
+    return rect().insideY(y);
   }
 
   // is rect inside/touching (override if not simple rect shape)
@@ -68,9 +130,9 @@ class CQChartsPlotObj : public CQChartsObj {
     if (! isVisible()) return false;
 
     if (inside)
-      return r.inside(rect_);
+      return r.inside(rect());
     else
-      return r.overlaps(rect_);
+      return r.overlaps(rect());
   }
 
   //virtual void postResize() { }
@@ -79,6 +141,15 @@ class CQChartsPlotObj : public CQChartsObj {
 
   //---
 
+  //! get property path
+  virtual QString propertyId() const;
+
+  //! add properties
+  virtual void addProperties(CQPropertyViewModel *model, const QString &path);
+
+  //---
+
+  // select
   bool isSelectIndex(const QModelIndex &ind) const;
 
   void addSelectIndices();
@@ -87,7 +158,7 @@ class CQChartsPlotObj : public CQChartsObj {
 
   virtual void getSelectIndices(Indices &inds) const = 0;
 
-  virtual void addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const = 0;
+  virtual void addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const;
 
   void addSelectIndex(Indices &inds, const CQChartsModelIndex &ind) const;
   void addSelectIndex(Indices &inds, int row, const CQChartsColumn &column,
@@ -96,26 +167,43 @@ class CQChartsPlotObj : public CQChartsObj {
 
   //---
 
-  virtual void drawBg(QPainter *) const { }
-  virtual void drawFg(QPainter *) const { }
+  // draw
+  virtual void drawBg(CQChartsPaintDevice *) const;
+  virtual void drawFg(CQChartsPaintDevice *) const;
 
-  virtual void draw(QPainter *) = 0;
+  virtual void draw(CQChartsPaintDevice *);
+
+  void drawRoundedPolygon(CQChartsPaintDevice *device, const CQChartsPenBrush &penBrush,
+                          const CQChartsGeom::BBox &rect, const CQChartsLength &cornerSize) const;
+
+  void drawDebugRect(CQChartsPaintDevice *device);
+
+  //---
+
+  virtual void writeScriptData(std::ostream &os) const;
 
  protected:
-  CQChartsPlot* plot_     { nullptr }; //! parent plot
-  int           colorInd_ { -1 };      //! color index
-  bool          visible_  { true };    //! is visible
-  QBrush        fill_;                 //! fill brush
-  QPen          stroke_;               //! stroke pen
+  CQChartsPlot* plot_       { nullptr };           //!< parent plot
+  DetailHint    detailHint_ { DetailHint::MINOR }; //!< interaction detail hint
+  bool          visible_    { true };              //!< is visible
+  ColorInd      is_;                               //!< set index
+  ColorInd      ig_;                               //!< group index
+  ColorInd      iv_;                               //!< value index
+  ModelIndices  modelInds_;                        //!< associated model indices
 };
 
 //------
 
+/*!
+ * \brief Group Plot object
+ * \ingroup Charts
+ */
 class CQChartsGroupObj : public CQChartsPlotObj {
   Q_OBJECT
 
  public:
-  CQChartsGroupObj(CQChartsPlot *plot, const CQChartsGeom::BBox &bbox=CQChartsGeom::BBox());
+  CQChartsGroupObj(CQChartsPlot *plot, const CQChartsGeom::BBox &bbox=CQChartsGeom::BBox(),
+                   const ColorInd &ig=ColorInd());
 };
 
 #endif

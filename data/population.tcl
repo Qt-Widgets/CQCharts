@@ -23,14 +23,14 @@ proc annotationSlot { viewId id } {
 
 proc plotYear { year } {
   if {$::viewId != ""} {
-    remove_plot -view $::viewId -all
+    remove_charts_plot -view $::viewId -all
   }
 
   set filter "sex:1,year:$year"
   set model1Id [load_charts_model -csv data/population.csv -first_line_header -filter $filter]
 
   #set model1Id [load_charts_model -csv data/population.csv -first_line_header]
-  #filter_model -model $model1Id -expr "\$sex == 1 || \$year == $year"
+  #filter_charts_model -model $model1Id -expr "\$sex == 1 || \$year == $year"
 
   if       {$::place == "sidebyside"} {
     set title "Male $year"
@@ -38,7 +38,7 @@ proc plotYear { year } {
     set title "Male and Female $year"
   }
 
-  set ::plot1Id [create_charts_plot -type barchart -columns "name=1,value=3" -title $title]
+  set ::plot1Id [create_charts_plot -type barchart -columns {{name 1} {value 3}} -title $title]
 
   set_charts_property -plot $::plot1Id -name fill.color -value "#4444aa"
   set_charts_property -plot $::plot1Id -name fill.alpha -value 0.5
@@ -48,7 +48,7 @@ proc plotYear { year } {
   set model2Id [load_charts_model -csv data/population.csv -first_line_header -filter $filter]
 
   #set model2Id [load_charts_model -csv data/population.csv -first_line_header]
-  #filter_model -model $model2Id -expr "\$sex == 2 || \$year == $year"
+  #filter_charts_model -model $model2Id -expr "\$sex == 2 || \$year == $year"
 
   if       {$::place == "sidebyside"} {
     set title "Female $year"
@@ -56,7 +56,7 @@ proc plotYear { year } {
     set title ""
   }
 
-  set ::plot2Id [create_charts_plot -type barchart -columns "name=1,value=3" -title $title]
+  set ::plot2Id [create_charts_plot -type barchart -columns {{name 1} {value 3}} -title $title]
 
   set_charts_property -plot $::plot2Id -name fill.color -value "#aa4444"
   set_charts_property -plot $::plot2Id -name fill.alpha -value 0.5
@@ -98,23 +98,23 @@ puts $tx
 
 set ty 97
 
-set text1Id [create_charts_text_annotation -view $::viewId -id prev -position [list $tx $ty] -text "Prev" -border 1 -background 1]
+set text1Id [create_charts_text_annotation -view $::viewId -id prev -position [list $tx $ty] -text "Prev" -stroked 1 -filled 1]
 
 set tw [measure_charts_text -view $::viewId -name width -text "Prev"]
 set tx [expr {$tx + $tw + $dtx}]
 puts $tx
 
-set text2Id [create_charts_text_annotation -view $::viewId -id next -position [list $tx $ty] -text "Next" -border 1 -background 1]
+set text2Id [create_charts_text_annotation -view $::viewId -id next -position [list $tx $ty] -text "Next" -stroked 1 -filled 1]
 
 set tw [measure_charts_text -view $::viewId -name width -text "Next"]
 set tx [expr {$tx + $tw + 2*$dtx}]
 puts $tx
 
-set text3Id [create_charts_text_annotation -view $::viewId -id overlay -position [list $tx $ty] -text "Overlay" -border 1 -background 1]
+set text3Id [create_charts_text_annotation -view $::viewId -id overlay -position [list $tx $ty] -text "Overlay" -stroked 1 -filled 1]
 
 set tw [measure_charts_text -view $::viewId -name width -text "Overlay"]
 set tx [expr {$tx + $tw + $dtx}]
 puts $tx
 
-set text4Id [create_charts_text_annotation -view $::viewId -id sidebyside -position [list $tx $ty] -text "Side By Side" -border 1 -background 1]
+set text4Id [create_charts_text_annotation -view $::viewId -id sidebyside -position [list $tx $ty] -text "Side By Side" -stroked 1 -filled 1]
 connect_charts_signal -view $::viewId -from annotationIdPressed -to annotationSlot

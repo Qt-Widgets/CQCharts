@@ -4,6 +4,10 @@
 #include <CQChartsTypes.h>
 #include <QComboBox>
 
+/*!
+ * \brief units edit
+ * \ingroup Charts
+ */
 class CQChartsUnitsEdit : public QComboBox {
   Q_OBJECT
 
@@ -22,7 +26,7 @@ class CQChartsUnitsEdit : public QComboBox {
   void indexChanged();
 
  private:
-  CQChartsUnits units_;
+  CQChartsUnits units_ { CQChartsUnits::NONE };
 };
 
 #endif

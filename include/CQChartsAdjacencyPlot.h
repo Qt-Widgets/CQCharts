@@ -10,7 +10,8 @@
 //------
 
 /*!
- * \brief adjacency plot type
+ * \brief Adjacency plot type
+ * \ingroup Charts
  */
 class CQChartsAdjacencyPlotType : public CQChartsPlotType {
  public:
@@ -29,6 +30,11 @@ class CQChartsAdjacencyPlotType : public CQChartsPlotType {
   bool hasAxes() const override { return false; }
   bool hasKey () const override { return false; } // TODO: value range key
 
+  bool allowXLog() const override { return false; }
+  bool allowYLog() const override { return false; }
+
+  bool canProbe() const override { return false; }
+
   QString description() const override;
 
   bool isColumnForParameter(CQChartsModelColumnDetails *columnDetails,
@@ -41,6 +47,7 @@ class CQChartsAdjacencyPlotType : public CQChartsPlotType {
 
 /*!
  * \brief node data
+ * \ingroup Charts
  */
 class CQChartsAdjacencyNode {
  public:
@@ -89,13 +96,13 @@ class CQChartsAdjacencyNode {
   }
 
  private:
-  int         id_       { 0 };   //! id
-  QString     name_;             //! name
-  int         group_    { 0 };   //! group
-  QModelIndex ind_;              //! model index
-  double      count_    { 0.0 }; //! total connections
-  double      maxCount_ { 0.0 }; //! max connections to single node
-  NodeMap     nodes_;            //! connected nodes
+  int         id_       { 0 };   //!< id
+  QString     name_;             //!< name
+  int         group_    { 0 };   //!< group
+  QModelIndex ind_;              //!< model index
+  double      count_    { 0.0 }; //!< total connections
+  double      maxCount_ { 0.0 }; //!< max connections to single node
+  NodeMap     nodes_;            //!< connected nodes
 };
 
 //------
@@ -103,14 +110,20 @@ class CQChartsAdjacencyNode {
 class CQChartsAdjacencyPlot;
 
 /*!
- * \brief grid cell object
+ * \brief Adjacency Grid Cell object
+ * \ingroup Charts
  *
  * node1->node2 with connections count
  */
 class CQChartsAdjacencyObj : public CQChartsPlotObj {
+  Q_OBJECT
+
  public:
   CQChartsAdjacencyObj(const CQChartsAdjacencyPlot *plot, CQChartsAdjacencyNode *node1,
-                       CQChartsAdjacencyNode *node2, double value, const CQChartsGeom::BBox &rect);
+                       CQChartsAdjacencyNode *node2, double value, const CQChartsGeom::BBox &rect,
+                       const ColorInd &ig);
+
+  QString typeName() const override { return "cell"; }
 
   QString calcId() const override;
 
@@ -120,21 +133,25 @@ class CQChartsAdjacencyObj : public CQChartsPlotObj {
 
   void getSelectIndices(Indices &inds) const override;
 
-  void addColumnSelectIndex(Indices &, const CQChartsColumn &) const override { }
+  void draw(CQChartsPaintDevice *device) override;
 
-  void draw(QPainter *painter) override;
+  double xColorValue(bool relative) const override;
+  double yColorValue(bool relative) const override;
 
  private:
-  const CQChartsAdjacencyPlot* plot_  { nullptr }; //! parent plot
-  CQChartsAdjacencyNode*       node1_ { nullptr }; //! row node
-  CQChartsAdjacencyNode*       node2_ { nullptr }; //! column node
-  double                       value_ { 0 };       //! connections value
+  const CQChartsAdjacencyPlot* plot_  { nullptr }; //!< parent plot
+  CQChartsAdjacencyNode*       node1_ { nullptr }; //!< row node
+  CQChartsAdjacencyNode*       node2_ { nullptr }; //!< column node
+  double                       value_ { 0 };       //!< connections value
 };
 
 //---
 
+CQCHARTS_NAMED_SHAPE_DATA(EmptyCell,emptyCell)
+
 /*!
- * \brief connectivity plot
+ * \brief Connectivity Plot
+ * \ingroup Charts
  *
  * made up of:
  *   + nodes             : number, name(opt), group(opt)
@@ -152,8 +169,6 @@ class CQChartsAdjacencyObj : public CQChartsPlotObj {
  * Example
  *   + \image html adjacency.png
  */
-CQCHARTS_NAMED_SHAPE_DATA(EmptyCell,emptyCell)
-
 class CQChartsAdjacencyPlot : public CQChartsPlot,
  public CQChartsObjBackgroundFillData<CQChartsAdjacencyPlot>,
  public CQChartsObjShapeData         <CQChartsAdjacencyPlot>,
@@ -243,10 +258,9 @@ class CQChartsAdjacencyPlot : public CQChartsPlot,
   //---
 
   double maxValue() const { return nodeData_.maxValue; }
-
-  int maxGroup() const { return nodeData_.maxGroup; }
-
-  int maxLen() const { return nodeData_.maxLen; }
+  int    maxGroup() const { return nodeData_.maxGroup; }
+  int    maxNode () const { return nodeData_.maxNode ; }
+  int    maxLen  () const { return nodeData_.maxLen  ; }
 
   double scale() const { return nodeData_.scale; }
 
@@ -284,11 +298,11 @@ class CQChartsAdjacencyPlot : public CQChartsPlot,
 
   bool hasBackground() const override;
 
-  void drawBackground(QPainter *) const override;
+  void execDrawBackground(CQChartsPaintDevice *) const override;
 
   bool hasForeground() const override;
 
-  void drawForeground(QPainter *) const override;
+  void execDrawForeground(CQChartsPaintDevice *) const override;
 
  private:
   using Connections = CQChartsConnectionList::Connections;
@@ -318,11 +332,12 @@ class CQChartsAdjacencyPlot : public CQChartsPlot,
   using NodeArray = std::vector<CQChartsAdjacencyNode*>;
 
   struct NodeData {
-    double maxValue   { 0 };   //! max node value
-    int    maxGroup   { 0 };   //! max node group
-    int    maxLen     { 0 };   //! max text length
-    double scale      { 1.0 }; //! box size
-    double drawFactor { 1.0 }; //! saved font factor
+    double maxValue   { 0 };   //!< max node value
+    int    maxGroup   { 0 };   //!< max node group
+    int    maxNode    { 0 };   //!< max node ind
+    int    maxLen     { 0 };   //!< max text length
+    double scale      { 1.0 }; //!< box size
+    double drawFactor { 1.0 }; //!< saved font factor
   };
 
  private:
@@ -333,22 +348,26 @@ class CQChartsAdjacencyPlot : public CQChartsPlot,
 
   using AdjacencyObj = CQChartsAdjacencyObj;
 
-  CQChartsColumn nodeColumn_;                                 //! connection node column
-  CQChartsColumn connectionsColumn_;                          //! connections column
-  CQChartsColumn nameColumn_;                                 //! name column
-  CQChartsColumn namePairColumn_;                             //! name pairs column
-  CQChartsColumn countColumn_;                                //! count column
-  CQChartsColumn groupIdColumn_;                              //! group id column
-  SortType       sortType_              { SortType::GROUP };  //! sort type
-  CQChartsLength bgMargin_              { "2px" };            //! background margin
-  NodeMap        nodes_;                                      //! all nodes
-  NameNodeMap    nameNodeMap_;                                //! name node map
-  double         factor_                { 1.0 };              //! font factor
-  AdjacencyObj*  insideObj_             { nullptr };          //! last inside object
-  ColumnType     connectionsColumnType_ { ColumnType::NONE }; //! connection column type
-  ColumnType     namePairColumnType_    { ColumnType::NONE }; //! name pair column type
-  NodeArray      sortedNodes_;                                //! sorted nodes
-  NodeData       nodeData_;                                   //! node data
+  // node, connections columns
+  CQChartsColumn nodeColumn_;                                 //!< connection node column
+  CQChartsColumn connectionsColumn_;                          //!< connections column
+
+  // name, name pairs columns
+  CQChartsColumn nameColumn_;                                 //!< name column
+  CQChartsColumn namePairColumn_;                             //!< name pairs column
+  CQChartsColumn countColumn_;                                //!< count column
+
+  CQChartsColumn groupIdColumn_;                              //!< group id column
+  SortType       sortType_              { SortType::GROUP };  //!< sort type
+  CQChartsLength bgMargin_              { "2px" };            //!< background margin
+  NodeMap        nodes_;                                      //!< all nodes
+  NameNodeMap    nameNodeMap_;                                //!< name node map
+  double         factor_                { 1.0 };              //!< font factor
+  AdjacencyObj*  insideObj_             { nullptr };          //!< last inside object
+  ColumnType     connectionsColumnType_ { ColumnType::NONE }; //!< connection column type
+  ColumnType     namePairColumnType_    { ColumnType::NONE }; //!< name pair column type
+  NodeArray      sortedNodes_;                                //!< sorted nodes
+  NodeData       nodeData_;                                   //!< node data
 };
 
 #endif

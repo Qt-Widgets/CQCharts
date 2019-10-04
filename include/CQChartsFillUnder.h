@@ -6,6 +6,10 @@
 #include <QStringList>
 #include <iostream>
 
+/*!
+ * \brief fill under side
+ * \ingroup Charts
+ */
 class CQChartsFillUnderSide {
  public:
   enum Type {
@@ -96,6 +100,10 @@ class CQChartsFillUnderSide {
 
 //---
 
+/*!
+ * \brief fill under position
+ * \ingroup Charts
+ */
 class CQChartsFillUnderPos {
  public:
   enum Type {
@@ -129,7 +137,7 @@ class CQChartsFillUnderPos {
     xtype_ = rhs.xtype_;
     xpos_  = rhs.xpos_;
     ytype_ = rhs.ytype_;
-    xpos_  = rhs.xpos_;
+    ypos_  = rhs.ypos_;
 
     return *this;
   }
@@ -150,7 +158,7 @@ class CQChartsFillUnderPos {
     xtype_ = xtype;
     xpos_  = xpos;
     ytype_ = ytype;
-    xpos_  = xpos;
+    ypos_  = ypos;
 
     return true;
   }

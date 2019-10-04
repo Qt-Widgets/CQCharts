@@ -3,6 +3,10 @@
 
 #include <boost/optional.hpp>
 
+/*!
+ * \brief Charts Main Arguments
+ * \ingroup Charts
+ */
 class CQChartsMainArgs {
  public:
   using OptReal   = boost::optional<double>;

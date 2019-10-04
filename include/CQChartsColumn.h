@@ -9,6 +9,7 @@
 
 /*!
  * \brief Class to store how column data is referenced from the model
+ * \ingroup Charts
  *
  * A column can be:
  *  . column number for model data values in that column
@@ -148,7 +149,10 @@ class CQChartsColumn {
 
 //---
 
-// manage list of columns or single column
+/*!
+ * \brief manage list of columns or single column
+ * \ingroup Charts
+ */
 class CQChartsColumns {
  public:
   using Columns = std::vector<CQChartsColumn>;
@@ -306,8 +310,8 @@ class CQChartsColumns {
   bool fromString(const QString &s) { return setColumnsStr(s); }
 
  private:
-  CQChartsColumn column_;  //! single column
-  Columns        columns_; //! multiple columns
+  CQChartsColumn column_;  //!< single column
+  Columns        columns_; //!< multiple columns
 };
 
 //---

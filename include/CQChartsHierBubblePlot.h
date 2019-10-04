@@ -10,6 +10,10 @@
 
 //---
 
+/*!
+ * \brief Hierarchical Bubble Plot Type
+ * \ingroup Charts
+ */
 class CQChartsHierBubblePlotType : public CQChartsHierPlotType {
  public:
   CQChartsHierBubblePlotType();
@@ -21,13 +25,18 @@ class CQChartsHierBubblePlotType : public CQChartsHierPlotType {
 
   void addParameters() override;
 
-  QString description() const override;
-
   bool customXRange() const override { return false; }
   bool customYRange() const override { return false; }
 
   bool hasAxes() const override { return false; }
   bool hasKey () const override { return false; }
+
+  bool allowXLog() const override { return false; }
+  bool allowYLog() const override { return false; }
+
+  bool canProbe() const override { return false; }
+
+  QString description() const override;
 
   CQChartsPlot *create(CQChartsView *view, const ModelP &model) const override;
 };
@@ -37,6 +46,10 @@ class CQChartsHierBubblePlotType : public CQChartsHierPlotType {
 class CQChartsHierBubblePlot;
 class CQChartsHierBubbleHierNode;
 
+/*!
+ * \brief Hierarchical Bubble Plot Node
+ * \ingroup Charts
+ */
 class CQChartsHierBubbleNode : public CQChartsCircleNode {
  protected:
   static uint nextId() {
@@ -44,6 +57,9 @@ class CQChartsHierBubbleNode : public CQChartsCircleNode {
 
     return ++lastId;
   }
+
+ public:
+  using ColorInd = CQChartsUtil::ColorInd;
 
  public:
   CQChartsHierBubbleNode(const CQChartsHierBubblePlot *plot, CQChartsHierBubbleHierNode *parent,
@@ -106,20 +122,21 @@ class CQChartsHierBubbleNode : public CQChartsCircleNode {
     return n1.r_ < n2.r_;
   }
 
-  virtual QColor interpColor(const CQChartsHierBubblePlot *plot, int n) const;
+  virtual QColor interpColor(const CQChartsHierBubblePlot *plot, const CQChartsColor &c,
+                             const ColorInd &colorInd, int n) const;
 
  protected:
-  const CQChartsHierBubblePlot* plot_    { nullptr }; //! parent plot
-  CQChartsHierBubbleHierNode*   parent_  { nullptr }; //! parent hier node
-  uint                          id_      { 0 };       //! node id
-  QString                       name_;                //! node name
-  double                        size_    { 0.0 };     //! node size
-  int                           colorId_ { -1 };      //! node color index
-  CQChartsColor                 color_;               //! node explicit color
-  QModelIndex                   ind_;                 //! node model index
-  int                           depth_   { 0 };       //! node depth
-  bool                          filler_  { false };   //! is filler
-  bool                          placed_  { false };   //! is placed
+  const CQChartsHierBubblePlot* plot_    { nullptr }; //!< parent plot
+  CQChartsHierBubbleHierNode*   parent_  { nullptr }; //!< parent hier node
+  uint                          id_      { 0 };       //!< node id
+  QString                       name_;                //!< node name
+  double                        size_    { 0.0 };     //!< node size
+  int                           colorId_ { -1 };      //!< node color index
+  CQChartsColor                 color_;               //!< node explicit color
+  QModelIndex                   ind_;                 //!< node model index
+  int                           depth_   { 0 };       //!< node depth
+  bool                          filler_  { false };   //!< is filler
+  bool                          placed_  { false };   //!< is placed
 };
 
 //---
@@ -132,6 +149,10 @@ struct CQChartsHierBubbleNodeCmp {
 
 //---
 
+/*!
+ * \brief Hierarchical Bubble Plot Hierarchical Node
+ * \ingroup Charts
+ */
 class CQChartsHierBubbleHierNode : public CQChartsHierBubbleNode {
  public:
   using Nodes    = std::vector<CQChartsHierBubbleNode*>;
@@ -171,28 +192,40 @@ class CQChartsHierBubbleHierNode : public CQChartsHierBubbleNode {
 
   void setPosition(double x, double y) override;
 
-  QColor interpColor(const CQChartsHierBubblePlot *plot, int n) const override;
+  QColor interpColor(const CQChartsHierBubblePlot *plot, const CQChartsColor &c,
+                     const ColorInd &colorInd, int n) const override;
 
  protected:
-  Nodes    nodes_;          //! child nodes
-  Pack     pack_;           //! circle pack
-  Children children_;       //! child hier nodes
-  int      hierInd_ { -1 }; //! hier index
+  Nodes    nodes_;          //!< child nodes
+  Pack     pack_;           //!< circle pack
+  Children children_;       //!< child hier nodes
+  int      hierInd_ { -1 }; //!< hier index
 };
 
 //---
 
 class CQChartsHierBubbleHierObj;
 
-class CQChartsHierBubbleObj : public CQChartsPlotObj {
+/*!
+ * \brief Hierarchical Bubble Plot object
+ * \ingroup Charts
+ */
+class CQChartsHierBubbleNodeObj : public CQChartsPlotObj {
+  Q_OBJECT
+
  public:
-  CQChartsHierBubbleObj(const CQChartsHierBubblePlot *plot, CQChartsHierBubbleNode *node,
-                        CQChartsHierBubbleHierObj *hierObj, const CQChartsGeom::BBox &rect,
-                        int i, int n);
+  CQChartsHierBubbleNodeObj(const CQChartsHierBubblePlot *plot, CQChartsHierBubbleNode *node,
+                            CQChartsHierBubbleHierObj *hierObj, const CQChartsGeom::BBox &rect,
+                            const ColorInd &is);
+
+  QString typeName() const override { return "bubble"; }
 
   CQChartsHierBubbleNode *node() const { return node_; }
 
   CQChartsHierBubbleHierObj *parent() const { return hierObj_; }
+
+  int ind() const { return ind_; }
+  void setInd(int ind) { ind_ = ind; }
 
   QString calcId() const override;
 
@@ -202,25 +235,26 @@ class CQChartsHierBubbleObj : public CQChartsPlotObj {
 
   void getSelectIndices(Indices &inds) const override;
 
-  void addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const override;
-
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
  protected:
-  const CQChartsHierBubblePlot* plot_    { nullptr }; //! parent plot
-  CQChartsHierBubbleNode*       node_    { nullptr }; //! associated node
-  CQChartsHierBubbleHierObj*    hierObj_ { nullptr }; //! parent hier obj
-  int                           i_       { 0 };       //! index
-  int                           n_       { 0 };       //! index count
+  const CQChartsHierBubblePlot* plot_    { nullptr }; //!< parent plot
+  CQChartsHierBubbleNode*       node_    { nullptr }; //!< associated node
+  CQChartsHierBubbleHierObj*    hierObj_ { nullptr }; //!< parent hier obj
+  int                           ind_     { 0 };       //!< ind
 };
 
 //---
 
-class CQChartsHierBubbleHierObj : public CQChartsHierBubbleObj {
+/*!
+ * \brief Hierarchical Bubble Plot Hierarchical object
+ * \ingroup Charts
+ */
+class CQChartsHierBubbleHierObj : public CQChartsHierBubbleNodeObj {
  public:
   CQChartsHierBubbleHierObj(const CQChartsHierBubblePlot *plot, CQChartsHierBubbleHierNode *hier,
                             CQChartsHierBubbleHierObj *hierObj, const CQChartsGeom::BBox &rect,
-                            int i, int n);
+                            const ColorInd &is);
 
   CQChartsHierBubbleHierNode *hierNode() const { return hier_; }
 
@@ -232,16 +266,18 @@ class CQChartsHierBubbleHierObj : public CQChartsHierBubbleObj {
 
   void getSelectIndices(Indices &inds) const override;
 
-  void addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const override;
-
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
  protected:
-  CQChartsHierBubbleHierNode* hier_ { nullptr }; //! associated hier node
+  CQChartsHierBubbleHierNode* hier_ { nullptr }; //!< associated hier node
 };
 
 //---
 
+/*!
+ * \brief Hierarchical Bubble Plot
+ * \ingroup Charts
+ */
 class CQChartsHierBubblePlot : public CQChartsHierPlot,
  public CQChartsObjShapeData<CQChartsHierBubblePlot>,
  public CQChartsObjTextData <CQChartsHierBubblePlot> {
@@ -249,6 +285,10 @@ class CQChartsHierBubblePlot : public CQChartsHierPlot,
 
   // options
   Q_PROPERTY(bool valueLabel READ isValueLabel WRITE setValueLabel)
+  Q_PROPERTY(bool sorted     READ isSorted     WRITE setSorted    )
+
+  // color
+  Q_PROPERTY(bool colorById READ isColorById WRITE setColorById)
 
   // shape
   CQCHARTS_SHAPE_DATA_PROPERTIES
@@ -268,6 +308,11 @@ class CQChartsHierBubblePlot : public CQChartsHierPlot,
 
   bool isValueLabel() const { return valueLabel_; }
   void setValueLabel(bool b);
+
+  //---
+
+  bool isSorted() const { return sorted_; }
+  void setSorted(bool b) { sorted_ = b; }
 
   //---
 
@@ -312,6 +357,11 @@ class CQChartsHierBubblePlot : public CQChartsHierPlot,
 
   //---
 
+  bool isColorById() const { return colorById_; }
+  void setColorById(bool b);
+
+  //---
+
   int maxDepth() const { return nodeData_.maxDepth; }
 
   //---
@@ -332,7 +382,7 @@ class CQChartsHierBubblePlot : public CQChartsHierPlot,
 
   bool hasForeground() const override;
 
-  void drawForeground(QPainter *) const override;
+  void execDrawForeground(CQChartsPaintDevice *) const override;
 
   //---
 
@@ -384,7 +434,7 @@ class CQChartsHierBubblePlot : public CQChartsHierPlot,
 
   void transformNodes(CQChartsHierBubbleHierNode *hier) const;
 
-  void drawBounds(QPainter *painter, CQChartsHierBubbleHierNode *hier) const;
+  void drawBounds(CQChartsPaintDevice *device, CQChartsHierBubbleHierNode *hier) const;
 
  public slots:
   void pushSlot();
@@ -397,28 +447,30 @@ class CQChartsHierBubblePlot : public CQChartsHierPlot,
   using HierNode = CQChartsHierBubbleHierNode;
 
   struct PlaceData {
-    CQChartsGeom::Point offset { 0, 0 }; //! draw offset
-    double              scale  { 1.0 };  //! draw scale
+    CQChartsGeom::Point offset { 0, 0 }; //!< draw offset
+    double              scale  { 1.0 };  //!< draw scale
   };
 
   struct ColorData {
-    int colorId     { -1 }; //! current color id
-    int numColorIds { 0 };  //! num used color ids
+    int colorId     { -1 }; //!< current color id
+    int numColorIds { 0 };  //!< num used color ids
   };
 
   struct NodeData {
-    HierNode* root      { nullptr }; //! root node
-    HierNode* firstHier { nullptr }; //! first hier node
-    int       maxDepth  { 1 };       //! max hier depth
-    int       hierInd   { 0 };       //! current hier ind
+    HierNode* root      { nullptr }; //!< root node
+    HierNode* firstHier { nullptr }; //!< first hier node
+    int       maxDepth  { 1 };       //!< max hier depth
+    int       hierInd   { 0 };       //!< current hier ind
   };
 
  private:
-  bool      valueLabel_      { false }; //! draw value with name
-  QString   currentRootName_;           //! current root name
-  NodeData  nodeData_;                  //! node data
-  PlaceData placeData_;                 //! place data
-  ColorData colorData_;                 //! color data
+  bool      valueLabel_      { false }; //!< draw value with name
+  bool      sorted_          { false }; //!< sort nodes by value
+  QString   currentRootName_;           //!< current root name
+  NodeData  nodeData_;                  //!< node data
+  PlaceData placeData_;                 //!< place data
+  ColorData colorData_;                 //!< color data
+  bool      colorById_       { true };  //!< color by id
 };
 
 #endif

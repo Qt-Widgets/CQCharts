@@ -6,11 +6,12 @@
 #include <CQChartsModelDetails.h>
 #include <CQChartsNamePair.h>
 #include <CQChartsDrawUtil.h>
+#include <CQChartsPaintDevice.h>
+#include <CQChartsHtml.h>
 
 #include <CQPropertyViewItem.h>
 #include <CQPerfMonitor.h>
 
-#include <QPainter>
 
 CQChartsSankeyPlotType::
 CQChartsSankeyPlotType()
@@ -40,8 +41,16 @@ QString
 CQChartsSankeyPlotType::
 description() const
 {
-  return "<h2>Summary</h2>\n"
-         "<p>Draw connected objects as a connected flow graph.</p>\n";
+  auto IMG = [](const QString &src) { return CQChartsHtml::Str::img(src); };
+
+  return CQChartsHtml().
+   h2("Sankey Plot").
+    h3("Summary").
+     p("Draw connected objects as a connected flow graph.").
+    h3("Limitations").
+     p("None.").
+    h3("Example").
+     p(IMG("images/sankey.png"));
 }
 
 bool
@@ -85,15 +94,15 @@ CQChartsSankeyPlot(CQChartsView *view, const ModelP &model) :
   setNodeFillColor(bg);
   setNodeFillAlpha(1.00);
 
-  setNodeBorder(true);
-  setNodeBorderAlpha(0.2);
+  setNodeStroked(true);
+  setNodeStrokeAlpha(0.2);
 
   setEdgeFilled(true);
   setEdgeFillColor(bg);
   setEdgeFillAlpha(0.25);
 
-  setEdgeBorder(true);
-  setEdgeBorderAlpha(0.2);
+  setEdgeStroked(true);
+  setEdgeStrokeAlpha(0.2);
 
   //---
 
@@ -127,14 +136,14 @@ void
 CQChartsSankeyPlot::
 setLinkColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(linkColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(linkColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsSankeyPlot::
 setValueColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(valueColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(valueColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 //---
@@ -143,7 +152,7 @@ void
 CQChartsSankeyPlot::
 setAlign(const Align &a)
 {
-  CQChartsUtil::testAndSet(align_, a, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(align_, a, [&]() { updateRangeAndObjs(); } );
 }
 
 //---
@@ -152,31 +161,38 @@ void
 CQChartsSankeyPlot::
 addProperties()
 {
+  auto addProp = [&](const QString &path, const QString &name, const QString &alias,
+                     const QString &desc) {
+    return &(this->addProperty(path, this, name, alias)->setDesc(desc));
+  };
+
+  //---
+
   CQChartsPlot::addProperties();
 
-  addProperty("columns", this, "linkColumn" , "link" )->setDesc("Link column");
-  addProperty("columns", this, "valueColumn", "value")->setDesc("Value column");
+  addProp("columns", "linkColumn" , "link" , "Link column");
+  addProp("columns", "valueColumn", "value", "Value column");
 
-  addProperty("node/stroke", this, "nodeBorder", "visible")->setDesc("Node stroked");
+  addProp("node/stroke", "nodeStroked", "visible", "Node stroke visible");
 
-  addLineProperties("node/stroke", "nodeBorder");
+  addLineProperties("node/stroke", "nodeStroke", "Node");
 
-  addProperty("node/fill", this, "nodeFilled", "visible")->setDesc("Node filled");
+  addProp("node/fill", "nodeFilled", "visible", "Node fill visible");
 
-  addFillProperties("node/fill", "nodeFill");
+  addFillProperties("node/fill", "nodeFill", "Node");
 
-  addProperty("edge/stroke", this, "edgeBorder", "visible")->setDesc("Edge steoked");
+  addProp("edge/stroke", "edgeStroked", "visible", "Edge steoke visible");
 
-  addLineProperties("edge/stroke", "edgeBorder");
+  addLineProperties("edge/stroke", "edgeStroke", "Edge");
 
-  addProperty("edge/fill", this, "edgeFilled", "visible")->setDesc("Edit filled");
+  addProp("edge/fill", "edgeFilled", "visible", "Edit fill visible");
 
-  addFillProperties("edge/fill", "edgeFill");
+  addFillProperties("edge/fill", "edgeFill", "Edge");
 
-  addProperty("text", this, "textVisible", "visible")->setDesc("Text label visible");
-  addProperty("text", this, "align"      , "align"  )->setDesc("Text label align");
+  addProp("text", "textVisible", "visible", "Text label visible");
+  addProp("text", "align"      , "align"  , "Text label align");
 
-  addTextProperties("text", "text");
+  addTextProperties("text", "text", "");
 }
 
 CQChartsGeom::Range
@@ -209,11 +225,11 @@ createObjs(PlotObjs &objs) const
 {
   CQPerfTrace trace("CQChartsSankeyPlot::createObjs");
 
-  CQChartsSankeyPlot *th = const_cast<CQChartsSankeyPlot *>(this);
-
-  NoUpdate noUpdate(th);
+  NoUpdate noUpdate(this);
 
   //---
+
+  CQChartsSankeyPlot *th = const_cast<CQChartsSankeyPlot *>(this);
 
   th->clearNodesAndEdges();
 
@@ -284,7 +300,8 @@ createGraph(PlotObjs &objs) const
   //---
 
 //double xs = bbox_.getWidth ();
-  double ys = bbox_.getHeight();
+//double ys = bbox_.getHeight();
+  double ys = 2.0;
 
   //---
 
@@ -377,6 +394,8 @@ createNodes(const IndNodeMap &nodes) const
 
   //---
 
+  int numNodes = this->numNodes();
+
   double y1 = bbox_.getYMax() - (ys - height)/2.0;
 
   for (const auto &idNode : nodes) {
@@ -405,7 +424,10 @@ createNodes(const IndNodeMap &nodes) const
     else
       rect = CQChartsGeom::BBox(x - xm/2, y1, x + xm/2, y2);
 
-    CQChartsSankeyNodeObj *nodeObj = new CQChartsSankeyNodeObj(this, rect, node);
+    ColorInd iv(node->ind(), numNodes);
+
+    CQChartsSankeyNodeObj *nodeObj =
+      new CQChartsSankeyNodeObj(this, rect, node, iv);
 
     node->setObj(nodeObj);
 
@@ -476,7 +498,6 @@ adjustNodes() const
     th->bbox_ += node->obj()->rect();
   }
 
-  //updateRange();
   th->dataRange_ = calcRange();
 
   //---
@@ -754,7 +775,7 @@ keyPress(int key, int modifier)
   if (key == Qt::Key_A) {
     adjustNodes();
 
-    queueDrawObjs();
+    drawObjs();
   }
   else
     CQChartsPlot::keyPress(key, modifier);
@@ -976,8 +997,9 @@ setObj(CQChartsSankeyEdgeObj *obj)
 
 CQChartsSankeyNodeObj::
 CQChartsSankeyNodeObj(const CQChartsSankeyPlot *plot, const CQChartsGeom::BBox &rect,
-                      CQChartsSankeyPlotNode *node) :
- CQChartsPlotObj(const_cast<CQChartsSankeyPlot *>(plot), rect), plot_(plot), node_(node)
+                      CQChartsSankeyPlotNode *node, const ColorInd &iv) :
+ CQChartsPlotObj(const_cast<CQChartsSankeyPlot *>(plot), rect, ColorInd(), ColorInd(), iv),
+ plot_(plot), node_(node)
 {
   double x1 = rect.getXMin();
   double x2 = rect.getXMax();
@@ -1016,9 +1038,9 @@ QString
 CQChartsSankeyNodeObj::
 calcId() const
 {
-  double value = node_->edgeSum();
+  //double value = node_->edgeSum();
 
-  return QString("node:%1:%2").arg(node_->str()).arg(value);
+  return QString("%1:%2").arg(typeName()).arg(iv_.i);
 }
 
 void
@@ -1038,92 +1060,93 @@ moveBy(const CQChartsGeom::Point &delta)
 
 void
 CQChartsSankeyNodeObj::
-draw(QPainter *painter)
+draw(CQChartsPaintDevice *device)
 {
-  int numNodes = plot_->numNodes();
+  //int numNodes = plot_->numNodes();
 
   // set fill and stroke
+  ColorInd ic = calcColorInd();
+
   QPen   pen;
   QBrush brush;
 
-  QColor bc = plot_->interpNodeBorderColor(node_->ind(), numNodes);
-  QColor fc = plot_->interpNodeFillColor(node_->ind(), numNodes);
+  QColor bc = plot_->interpNodeStrokeColor(ic);
+  QColor fc = plot_->interpNodeFillColor  (ic);
 
   plot_->setPenBrush(pen, brush,
-    plot_->isNodeBorder(), bc, plot_->nodeBorderAlpha(),
-    plot_->nodeBorderWidth(), plot_->nodeBorderDash(),
+    plot_->isNodeStroked(), bc, plot_->nodeStrokeAlpha(),
+    plot_->nodeStrokeWidth(), plot_->nodeStrokeDash(),
     plot_->isNodeFilled(), fc, plot_->nodeFillAlpha(), plot_->nodeFillPattern());
 
   plot_->updateObjPenBrushState(this, pen, brush);
 
-  painter->setBrush(brush);
-  painter->setPen(pen);
+  device->setBrush(brush);
+  device->setPen  (pen);
 
   //---
 
   // draw node
-  CQChartsGeom::BBox prect = plot_->windowToPixel(rect_);
-
-  double px1 = prect.getXMin();
-  double py1 = prect.getYMin();
-  double px2 = prect.getXMax();
-  double py2 = prect.getYMax();
+  double x1 = rect_.getXMin();
+  double y1 = rect_.getYMin();
+  double x2 = rect_.getXMax();
+  double y2 = rect_.getYMax();
 
   QPainterPath path;
 
-  path.moveTo(QPointF(px1, py1));
-  path.lineTo(QPointF(px2, py1));
-  path.lineTo(QPointF(px2, py2));
-  path.lineTo(QPointF(px1, py2));
+  path.moveTo(QPointF(x1, y1));
+  path.lineTo(QPointF(x2, y1));
+  path.lineTo(QPointF(x2, y2));
+  path.lineTo(QPointF(x1, y2));
 
   path.closeSubpath();
 
-  painter->drawPath(path);
+  device->drawPath(path);
 }
 
 void
 CQChartsSankeyNodeObj::
-drawFg(QPainter *painter) const
+drawFg(CQChartsPaintDevice *device) const
 {
   if (! plot_->isTextVisible())
     return;
 
   CQChartsGeom::BBox prect = plot_->windowToPixel(rect_);
 
-  int numNodes = plot_->numNodes();
+  //int numNodes = plot_->numNodes();
 
   //---
 
   // set font
-  plot_->view()->setPlotPainterFont(plot_, painter, plot_->textFont());
+  plot_->view()->setPlotPainterFont(plot_, device, plot_->textFont());
 
-  QFontMetricsF fm(painter->font());
+  QFontMetricsF fm(device->font());
 
   //---
 
   // set text pen
+  ColorInd ic = calcColorInd();
+
   QPen pen;
 
-  QColor c = plot_->interpTextColor(node_->ind(), numNodes);
+  QColor c = plot_->interpTextColor(ic);
 
   plot_->setPen(pen, true, c, plot_->textAlpha());
 
-  painter->setPen(pen);
+  device->setPen(pen);
 
   //---
 
-  //double value = node_->edgeSum();
-
   QString str = node_->str();
 
-  double tx = (rect_.getXMid() < 0.5 ?
-    prect.getXMax() + 4 : prect.getXMin() - 4 - fm.width(str));
+  double tx = (rect_.getXMid() < 0.5 ? prect.getXMax() + 4 : prect.getXMin() - 4 - fm.width(str));
   double ty = prect.getYMid() + fm.ascent()/2;
 
+  QPointF pt = device->pixelToWindow(QPointF(tx, ty));
+
   if (plot_->isTextContrast())
-    CQChartsDrawUtil::drawContrastText(painter, tx, ty, str);
+    CQChartsDrawUtil::drawContrastText(device, pt, str);
   else
-    CQChartsDrawUtil::drawSimpleText(painter, tx, ty, str);
+    CQChartsDrawUtil::drawSimpleText(device, pt, str);
 }
 
 //------
@@ -1139,7 +1162,7 @@ QString
 CQChartsSankeyEdgeObj::
 calcId() const
 {
-  return QString("edge:%1:%2:%3").arg(edge_->srcNode()->str()).
+  return QString("%1:%2:%3:%4").arg(typeName()).arg(edge_->srcNode()->str()).
           arg(edge_->destNode()->str()).arg(edge_->value());
 }
 
@@ -1149,38 +1172,41 @@ inside(const CQChartsGeom::Point &p) const
 {
   CQChartsGeom::Point p1 = plot_->windowToPixel(p);
 
-  return path_.contains(CQChartsUtil::toQPoint(p1));
+  return path_.contains(p1.qpoint());
 }
 
 void
 CQChartsSankeyEdgeObj::
-draw(QPainter *painter)
+draw(CQChartsPaintDevice *device)
 {
   int numNodes = plot_->numNodes();
 
   // set fill and stroke
+  ColorInd ic1(edge_->srcNode ()->ind(), numNodes);
+  ColorInd ic2(edge_->destNode()->ind(), numNodes);
+
   QPen   pen;
   QBrush brush;
 
-  QColor fc1 = plot_->interpEdgeFillColor(edge_->srcNode ()->ind(), numNodes);
-  QColor fc2 = plot_->interpEdgeFillColor(edge_->destNode()->ind(), numNodes);
+  QColor fc1 = plot_->interpEdgeFillColor(ic1);
+  QColor fc2 = plot_->interpEdgeFillColor(ic2);
 
   QColor fc = CQChartsUtil::blendColors(fc1, fc2, 0.5);
 
-  QColor sc1 = plot_->interpEdgeBorderColor(edge_->srcNode ()->ind(), numNodes);
-  QColor sc2 = plot_->interpEdgeBorderColor(edge_->destNode()->ind(), numNodes);
+  QColor sc1 = plot_->interpEdgeStrokeColor(ic1);
+  QColor sc2 = plot_->interpEdgeStrokeColor(ic2);
 
   QColor sc = CQChartsUtil::blendColors(sc1, sc2, 0.5);
 
   plot_->setPenBrush(pen, brush,
-    plot_->isEdgeBorder(), sc, plot_->edgeBorderAlpha(),
-    plot_->edgeBorderWidth(), plot_->edgeBorderDash(),
+    plot_->isEdgeStroked(), sc, plot_->edgeStrokeAlpha(),
+    plot_->edgeStrokeWidth(), plot_->edgeStrokeDash(),
     plot_->isEdgeFilled(), fc, plot_->edgeFillAlpha(), plot_->edgeFillPattern());
 
   plot_->updateObjPenBrushState(this, pen, brush);
 
-  painter->setBrush(brush);
-  painter->setPen(pen);
+  device->setBrush(brush);
+  device->setPen  (pen);
 
   //---
 
@@ -1188,30 +1214,27 @@ draw(QPainter *painter)
   const CQChartsGeom::BBox &srcRect  = edge_->srcNode ()->obj()->destEdgeRect(edge_);
   const CQChartsGeom::BBox &destRect = edge_->destNode()->obj()->srcEdgeRect (edge_);
 
-  CQChartsGeom::BBox psrcRect  = plot_->windowToPixel(srcRect);
-  CQChartsGeom::BBox pdestRect = plot_->windowToPixel(destRect);
+  double x1 = srcRect .getXMax();
+  double x2 = destRect.getXMin();
 
-  double px1 = psrcRect .getXMax();
-  double px2 = pdestRect.getXMin();
-
-  double py11 = psrcRect .getYMax();
-  double py12 = psrcRect .getYMin();
-  double py21 = pdestRect.getYMax();
-  double py22 = pdestRect.getYMin();
+  double y11 = srcRect .getYMax();
+  double y12 = srcRect .getYMin();
+  double y21 = destRect.getYMax();
+  double y22 = destRect.getYMin();
 
   path_ = QPainterPath();
 
-  double px3 = px1 + (px2 - px1)/3.0;
-  double px4 = px2 - (px2 - px1)/3.0;
+  double x3 = x1 + (x2 - x1)/3.0;
+  double x4 = x2 - (x2 - x1)/3.0;
 
-  path_.moveTo (QPointF(px1, py11));
-  path_.cubicTo(QPointF(px3, py11), QPointF(px4, py21), QPointF(px2, py21));
-  path_.lineTo (QPointF(px2, py22));
-  path_.cubicTo(QPointF(px4, py22), QPointF(px3, py12), QPointF(px1, py12));
+  path_.moveTo (QPointF(x1, y11));
+  path_.cubicTo(QPointF(x3, y11), QPointF(x4, y21), QPointF(x2, y21));
+  path_.lineTo (QPointF(x2, y22));
+  path_.cubicTo(QPointF(x4, y22), QPointF(x3, y12), QPointF(x1, y12));
 
   path_.closeSubpath();
 
   //---
 
-  painter->drawPath(path_);
+  device->drawPath(path_);
 }

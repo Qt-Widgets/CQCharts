@@ -27,7 +27,9 @@ CQChartsPolygonLineEdit(QWidget *parent) :
 
   menu_->setWidget(dataEdit_);
 
-  connect(dataEdit_, SIGNAL(polygonChanged()), this, SLOT(menuEditChanged()));
+  //---
+
+  connectSlots(true);
 }
 
 const CQChartsPolygon &
@@ -52,10 +54,10 @@ updatePolygon(const CQChartsPolygon &polygon, bool updateText)
 
   dataEdit_->setPolygon(polygon);
 
+  connectSlots(true);
+
   if (updateText)
     polygonToWidgets();
-
-  connectSlots(true);
 
   emit polygonChanged();
 }
@@ -170,7 +172,7 @@ setEditorData(CQPropertyViewItem *item, const QVariant &value)
 
 void
 CQChartsPolygonPropertyViewType::
-draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+draw(CQPropertyViewItem *, const CQPropertyViewDelegate *delegate, QPainter *painter,
      const QStyleOptionViewItem &option, const QModelIndex &ind,
      const QVariant &value, bool inside)
 {
@@ -258,16 +260,13 @@ CQChartsPolygonEdit(QWidget *parent) :
 {
   setObjectName("polygonEdit");
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setMargin(0); layout->setSpacing(2);
+  QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 0, 2);
 
   //---
 
-  controlFrame_ = new QFrame;
-  controlFrame_->setObjectName("controlFrame");
+  controlFrame_ = CQUtil::makeWidget<QFrame>("controlFrame");
 
-  QHBoxLayout *controlFrameLayout = new QHBoxLayout(controlFrame_);
-  controlFrameLayout->setMargin(0); controlFrameLayout->setSpacing(2);
+  QHBoxLayout *controlFrameLayout = CQUtil::makeLayout<QHBoxLayout>(controlFrame_, 0, 2);
 
   layout->addWidget(controlFrame_);
 
@@ -275,20 +274,27 @@ CQChartsPolygonEdit(QWidget *parent) :
 
   unitsEdit_ = new CQChartsUnitsEdit;
 
-  connect(unitsEdit_, SIGNAL(unitsChanged()), this, SLOT(unitsChanged()));
+  //--
 
-  //---
+  auto createButton = [&](const QString &name, const QString &iconName, const QString &tip,
+                          const char *receiver) {
+    QToolButton *button = CQUtil::makeWidget<QToolButton>(name);
 
-  QToolButton *addButton    = new QToolButton; addButton   ->setObjectName("add");
-  QToolButton *removeButton = new QToolButton; removeButton->setObjectName("remove");
+    button->setIcon(CQPixmapCacheInst->getIcon(iconName));
 
-  addButton   ->setIcon(CQPixmapCacheInst->getIcon("ADD"));
-  removeButton->setIcon(CQPixmapCacheInst->getIcon("REMOVE"));
+    connect(button, SIGNAL(clicked()), this, receiver);
 
-  connect(addButton, SIGNAL(clicked()), this, SLOT(addSlot()));
-  connect(removeButton, SIGNAL(clicked()), this, SLOT(removeSlot()));
+    button->setToolTip(tip);
 
-  controlFrameLayout->addWidget(new QLabel("Units"));
+    return button;
+  };
+
+  //--
+
+  QToolButton *addButton    = createButton("add"   , "ADD"   , "Add point"   , SLOT(addSlot()));
+  QToolButton *removeButton = createButton("remove", "REMOVE", "Remove point", SLOT(removeSlot()));
+
+  controlFrameLayout->addWidget(CQUtil::makeLabelWidget<QLabel>("Units", "unitsLabel"));
   controlFrameLayout->addWidget(unitsEdit_);
   controlFrameLayout->addStretch(1);
   controlFrameLayout->addWidget(addButton);
@@ -296,20 +302,19 @@ CQChartsPolygonEdit(QWidget *parent) :
 
   //---
 
-  scrollArea_ = new QScrollArea;
-  scrollArea_->setObjectName("scrollArea");
+  scrollArea_ = CQUtil::makeWidget<QScrollArea>("scrollArea");
 
-  pointsFrame_ = new QFrame;
-  pointsFrame_->setObjectName("pointsFrame");
+  pointsFrame_ = CQUtil::makeWidget<QFrame>("pointsFrame");
 
-  QVBoxLayout *pointsFrameLayout = new QVBoxLayout(pointsFrame_);
-  pointsFrameLayout->setMargin(0); pointsFrameLayout->setSpacing(0);
+  (void) CQUtil::makeLayout<QVBoxLayout>(pointsFrame_, 0, 0);
 
   scrollArea_->setWidget(pointsFrame_);
 
   layout->addWidget(scrollArea_);
 
   //---
+
+  connectSlots(true);
 
   updateState();
 }
@@ -336,9 +341,29 @@ setPolygon(const CQChartsPolygon &polygon)
 
 void
 CQChartsPolygonEdit::
+connectSlots(bool b)
+{
+  assert(b != connected_);
+
+  connected_ = b;
+
+  //---
+
+  auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
+    if (b)
+      connect(w, from, this, to);
+    else
+      disconnect(w, from, this, to);
+  };
+
+  connectDisconnect(b, unitsEdit_, SIGNAL(unitsChanged()), SLOT(unitsChanged()));
+}
+
+void
+CQChartsPolygonEdit::
 polygonToWidgets()
 {
-  disconnect(unitsEdit_, SIGNAL(unitsChanged()), this, SLOT(unitsChanged()));
+  connectSlots(false);
 
   //---
 
@@ -356,7 +381,7 @@ polygonToWidgets()
 
   //---
 
-  connect(unitsEdit_, SIGNAL(unitsChanged()), this, SLOT(unitsChanged()));
+  connectSlots(true);
 }
 
 void
@@ -447,7 +472,7 @@ updatePointEdits()
   int ne = pointEdits_.size();
 
   while (ne < n) {
-    CQPoint2DEdit *edit = new CQPoint2DEdit;
+    CQPoint2DEdit *edit = CQUtil::makeWidget<CQPoint2DEdit>("edit");
 
     connect(edit, SIGNAL(valueChanged()), this, SLOT(pointSlot()));
 

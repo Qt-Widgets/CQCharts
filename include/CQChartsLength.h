@@ -4,7 +4,12 @@
 #include <CQChartsTypes.h>
 #include <QString>
 #include <iostream>
+#include <cassert>
 
+/*!
+ * \brief Length class
+ * \ingroup Charts
+ */
 class CQChartsLength {
  public:
   static void registerMetaType();
@@ -20,7 +25,7 @@ class CQChartsLength {
    units_(units), value_(value) {
   }
 
-  CQChartsLength(const QString &s, const CQChartsUnits &units=CQChartsUnits::PLOT) {
+  explicit CQChartsLength(const QString &s, const CQChartsUnits &units=CQChartsUnits::PLOT) {
     setValue(s, units);
   }
 
@@ -38,7 +43,8 @@ class CQChartsLength {
   bool isValid() const { return units_ != CQChartsUnits::NONE; }
 
   const CQChartsUnits &units() const { return units_; }
-  double               value() const { return value_; }
+
+  double value() const { assert(isValid()); return value_; }
 
   void setValue(const CQChartsUnits &units, double value) {
     units_ = units;

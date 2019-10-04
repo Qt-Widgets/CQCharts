@@ -16,6 +16,7 @@ namespace {
 
 //------
 
+//! Point
 class Point {
  public:
   double x, y;
@@ -48,10 +49,11 @@ typedef std::vector<Point> PointArray;
 
 //------
 
+//! Circle
 class Circle {
  public:
-  Point  c { 0.0, 0.0 }; //! Center
-  double r { 1.0 };      //! Radius
+  Point  c { 0.0, 0.0 }; //!< Center
+  double r { 1.0 };      //!< Radius
 
   bool valid;
 

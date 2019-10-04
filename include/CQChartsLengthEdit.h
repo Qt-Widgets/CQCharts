@@ -7,8 +7,14 @@
 class CQChartsUnitsEdit;
 class CQRealSpin;
 
+/*!
+ * \brief length edit
+ * \ingroup Charts
+ */
 class CQChartsLengthEdit : public QFrame {
   Q_OBJECT
+
+  Q_PROPERTY(CQChartsLength length READ length WRITE setLength)
 
  public:
   CQChartsLengthEdit(QWidget *parent=nullptr);
@@ -30,16 +36,20 @@ class CQChartsLengthEdit : public QFrame {
   void connectSlots(bool b);
 
  private:
-  CQChartsLength     length_;
-  CQRealSpin*        edit_      { nullptr };
-  CQChartsUnitsEdit* unitsEdit_ { nullptr };
+  CQChartsLength     length_;                //!< length data
+  CQRealSpin*        edit_      { nullptr }; //!< length edit
+  CQChartsUnitsEdit* unitsEdit_ { nullptr }; //!< units edit
+  bool               connected_ { false };   //!< is connected
 };
 
 //------
 
 #include <CQPropertyViewType.h>
 
-// type for CQChartsLength
+/*!
+ * \brief type for CQChartsLength
+ * \ingroup Charts
+ */
 class CQChartsLengthPropertyViewType : public CQPropertyViewType {
  public:
   CQChartsLengthPropertyViewType();
@@ -48,18 +58,23 @@ class CQChartsLengthPropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &index,
             const QVariant &value, bool inside) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "length"; }
 };
 
 //---
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsLength
+/*!
+ * \brief editor factory for CQChartsLength
+ * \ingroup Charts
+ */
 class CQChartsLengthPropertyViewEditor : public CQPropertyViewEditorFactory {
  public:
   CQChartsLengthPropertyViewEditor();

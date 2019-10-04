@@ -5,6 +5,10 @@
 
 class QComboBox;
 
+/*!
+ * \brief enumeration editor
+ * \ingroup Charts
+ */
 class CQChartsEnumEdit : public QFrame {
   Q_OBJECT
 
@@ -29,6 +33,9 @@ class CQChartsEnumEdit : public QFrame {
 
   virtual void connect(QObject *obj, const char *method) = 0;
 
+ private:
+  void connectSlots(bool b);
+
  signals:
   void enumChanged();
 
@@ -43,7 +50,10 @@ class CQChartsEnumEdit : public QFrame {
 
 #include <CQPropertyViewType.h>
 
-// type for CQChartsEnum
+/*!
+ * \brief type for CQChartsEnum
+ * \ingroup Charts
+ */
 class CQChartsEnumPropertyViewType : public CQPropertyViewType {
  public:
   CQChartsEnumPropertyViewType();
@@ -52,11 +62,13 @@ class CQChartsEnumPropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &index,
             const QVariant &value, bool inside) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "enum"; }
 
   virtual QString variantToString(const QVariant &var) const = 0;
 };
@@ -65,7 +77,10 @@ class CQChartsEnumPropertyViewType : public CQPropertyViewType {
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsEnum
+/*!
+ * \brief editor factory for CQChartsEnum
+ * \ingroup Charts
+ */
 class CQChartsEnumPropertyViewEditorFactory : public CQPropertyViewEditorFactory {
  public:
   CQChartsEnumPropertyViewEditorFactory();

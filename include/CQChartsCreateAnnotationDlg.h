@@ -31,13 +31,14 @@ class QGridLayout;
 
 /*!
  * \brief dialog to create a new annotation
+ * \ingroup Charts
  */
 class CQChartsCreateAnnotationDlg : public QDialog {
   Q_OBJECT
 
  public:
-  CQChartsCreateAnnotationDlg(CQChartsView *view);
-  CQChartsCreateAnnotationDlg(CQChartsPlot *plot);
+  CQChartsCreateAnnotationDlg(QWidget *parent, CQChartsView *view);
+  CQChartsCreateAnnotationDlg(QWidget *parent, CQChartsPlot *plot);
 
   CQChartsView *view() const { return view_; }
   CQChartsPlot *plot() const { return plot_; }
@@ -46,7 +47,7 @@ class CQChartsCreateAnnotationDlg : public QDialog {
   struct Widgets {
     QFrame*                 frame              { nullptr };
     CQChartsFillDataEdit*   backgroundDataEdit { nullptr };
-    CQChartsStrokeDataEdit* borderDataEdit     { nullptr };
+    CQChartsStrokeDataEdit* strokeDataEdit     { nullptr };
     CQChartsSidesEdit*      borderSidesEdit    { nullptr };
   };
 
@@ -84,8 +85,8 @@ class CQChartsCreateAnnotationDlg : public QDialog {
     CQChartsPositionEdit*  startEdit       { nullptr };
     CQChartsPositionEdit*  endEdit         { nullptr };
     CQChartsArrowDataEdit* dataEdit        { nullptr };
-    CQChartsLengthEdit*    borderWidthEdit { nullptr };
-    CQChartsColorLineEdit* borderColorEdit { nullptr };
+    CQChartsLengthEdit*    strokeWidthEdit { nullptr };
+    CQChartsColorLineEdit* strokeColorEdit { nullptr };
     CQCheckBox*            filledCheck     { nullptr };
     CQChartsColorLineEdit* fillColorEdit   { nullptr };
   };
@@ -113,13 +114,13 @@ class CQChartsCreateAnnotationDlg : public QDialog {
 
   QHBoxLayout *addLabelWidget(QBoxLayout *playout, const QString &label, QWidget *widget);
 
-  bool createRectAnnotation    ();
-  bool createEllipseAnnotation ();
-  bool createPolygonAnnotation ();
-  bool createPolylineAnnotation();
-  bool createTextAnnotation    ();
-  bool createArrowAnnotation   ();
-  bool createPointAnnotation   ();
+  bool createRectangleAnnotation();
+  bool createEllipseAnnotation  ();
+  bool createPolygonAnnotation  ();
+  bool createPolylineAnnotation ();
+  bool createTextAnnotation     ();
+  bool createArrowAnnotation    ();
+  bool createPointAnnotation    ();
 
  private slots:
   void typeSlot(int ind);
@@ -131,19 +132,19 @@ class CQChartsCreateAnnotationDlg : public QDialog {
   void cancelSlot();
 
  private:
-  CQChartsView*   view_             { nullptr }; //! associated view
-  CQChartsPlot*   plot_             { nullptr }; //! associated plot
-  QComboBox*      typeCombo_        { nullptr }; //! type combo
-  CQLineEdit*     idEdit_           { nullptr }; //! id edit
-  CQLineEdit*     tipEdit_          { nullptr }; //! tip edit
-  QStackedWidget* typeStack_        { nullptr }; //! type stacked widget
-  RectWidgets     rectWidgets_;                  //! rect edit widgets
-  EllipseWidgets  ellipseWidgets_;               //! ellipse edit widgets
-  PolygonWidgets  polygonWidgets_;               //! polygon edit widgets
-  PolylineWidgets polylineWidgets_;              //! polyline edit widgets
-  TextWidgets     textWidgets_;                  //! text edit widgets
-  ArrowWidgets    arrowWidgets_;                 //! arrow edit widgets
-  PointWidgets    pointWidgets_;                 //! point edit widgets
+  CQChartsView*   view_             { nullptr }; //!< associated view
+  CQChartsPlot*   plot_             { nullptr }; //!< associated plot
+  QComboBox*      typeCombo_        { nullptr }; //!< type combo
+  CQLineEdit*     idEdit_           { nullptr }; //!< id edit
+  CQLineEdit*     tipEdit_          { nullptr }; //!< tip edit
+  QStackedWidget* typeStack_        { nullptr }; //!< type stacked widget
+  RectWidgets     rectWidgets_;                  //!< rect edit widgets
+  EllipseWidgets  ellipseWidgets_;               //!< ellipse edit widgets
+  PolygonWidgets  polygonWidgets_;               //!< polygon edit widgets
+  PolylineWidgets polylineWidgets_;              //!< polyline edit widgets
+  TextWidgets     textWidgets_;                  //!< text edit widgets
+  ArrowWidgets    arrowWidgets_;                 //!< arrow edit widgets
+  PointWidgets    pointWidgets_;                 //!< point edit widgets
 };
 
 #endif

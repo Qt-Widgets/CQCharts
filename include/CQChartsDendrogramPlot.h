@@ -10,6 +10,10 @@ class CQChartsDendrogramPlot;
 
 //---
 
+/*!
+ * \brief Dendrogram plot type
+ * \ingroup Charts
+ */
 class CQChartsDendrogramPlotType : public CQChartsPlotType {
  public:
   CQChartsDendrogramPlotType();
@@ -27,6 +31,11 @@ class CQChartsDendrogramPlotType : public CQChartsPlotType {
   bool hasAxes() const override { return false; }
   bool hasKey () const override { return false; }
 
+  bool allowXLog() const override { return false; }
+  bool allowYLog() const override { return false; }
+
+  bool canProbe() const override { return false; }
+
   QString description() const override;
 
   CQChartsPlot *create(CQChartsView *view, const ModelP &model) const override;
@@ -34,10 +43,18 @@ class CQChartsDendrogramPlotType : public CQChartsPlotType {
 
 //---
 
+/*!
+ * \brief Dendrogram Plot Node object
+ * \ingroup Charts
+ */
 class CQChartsDendrogramNodeObj : public CQChartsPlotObj {
+  Q_OBJECT
+
  public:
   CQChartsDendrogramNodeObj(const CQChartsDendrogramPlot *plot, CQChartsDendrogram::Node *node,
                             const CQChartsGeom::BBox &rect);
+
+  QString typeName() const override { return "node"; }
 
   QString calcId() const override;
 
@@ -45,9 +62,7 @@ class CQChartsDendrogramNodeObj : public CQChartsPlotObj {
 
   void getSelectIndices(Indices &inds) const override;
 
-  void addColumnSelectIndex(Indices &, const CQChartsColumn &) const override { }
-
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
  private:
   const CQChartsDendrogramPlot* plot_ { nullptr };
@@ -56,6 +71,10 @@ class CQChartsDendrogramNodeObj : public CQChartsPlotObj {
 
 //---
 
+/*!
+ * \brief Dendrogram Plot
+ * \ingroup Charts
+ */
 class CQChartsDendrogramPlot : public CQChartsPlot,
  public CQChartsObjNodeShapeData<CQChartsDendrogramPlot>,
  public CQChartsObjEdgeLineData <CQChartsDendrogramPlot>,
@@ -127,19 +146,19 @@ class CQChartsDendrogramPlot : public CQChartsPlot,
 
   bool hasForeground() const override;
 
-  void drawForeground(QPainter *) const override;
+  void execDrawForeground(CQChartsPaintDevice *) const override;
 
-  void drawNodes(QPainter *painter, CQChartsDendrogram::HierNode *hier, int depth) const;
+  void drawNodes(CQChartsPaintDevice *device, CQChartsDendrogram::HierNode *hier, int depth) const;
 
-  void drawNode(QPainter *painter, CQChartsDendrogram::HierNode *hier,
+  void drawNode(CQChartsPaintDevice *device, CQChartsDendrogram::HierNode *hier,
                 CQChartsDendrogram::Node *node) const;
 
  private:
-  CQChartsColumn      nameColumn_;              //! name column
-  CQChartsColumn      valueColumn_;             //! value column
-  CQChartsDendrogram* dendrogram_  { nullptr }; //! dendogram class
-  double              circleSize_  { 8.0 };     //! circle size
-  double              textMargin_  { 4.0 };     //! text margin
+  CQChartsColumn      nameColumn_;              //!< name column
+  CQChartsColumn      valueColumn_;             //!< value column
+  CQChartsDendrogram* dendrogram_  { nullptr }; //!< dendrogram class
+  double              circleSize_  { 8.0 };     //!< circle size
+  double              textMargin_  { 4.0 };     //!< text margin
 };
 
 #endif

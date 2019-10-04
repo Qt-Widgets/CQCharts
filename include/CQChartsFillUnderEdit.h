@@ -6,14 +6,23 @@
 
 class QComboBox;
 
+/*!
+ * \brief fill under side edit
+ * \ingroup Charts
+ */
 class CQChartsFillUnderSideEdit : public QFrame {
   Q_OBJECT
+
+  Q_PROPERTY(CQChartsFillUnderSide fillUnderSide READ fillUnderSide WRITE setFillUnderSide)
 
  public:
   CQChartsFillUnderSideEdit(QWidget *parent=nullptr);
 
   const CQChartsFillUnderSide &fillUnderSide() const;
   void setFillUnderSide(const CQChartsFillUnderSide &side);
+
+ private:
+  void connectSlots(bool b);
 
  signals:
   void fillUnderSideChanged();
@@ -30,7 +39,10 @@ class CQChartsFillUnderSideEdit : public QFrame {
 
 #include <CQPropertyViewType.h>
 
-// type for CQChartsFillUnderSide
+/*!
+ * \brief type for CQChartsFillUnderSide
+ * \ingroup Charts
+ */
 class CQChartsFillUnderSidePropertyViewType : public CQPropertyViewType {
  public:
   CQChartsFillUnderSidePropertyViewType();
@@ -39,18 +51,23 @@ class CQChartsFillUnderSidePropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &index,
             const QVariant &value, bool inside) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "fill_under_side"; }
 };
 
 //---
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsFillUnderSide
+/*!
+ * \brief editor factory for CQChartsFillUnderSide
+ * \ingroup Charts
+ */
 class CQChartsFillUnderSidePropertyViewEditor : public CQPropertyViewEditorFactory {
  public:
   CQChartsFillUnderSidePropertyViewEditor();
@@ -68,6 +85,10 @@ class CQChartsFillUnderSidePropertyViewEditor : public CQPropertyViewEditorFacto
 
 class CQChartsFillUnderPosEdit;
 
+/*!
+ * \brief Fill Under Position line edit
+ * \ingroup Charts
+ */
 class CQChartsFillUnderPosLineEdit : public CQChartsLineEditBase {
   Q_OBJECT
 
@@ -79,7 +100,7 @@ class CQChartsFillUnderPosLineEdit : public CQChartsLineEditBase {
   const CQChartsFillUnderPos &fillUnderPos() const;
   void setFillUnderPos(const CQChartsFillUnderPos &fillUnderPos);
 
-  void drawPreview(QPainter*, const QRect&);
+  void drawPreview(QPainter *painter, const QRect &rect) override;
 
  signals:
   void fillUnderPosChanged();
@@ -106,6 +127,10 @@ class CQChartsFillUnderPosLineEdit : public CQChartsLineEditBase {
 
 class CQRealSpin;
 
+/*!
+ * \brief Fill Under Position edit
+ * \ingroup Charts
+ */
 class CQChartsFillUnderPosEdit : public CQChartsEditBase {
   Q_OBJECT
 
@@ -117,7 +142,7 @@ class CQChartsFillUnderPosEdit : public CQChartsEditBase {
   const CQChartsFillUnderPos &fillUnderPos() const;
   void setFillUnderPos(const CQChartsFillUnderPos &fillUnderPos);
 
-  void drawPreview(QPainter*, const QRect&);
+  void drawPreview(QPainter *painter, const QRect &rect);
 
  signals:
   void fillUnderPosChanged();
@@ -142,7 +167,10 @@ class CQChartsFillUnderPosEdit : public CQChartsEditBase {
 
 #include <CQPropertyViewType.h>
 
-// type for CQChartsFillUnderPos
+/*!
+ * \brief type for CQChartsFillUnderPos
+ * \ingroup Charts
+ */
 class CQChartsFillUnderPosPropertyViewType : public CQPropertyViewType {
  public:
   CQChartsFillUnderPosPropertyViewType();
@@ -151,18 +179,23 @@ class CQChartsFillUnderPosPropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &index,
             const QVariant &value, bool inside) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "fill_under_position"; }
 };
 
 //---
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsFillUnderPos
+/*!
+ * \brief editor factory for CQChartsFillUnderPos
+ * \ingroup Charts
+ */
 class CQChartsFillUnderPosPropertyViewEditor : public CQPropertyViewEditorFactory {
  public:
   CQChartsFillUnderPosPropertyViewEditor();

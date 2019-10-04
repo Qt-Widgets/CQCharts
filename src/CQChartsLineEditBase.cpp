@@ -6,6 +6,7 @@
 #include <CQChartsPropertyViewTree.h>
 
 #include <CQWidgetMenu.h>
+#include <CQUtil.h>
 
 #include <QHBoxLayout>
 #include <QStylePainter>
@@ -25,14 +26,14 @@ CQChartsLineEditBase(QWidget *parent) :
 
   //---
 
-  layout_ = new QHBoxLayout(this);
-  layout_->setMargin(0); layout_->setSpacing(2);
+  layout_ = CQUtil::makeLayout<QHBoxLayout>(this, 0, 2);
 
   //---
 
   edit_ = new CQChartsLineEditEdit(this);
 
-  connect(edit_, SIGNAL(textChanged(const QString &)), this, SLOT(textChangedSlot()));
+//connect(edit_, SIGNAL(textChanged(const QString &)), this, SLOT(textChangedSlot()));
+  connect(edit_, SIGNAL(editingFinished()), this, SLOT(textChangedSlot()));
 
   layout_->addWidget(edit_);
 
@@ -158,7 +159,7 @@ CQChartsLineEditBase::
 hideMenuSlot()
 {
   if (propertyViewTree_)
-    propertyViewTree_->closeEditor();
+    propertyViewTree_->closeCurrentEditor();
 }
 
 void
@@ -176,6 +177,12 @@ void
 CQChartsLineEditBase::
 connectSlots(bool b)
 {
+  assert(b != connected_);
+
+  connected_ = b;
+
+  //---
+
   auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
     if (b)
       connect(w, from, this, to);
@@ -183,8 +190,8 @@ connectSlots(bool b)
       disconnect(w, from, this, to);
   };
 
-  connectDisconnect(b, edit_, SIGNAL(textChanged(const QString &)),
-                    SLOT(textChangedSlot()));
+//connectDisconnect(b, edit_, SIGNAL(textChanged(const QString &)), SLOT(textChangedSlot()));
+  connectDisconnect(b, edit_, SIGNAL(editingFinished()), SLOT(textChangedSlot()));
 }
 
 void
@@ -281,9 +288,9 @@ interpColor(const CQChartsColor &color) const
   QColor c;
 
   if      (plot())
-    return plot()->charts()->interpColor(color, 0, 1);
+    return plot()->interpColor(color, CQChartsUtil::ColorInd());
   else if (view())
-    return view()->charts()->interpColor(color, 0, 1);
+    return view()->interpColor(color, CQChartsUtil::ColorInd());
   else
     return color.color();
 }
@@ -292,7 +299,7 @@ interpColor(const CQChartsColor &color) const
 
 CQChartsLineEditEdit::
 CQChartsLineEditEdit(CQChartsLineEditBase *edit) :
- QLineEdit(edit), edit_(edit)
+ CQLineEdit(edit), edit_(edit)
 {
   setObjectName("edit");
 
@@ -306,7 +313,7 @@ CQChartsLineEditEdit::
 paintEvent(QPaintEvent *e)
 {
   if (edit_->isEditable())
-    QLineEdit::paintEvent(e);
+    CQLineEdit::paintEvent(e);
   else {
     QPainter painter(this);
 

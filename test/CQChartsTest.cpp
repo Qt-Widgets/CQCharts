@@ -944,12 +944,12 @@ initPlotView(const CQChartsModelData *modelData, const CQChartsInitData &initDat
 
     sortModel->setFilter(initData.filterStr);
 
-    plot = cmds_->createPlot(nullptr, sortModelP, modelData->selectionModel(), type, reuse);
+    plot = cmds_->createPlot(nullptr, sortModelP, type, reuse);
 
     cmds_->initPlot(plot, initData.nameValueData, bbox);
   }
   else {
-    plot = cmds_->createPlot(nullptr, model, modelData->selectionModel(), type, reuse);
+    plot = cmds_->createPlot(nullptr, model, type, reuse);
 
     cmds_->initPlot(plot, initData.nameValueData, bbox);
   }
@@ -983,10 +983,10 @@ initPlotView(const CQChartsModelData *modelData, const CQChartsInitData &initDat
     plot->setLogY(true);
 
   if (initData.xintegral)
-    plot->xAxis()->setIntegral(true);
+    plot->xAxis()->setValueType(CQChartsAxisValueType::Type::INTEGER);
 
   if (initData.yintegral)
-    plot->yAxis()->setIntegral(true);
+    plot->yAxis()->setValueType(CQChartsAxisValueType::Type::INTEGER);
 
   if (initData.xmin) plot->setXMin(initData.xmin);
   if (initData.ymin) plot->setYMin(initData.ymin);

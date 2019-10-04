@@ -1,8 +1,8 @@
 #include <CQChartsNoDataObj.h>
 #include <CQChartsView.h>
+#include <CQChartsPlot.h>
 #include <CQChartsDrawUtil.h>
-
-#include <QPainter>
+#include <CQChartsPaintDevice.h>
 
 CQChartsNoDataObj::
 CQChartsNoDataObj(CQChartsPlot *plot) :
@@ -12,25 +12,25 @@ CQChartsNoDataObj(CQChartsPlot *plot) :
 
 void
 CQChartsNoDataObj::
-draw(QPainter *painter)
+draw(CQChartsPaintDevice *device)
 {
-  CQChartsView *view = plot_->view();
+  CQChartsView *view = plot()->view();
 
   // get plot inside bbox in view coords
-  CQChartsGeom::BBox bbox = plot_->innerViewBBox();
+  CQChartsGeom::BBox bbox = plot()->innerViewBBox();
 
-  // get pixel position of center
+  // get position of center
   double xm = bbox.getXMid();
   double ym = bbox.getXMid();
 
-  CQChartsGeom::Point c = view->windowToPixel(CQChartsGeom::Point(xm, ym));
+  CQChartsGeom::Point c(xm, ym);
 
   //--
 
   // draw no data text
   QString msg = "NO DATA";
 
-  painter->setFont(view->font());
+  view->setPainterFont(device, font());
 
-  CQChartsDrawUtil::drawCenteredText(painter, c.qpoint(), msg);
+  CQChartsDrawUtil::drawCenteredText(device, c.qpoint(), msg);
 }

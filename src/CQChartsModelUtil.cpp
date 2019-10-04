@@ -8,9 +8,15 @@
 
 #include <CQCsvModel.h>
 #include <CQTsvModel.h>
+#include <CQGnuDataModel.h>
+#include <CQJsonModel.h>
 #include <CQDataModel.h>
+#include <CQPivotModel.h>
+#include <CQModelUtil.h>
+
 #include <CQPerfMonitor.h>
 #include <CQStrParse.h>
+#include <CQTclUtil.h>
 
 #include <QSortFilterProxyModel>
 
@@ -29,23 +35,7 @@ void errorMsg(const QString &msg) {
 namespace CQChartsModelUtil {
 
 bool isHierarchical(const QAbstractItemModel *model) {
-  if (! model)
-    return false;
-
-  QModelIndex parent;
-
-  int nr = model->rowCount(parent);
-
-  nr = std::min(nr, 100); // limit number of rows checked
-
-  for (int row = 0; row < nr; ++row) {
-    QModelIndex index1 = model->index(row, 0, parent);
-
-    if (model->hasChildren(index1))
-      return true;
-  }
-
-  return false;
+  return CQModelUtil::isHierarchical(model);
 }
 
 #if 0
@@ -223,16 +213,34 @@ columnValueType(CQCharts *charts, const QAbstractItemModel *model, const CQChart
 //  TODO: separate format string from column type to remove dependence
 bool
 formatColumnTypeValue(CQCharts *charts, const QAbstractItemModel *model,
-                      const CQChartsColumn &column, const QString &typeStr,
+                      const CQChartsColumn &column, const QString &formatStr,
                       double value, QString &str) {
+#if 0
   CQChartsNameValues nameValues;
 
   CQChartsColumnTypeMgr *columnTypeMgr = charts->columnTypeMgr();
 
-  const CQChartsColumnType *typeData = columnTypeMgr->decodeTypeData(typeStr, nameValues);
+  const CQChartsColumnType *typeData = columnTypeMgr->decodeTypeData(formatStr, nameValues);
 
   if (! typeData)
     return false;
+#else
+  CQBaseModelType    columnType;
+  CQBaseModelType    columnBaseType;
+  CQChartsNameValues nameValues;
+
+  if (! columnValueType(charts, model, column, columnType, columnBaseType, nameValues))
+    return false;
+
+  CQChartsColumnTypeMgr *columnTypeMgr = charts->columnTypeMgr();
+
+  const CQChartsColumnType *typeData = columnTypeMgr->getType(columnType);
+
+  if (! typeData)
+    return false;
+
+  nameValues.setNameValue(typeData->formatName(), formatStr);
+#endif
 
   return formatColumnTypeValue(charts, model, column, typeData, nameValues, value, str);
 }
@@ -299,6 +307,7 @@ columnUserData(CQCharts *charts, const QAbstractItemModel *model, const CQCharts
   return var1;
 }
 
+#if 0
 // get type string for column (type name and name values)
 bool
 columnTypeStr(CQCharts *charts, const QAbstractItemModel *model,
@@ -316,7 +325,38 @@ columnTypeStr(CQCharts *charts, const QAbstractItemModel *model,
 
   return true;
 }
+#endif
 
+// get type string for column (type name and name values)
+bool
+columnTypeStr(CQCharts *charts, const QAbstractItemModel *model,
+              const CQChartsColumn &column, QString &typeStr) {
+  CQBaseModelType    columnType;
+  CQBaseModelType    columnBaseType;
+  CQChartsNameValues nameValues;
+
+  if (! columnValueType(charts, model, column, columnType, columnBaseType, nameValues))
+    return false;
+
+  QStringList strs;
+
+  strs << CQBaseModel::typeName(columnType);
+
+  for (const auto &nv : nameValues.nameValues()) {
+    QStringList strs1;
+
+    strs1 << nv.first;
+    strs1 << nv.second.toString();
+
+    strs << CQTcl::mergeList(strs1);
+  }
+
+  typeStr = CQTcl::mergeList(strs);
+
+  return true;
+}
+
+#if 0
 // column_types: <column_type>;<column_type>;...
 // column_type : <column>#<type> | <type>
 // type        : <base_type>:<name_values> | <base_type>
@@ -337,40 +377,81 @@ setColumnTypeStrs(CQCharts *charts, QAbstractItemModel *model, const QString &co
     if (! typeStr.length())
       continue;
 
-    // default column to index
-    CQChartsColumn column(i);
-
-    // if #<col> then use that for column index
-    int pos = typeStr.indexOf("#");
-
-    if (pos >= 0) {
-      QString columnStr = typeStr.mid(0, pos).simplified();
-
-      CQChartsColumn column1;
-
-      if (stringToColumn(model, columnStr, column1))
-        column = column1;
-      else {
-        charts->errorMsg("Bad column name '" + columnStr + "'");
-        rc = false;
-      }
-
-      typeStr = typeStr.mid(pos + 1).simplified();
-    }
-
-    //---
-
-    if (! setColumnTypeStr(charts, model, column, typeStr)) {
-      charts->errorMsg(QString("Invalid type '" + typeStr + "' for column '%1'").
-                         arg(column.toString()));
+    if (! setColumnTypeIndexStr(charts, model, i, typeStr))
       rc = false;
+  }
+
+  return rc;
+}
+#endif
+
+bool
+setColumnTypeStrs(CQCharts *charts, QAbstractItemModel *model, const QString &columnTypes)
+{
+  bool rc = true;
+
+  // split into multiple column type definitions
+  QStringList fstrs;
+
+  if (! CQTcl::splitList(columnTypes, fstrs))
+    return false;
+
+  for (int i = 0; i < fstrs.length(); ++i) {
+    QString typeStr = fstrs[i].simplified();
+
+    if (! typeStr.length())
       continue;
-    }
+
+    if (! setColumnTypeIndexStr(charts, model, i, typeStr))
+      rc = false;
   }
 
   return rc;
 }
 
+#if 0
+bool
+setColumnTypeIndexStr(CQCharts *charts, QAbstractItemModel *model,
+                      int i, const QString &typeStr)
+{
+  QString typeStr1 = typeStr;
+
+  // default column to index
+  CQChartsColumn column(i);
+
+  // if #<col> then use that for column index
+  int pos = typeStr1.indexOf("#");
+
+  if (pos >= 0) {
+    QString columnStr = typeStr1.mid(0, pos).simplified();
+
+    CQChartsColumn column1;
+
+    if (stringToColumn(model, columnStr, column1))
+      column = column1;
+    else {
+      charts->errorMsg("Bad column name '" + columnStr + "'");
+      return false;
+    }
+
+    typeStr1 = typeStr1.mid(pos + 1).simplified();
+  }
+
+  //---
+
+  if (! setColumnTypeStr(charts, model, column, typeStr1)) {
+    charts->errorMsg(QString("Invalid type '" + typeStr + "' for column '%1'").
+                       arg(column.toString()));
+    return false;
+  }
+
+  //---
+
+  return true;
+}
+#endif
+
+#if 0
 // set type string for column (type name and name values)
 bool
 setColumnTypeStr(CQCharts *charts, QAbstractItemModel *model, const CQChartsColumn &column,
@@ -392,6 +473,127 @@ setColumnTypeStr(CQCharts *charts, QAbstractItemModel *model, const CQChartsColu
     return false;
 
   return true;
+}
+#endif
+
+bool
+setColumnTypeI(CQCharts *charts, QAbstractItemModel *model, const CQChartsColumn &column,
+               const QString &typeName, const QString &typeStr, const QStringList &strs,
+               QString &errorMsg) {
+  CQChartsNameValues nameValues;
+
+  for (int i = 0; i < strs.length(); ++i) {
+    QStringList strs1;
+
+    if (! CQTcl::splitList(strs[i], strs1)) {
+      errorMsg = QString("Invalid column type string '%1'").arg(strs[i]);
+      return false;
+    }
+
+    if (strs1.length() != 2) {
+      errorMsg = QString("Invalid column type string '%1'").arg(strs[i]);
+      return false;
+    }
+
+    nameValues.setNameValue(strs1[0], strs1[1]);
+  }
+
+  CQChartsColumnTypeMgr *columnTypeMgr = charts->columnTypeMgr();
+
+  const CQChartsColumnType *typeData = columnTypeMgr->getType(CQBaseModel::nameType(typeName));
+
+  if (! typeData) {
+    errorMsg = QString("Invalid column type '%1'").arg(typeName);
+    return false;
+  }
+
+  // store in model
+  CQBaseModelType columnType = typeData->type();
+
+  if (! columnTypeMgr->setModelColumnType(model, column, columnType, nameValues)) {
+    errorMsg = QString("Failed to set column type '%1'").arg(typeStr);
+    return false;
+  }
+
+  return true;
+}
+
+bool
+setColumnTypeIndexStr(CQCharts *charts, QAbstractItemModel *model, int ind,
+                      const QString &typeStr)
+{
+  QString errorMsg;
+
+  // { type         {name value} ...}
+  // {{column type} {name value} ...}
+  QStringList strs;
+
+  if (! CQTcl::splitList(typeStr, strs)) {
+    errorMsg = QString("Invalid column type string '%1'").arg(typeStr);
+    return false;
+  }
+
+  if (strs.length() < 1) {
+    errorMsg = QString("Invalid column type string '%1'").arg(typeStr);
+    return false;
+  }
+
+  // skip empty definition
+  if (strs.length() == 1 && strs[0].simplified() == "")
+    return true;
+
+  CQChartsColumn column;
+  QString        typeName;
+
+  QStringList strs1;
+
+  if (CQTcl::splitList(strs[0], strs1) && strs1.length() > 1) {
+    if (strs1.length() != 2) {
+      errorMsg = QString("Invalid column type string '%1'").arg(strs[0]);
+      return false;
+    }
+
+    if (! CQChartsModelUtil::stringToColumn(model, strs1[0], column)) {
+      errorMsg = QString("Invalid column string '%1'").arg(strs1[0]);
+      return false;
+    }
+
+    typeName = strs1[1];
+  }
+  else {
+    column   = CQChartsColumn(ind);
+    typeName = strs[0];
+  }
+
+  return setColumnTypeI(charts, model, column, typeName, typeStr, strs.mid(1), errorMsg);
+}
+
+bool
+setColumnTypeStr(CQCharts *charts, QAbstractItemModel *model, const CQChartsColumn &column,
+                 const QString &typeStr)
+{
+  QString errorMsg;
+
+  // {type {name value} ...}
+  QStringList strs;
+
+  if (! CQTcl::splitList(typeStr, strs)) {
+    errorMsg = QString("Invalid column type string '%1'").arg(typeStr);
+    return false;
+  }
+
+  if (strs.length() < 1) {
+    errorMsg = QString("Invalid column type string '%1'").arg(typeStr);
+    return false;
+  }
+
+  // skip empty definition
+  if (strs.length() == 1 && strs[0].simplified() == "")
+    return true;
+
+  QString typeName = strs[0];
+
+  return setColumnTypeI(charts, model, column, typeName, typeStr, strs.mid(1), errorMsg);
 }
 
 }
@@ -464,7 +666,7 @@ processExpression(QAbstractItemModel *model, CQChartsExprModel::Function functio
     int icolumn = column.column();
 
     if (icolumn < 0) {
-      errorMsg("Inavlid column");
+      errorMsg("Invalid column");
       return -1;
     }
 
@@ -482,7 +684,7 @@ processExpression(QAbstractItemModel *model, CQChartsExprModel::Function functio
     int icolumn = column.column();
 
     if (icolumn < 0) {
-      errorMsg("Inavlid column");
+      errorMsg("Invalid column");
       return -1;
     }
 
@@ -560,12 +762,14 @@ getExprModel(QAbstractItemModel *model)
 }
 
 const CQDataModel *
-getDataModel(const QAbstractItemModel *model) {
+getDataModel(const QAbstractItemModel *model)
+{
   return getDataModel(const_cast<QAbstractItemModel *>(model));
 }
 
 CQDataModel *
-getDataModel(QAbstractItemModel *model) {
+getDataModel(QAbstractItemModel *model)
+{
   CQChartsModelFilter *modelFilter = dynamic_cast<CQChartsModelFilter *>(model);
   if (! modelFilter) return nullptr;
 
@@ -575,13 +779,128 @@ getDataModel(QAbstractItemModel *model) {
   return dataModel;
 }
 
+QAbstractItemModel *
+getBaseModel(QAbstractItemModel *model)
+{
+  return CQModelUtil::getBaseModel(model);
+}
+
+//---
+
+void
+getPropertyNames(const QAbstractItemModel *model, ModelNames &names)
+{
+  // TODO: proxy models
+  QAbstractItemModel *model1 = const_cast<QAbstractItemModel *>(model);
+
+  QAbstractItemModel *absModel = getBaseModel(model1);
+
+  CQBaseModel *baseModel = qobject_cast<CQBaseModel *>(absModel);
+  CQDataModel *dataModel = qobject_cast<CQDataModel *>(absModel);
+
+  CQChartsExprModel *exprModel = getExprModel(absModel);
+
+  CQChartsModelFilter *modelFilter = qobject_cast<CQChartsModelFilter *>(absModel);
+
+  CQPivotModel *pivotModel = qobject_cast<CQPivotModel *>(baseModel);
+
+  CQCsvModel     *csvModel  = qobject_cast<CQCsvModel     *>(absModel);
+  CQTsvModel     *tsvModel  = qobject_cast<CQTsvModel     *>(absModel);
+  CQGnuDataModel *gnuModel  = qobject_cast<CQGnuDataModel *>(absModel);
+  CQJsonModel    *jsonModel = qobject_cast<CQJsonModel    *>(absModel);
+
+  if (baseModel)
+    names[baseModel] << "title" << "maxTypeRows";
+
+  if (dataModel)
+    names[dataModel] << "readOnly" << "filter";
+
+  if (exprModel)
+    names[exprModel] << "debug";
+
+  if (modelFilter)
+    names[modelFilter] << "filter" << "type" << "invert";
+
+  if (pivotModel)
+    names[pivotModel] << "valueType" << "includeTotals";
+
+  if (csvModel)
+    names[csvModel] << "filename" << "commentHeader" << "firstLineHeader" << "firstColumnHeader" <<
+                       "separator";
+
+  if (tsvModel)
+    names[tsvModel] << "filename" << "commentHeader" << "firstLineHeader" << "firstColumnHeader";
+
+  if (gnuModel)
+    names[gnuModel] << "filename" << "commentHeader" << "firstLineHeader" << "firstColumnHeader" <<
+                       "commentChars" << "missingStr" << "separator" << "parseStrings" <<
+                       "setBlankLines" << "subSetBlankLines" << "keepQuotes";
+
+  if (jsonModel)
+    names[jsonModel] << "hierarchical" << "flat";
+}
+
+void
+getPropertyNames(const QAbstractItemModel *model, QStringList &names)
+{
+  ModelNames modelNames;
+
+  getPropertyNames(model, modelNames);
+
+  for (const auto &pn : modelNames)
+    names << pn.second;
+}
+
+bool
+getProperty(const QAbstractItemModel *model, const QString &name, QVariant &value)
+{
+  if (CQUtil::getTclProperty(model, name, value))
+    return true;
+
+  const QAbstractItemModel *baseModel = getBaseModel(const_cast<QAbstractItemModel *>(model));
+
+  if (baseModel && baseModel != model) {
+    if (CQUtil::getTclProperty(baseModel, name, value))
+      return true;
+  }
+
+  return false;
+}
+
+bool
+setProperty(QAbstractItemModel *model, const QString &name, const QVariant &value)
+{
+  if (CQUtil::setProperty(model, name, value))
+    return true;
+
+  QAbstractItemModel *baseModel = getBaseModel(model);
+
+  if (baseModel && baseModel != model) {
+    if (CQUtil::setProperty(baseModel, name, value))
+      return true;
+  }
+
+  return false;
+}
+
 QVariant
-modelMetaValue(const QAbstractItemModel *model, const QString &name)
+getModelMetaValue(const QAbstractItemModel *model, const QString &name)
 {
   const CQDataModel *dataModel = getDataModel(model);
   if (! dataModel) return QVariant();
 
   return dataModel->nameValue(name);
+}
+
+bool
+setModelMetaValue(QAbstractItemModel *model, const QString &name, const QVariant &value)
+{
+  CQDataModel *dataModel = getDataModel(model);
+  if (! dataModel) return false;
+
+  dataModel->setNameValue(name, value);
+
+  return true;
 }
 
 }
@@ -606,11 +925,7 @@ QVariant modelHeaderValue(const QAbstractItemModel *model, const CQChartsColumn 
   if (icolumn < 0)
     return QVariant();
 
-  QVariant var = model->headerData(icolumn, orientation, role);
-
-  ok = var.isValid();
-
-  return var;
+  return CQModelUtil::modelHeaderValue(model, icolumn, orientation, role, ok);
 }
 
 QVariant modelHeaderValue(const QAbstractItemModel *model, const CQChartsColumn &column,
@@ -703,17 +1018,7 @@ bool setModelValue(QAbstractItemModel *model, int row, const CQChartsColumn &col
 //--
 
 QVariant modelValue(const QAbstractItemModel *model, const QModelIndex &ind, int role, bool &ok) {
-  if (! ind.isValid()) {
-    ok = false;
-
-    return QVariant();
-  }
-
-  QVariant var = model->data(ind, role);
-
-  ok = var.isValid();
-
-  return var;
+  return CQModelUtil::modelValue(model, ind, role, ok);
 }
 
 QVariant modelValue(const QAbstractItemModel *model, const QModelIndex &ind, bool &ok) {
@@ -758,16 +1063,17 @@ QVariant modelValue(CQCharts *charts, const QAbstractItemModel *model, int row,
     return typeData->indexVar(var, column.index());
   }
   else if (column.type() == CQChartsColumn::Type::VHEADER) {
-    QVariant var = model->headerData(row, Qt::Vertical, role);
+    bool ok;
 
-    ok = var.isValid();
+    QVariant var = CQModelUtil::modelHeaderValue(model, row, Qt::Vertical, role, ok);
 
     return var;
   }
   else if (column.type() == CQChartsColumn::Type::GROUP) {
-    QVariant var = model->headerData(row, Qt::Vertical, (int) CQBaseModelRole::Group);
+    bool ok;
 
-    ok = var.isValid();
+    QVariant var =
+      CQModelUtil::modelHeaderValue(model, row, Qt::Vertical, CQBaseModelRole::Group, ok);
 
     return var;
   }
@@ -1138,10 +1444,10 @@ int modelColumnNameToInd(const QAbstractItemModel *model, const QString &name) {
   int role = Qt::DisplayRole;
 
   for (int icolumn = 0; icolumn < model->columnCount(); ++icolumn) {
-    QVariant var = model->headerData(icolumn, Qt::Horizontal, role);
+    bool ok;
 
-    if (! var.isValid())
-      continue;
+    QVariant var = modelHeaderValue(model, icolumn, role, ok);
+    if (! ok)) continue;
 
     //QString name1 = CQChartsVariant::toString(var, rc);
 
@@ -1229,9 +1535,12 @@ bool stringToColumn(const QAbstractItemModel *model, const QString &str, CQChart
 
 bool stringToColumns(const QAbstractItemModel *model, const QString &str,
                      std::vector<CQChartsColumn> &columns) {
-  bool rc = true;
+  QStringList strs;
 
-  QStringList strs = str.split(" ", QString::SkipEmptyParts);
+  if (! CQTcl::splitList(str, strs))
+    return false;
+
+  bool rc = true;
 
   for (int i = 0; i < strs.length(); ++i) {
     const QString &str = strs[i];
@@ -1321,7 +1630,9 @@ replaceModelExprVars(const QString &expr, const QAbstractItemModel *model,
         if (stringify) {
           QModelIndex ind1 = model->index(ind.row(), column1, ind.parent());
 
-          QVariant var = model->data(ind1, Qt::DisplayRole);
+          bool ok;
+
+          QVariant var = CQModelUtil::modelValue(model, ind1, Qt::DisplayRole, ok);
 
           expr1 += quoteStr(var.toString(), true);
         }
@@ -1380,7 +1691,9 @@ replaceModelExprVars(const QString &expr, const QAbstractItemModel *model,
 
         if (model && ind.isValid()) {
           if (stringify) {
-            QVariant var = model->data(ind, Qt::DisplayRole);
+            bool ok;
+
+            QVariant var = CQModelUtil::modelValue(model, ind, Qt::DisplayRole, ok);
 
             expr1 += quoteStr(var.toString(), true);
           }
@@ -1390,6 +1703,7 @@ replaceModelExprVars(const QString &expr, const QAbstractItemModel *model,
         else
           expr1 += "@v";
       }
+      // @{<name>} named column value
       else if (parse.isChar('{')) {
         int pos = parse.getPos();
 
@@ -1528,54 +1842,11 @@ exportModel(const QAbstractItemModel *model, CQBaseModelDataType type, bool hhea
 namespace CQChartsModelUtil {
 
 const QStringList &roleNames() {
-  static QStringList names;
-
-  if (names.empty())
-    names << "display" << "edit" << "user" << "font" << "size_hint" <<
-             "tool_tip" << "background" << "foreground" << "text_alignment" <<
-             "text_color" << "decoration" << "type" << "base_type" << "type_values" <<
-             "min" << "max" << "sorted" << "sort_order" << "title" << "key" <<
-             "raw_value" << "intermediate_value" << "cached_value" << "output_value" << "group";
-
-  return names;
+  return CQModelUtil::roleNames();
 };
 
 int nameToRole(const QString &name) {
-  if      (name == "display"       ) return Qt::DisplayRole;
-  else if (name == "edit"          ) return Qt::EditRole;
-  else if (name == "user"          ) return Qt::UserRole;
-  else if (name == "font"          ) return Qt::FontRole;
-  else if (name == "size_hint"     ) return Qt::SizeHintRole;
-  else if (name == "tool_tip"      ) return Qt::ToolTipRole;
-  else if (name == "background"    ) return Qt::BackgroundRole;
-  else if (name == "foreground"    ) return Qt::ForegroundRole;
-  else if (name == "text_alignment") return Qt::TextAlignmentRole;
-  else if (name == "text_color"    ) return Qt::TextColorRole;
-  else if (name == "decoration"    ) return Qt::DecorationRole;
-
-  else if (name == "type"              ) return (int) CQBaseModelRole::Type;
-  else if (name == "base_type"         ) return (int) CQBaseModelRole::BaseType;
-  else if (name == "type_values"       ) return (int) CQBaseModelRole::TypeValues;
-  else if (name == "min"               ) return (int) CQBaseModelRole::Min;
-  else if (name == "max"               ) return (int) CQBaseModelRole::Max;
-  else if (name == "sorted"            ) return (int) CQBaseModelRole::Sorted;
-  else if (name == "sort_order"        ) return (int) CQBaseModelRole::SortOrder;
-  else if (name == "title"             ) return (int) CQBaseModelRole::Title;
-  else if (name == "key"               ) return (int) CQBaseModelRole::Key;
-  else if (name == "raw_value"         ) return (int) CQBaseModelRole::RawValue;
-  else if (name == "intermediate_value") return (int) CQBaseModelRole::IntermediateValue;
-  else if (name == "cached_value"      ) return (int) CQBaseModelRole::CachedValue;
-  else if (name == "output_value"      ) return (int) CQBaseModelRole::OutputValue;
-  else if (name == "group"             ) return (int) CQBaseModelRole::Group;
-
-  bool ok;
-
-  int role = CQChartsUtil::toInt(name, ok);
-
-  if (ok)
-    return role;
-
-  return -1;
+  return CQModelUtil::nameToRole(name);
 }
 
 }

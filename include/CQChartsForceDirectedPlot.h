@@ -8,6 +8,10 @@
 #include <CQChartsConnectionList.h>
 #include <CQChartsForceDirected.h>
 
+/*!
+ * \brief Force Directed plot type
+ * \ingroup Charts
+ */
 class CQChartsForceDirectedPlotType : public CQChartsPlotType {
  public:
   CQChartsForceDirectedPlotType();
@@ -23,6 +27,13 @@ class CQChartsForceDirectedPlotType : public CQChartsPlotType {
 
   bool hasAxes() const override { return false; }
 
+  bool allowXLog() const override { return false; }
+  bool allowYLog() const override { return false; }
+
+  bool canProbe() const override { return false; }
+
+  bool canRectSelect() const override { return false; }
+
   QString description() const override;
 
   bool isColumnForParameter(CQChartsModelColumnDetails *columnDetails,
@@ -33,6 +44,10 @@ class CQChartsForceDirectedPlotType : public CQChartsPlotType {
 
 //---
 
+/*!
+ * \brief Force Directed Plot
+ * \ingroup Charts
+ */
 class CQChartsForceDirectedPlot : public CQChartsPlot,
  public CQChartsObjNodeShapeData<CQChartsForceDirectedPlot>,
  public CQChartsObjEdgeLineData <CQChartsForceDirectedPlot> {
@@ -109,6 +124,8 @@ class CQChartsForceDirectedPlot : public CQChartsPlot,
 
   //---
 
+  bool isAnimated() const override { return true; }
+
   void animateStep() override;
 
   //---
@@ -136,6 +153,8 @@ class CQChartsForceDirectedPlot : public CQChartsPlot,
   void draw(QPainter *painter) override;
 
   void drawParts(QPainter *painter) const override;
+
+  void drawDeviceParts(CQChartsPaintDevice *device) const override;
 
  private:
   using Connections = CQChartsConnectionList::Connections;
@@ -171,26 +190,26 @@ class CQChartsForceDirectedPlot : public CQChartsPlot,
   using ForceDirected = CQChartsForceDirected;
   using StringIndMap  = std::map<QString,int>;
 
-  CQChartsColumn    nodeColumn_;                                 //! connection node column
-  CQChartsColumn    connectionsColumn_;                          //! connections node list column
-  CQChartsColumn    nameColumn_;                                 //! connection node name column
-  CQChartsColumn    namePairColumn_;                             //! link name pair column
-  CQChartsColumn    countColumn_;                                //! link count column
-  CQChartsColumn    groupIdColumn_;                              //! group id column
-  ColumnType        connectionsColumnType_ { ColumnType::NONE }; //! connection column type
-  ColumnType        namePairColumnType_    { ColumnType::NONE }; //! name pair column type
-  IdConnectionsData idConnections_;                              //! id connections
-  NodeMap           nodes_;                                      //! force directed nodes
-  ForceDirected*    forceDirected_         { nullptr };          //! force directed class
-  StringIndMap      nameNodeMap_;                                //! node name index map
-  bool              running_               { true };             //! is running
-  bool              pressed_               { false };            //! is pressed
-  double            rangeSize_             { 20.0 };             //! range size
-  double            nodeMass_              { 1.0 };              //! node mass
-  bool              edgeLinesValueWidth_   { true };             //! use value for edge width
-  int               initSteps_             { 100 };              //! initial steps
-  double            stepSize_              { 0.01 };             //! step size
-  double            nodeRadius_            { 6.0 };              //! node radius
+  CQChartsColumn    nodeColumn_;                                 //!< connection node column
+  CQChartsColumn    connectionsColumn_;                          //!< connections node list column
+  CQChartsColumn    nameColumn_;                                 //!< connection node name column
+  CQChartsColumn    namePairColumn_;                             //!< link name pair column
+  CQChartsColumn    countColumn_;                                //!< link count column
+  CQChartsColumn    groupIdColumn_;                              //!< group id column
+  ColumnType        connectionsColumnType_ { ColumnType::NONE }; //!< connection column type
+  ColumnType        namePairColumnType_    { ColumnType::NONE }; //!< name pair column type
+  IdConnectionsData idConnections_;                              //!< id connections
+  NodeMap           nodes_;                                      //!< force directed nodes
+  ForceDirected*    forceDirected_         { nullptr };          //!< force directed class
+  StringIndMap      nameNodeMap_;                                //!< node name index map
+  bool              running_               { true };             //!< is running
+  bool              pressed_               { false };            //!< is pressed
+  double            rangeSize_             { 20.0 };             //!< range size
+  double            nodeMass_              { 1.0 };              //!< node mass
+  bool              edgeLinesValueWidth_   { true };             //!< use value for edge width
+  int               initSteps_             { 100 };              //!< initial steps
+  double            stepSize_              { 0.01 };             //!< step size
+  double            nodeRadius_            { 6.0 };              //!< node radius (pixel)
 };
 
 #endif

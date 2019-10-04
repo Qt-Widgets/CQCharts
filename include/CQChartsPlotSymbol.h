@@ -2,15 +2,21 @@
 #define CQChartsPlotSymbol_H
 
 #include <CQChartsSymbol.h>
+#include <CQChartsLength.h>
 #include <QString>
 #include <QBrush>
 #include <QPen>
 #include <vector>
 
 class CQChartsPlotSymbolRenderer;
+class CQChartsPaintDevice;
 
 //---
 
+/*!
+ * \brief plot symbol
+ * \ingroup Charts
+ */
 struct CQChartsPlotSymbol {
   enum class Connect {
     NONE,
@@ -65,72 +71,62 @@ namespace CQChartsPlotSymbolMgr {
 
 //---
 
-class CQChartsPlotSymbolRenderer {
- public:
-  CQChartsPlotSymbolRenderer() { }
-
-  virtual void moveTo(double x, double y) = 0;
-  virtual void lineTo(double x, double y) = 0;
-
-  virtual void closePath() = 0;
-
-  virtual void stroke() = 0;
-
-  virtual void fill() = 0;
-
-  virtual void drawPoint(double x, double y) const = 0;
-
-  virtual void drawLine(double x1, double y1, double x2, double y2) const = 0;
-
-  virtual void strokeCircle(double x, double y, double r) const = 0;
-  virtual void fillCircle  (double x, double y, double r) const = 0;
-
-  virtual double lineWidth() const { return 0.0; }
-
-  void drawSymbol  (CQChartsSymbol type);
-  void strokeSymbol(CQChartsSymbol type);
-  void fillSymbol  (CQChartsSymbol type);
-};
-
-//------
-
 #include <CQChartsGeom.h>
 #include <QPainterPath>
 
 class CQChartsPlot;
-class QPainter;
 
-class CQChartsSymbol2DRenderer : public CQChartsPlotSymbolRenderer {
+/*!
+ * \brief plot symbol renderer
+ * \ingroup Charts
+ */
+class CQChartsPlotSymbolRenderer {
  public:
-  CQChartsSymbol2DRenderer(QPainter *painter, const CQChartsGeom::Point &p, double s);
+  CQChartsPlotSymbolRenderer(CQChartsPaintDevice *painter, const CQChartsGeom::Point &p,
+                             const CQChartsLength &size);
 
-  void moveTo(double x, double y) override;
+  void drawSymbol  (CQChartsSymbol type);
+  void strokeSymbol(CQChartsSymbol type);
+  void fillSymbol  (CQChartsSymbol type);
 
-  void lineTo(double x, double y) override;
+  //---
 
-  void closePath() override;
+  void moveTo(double x, double y);
 
-  void stroke() override;
+  void lineTo(double x, double y);
 
-  void fill() override;
+  void closePath();
 
-  void drawPoint(double x, double y) const override;
+  void stroke();
 
-  void drawLine(double x1, double y1, double x2, double y2) const override;
+  void fill();
 
-  void strokeCircle(double x, double y, double r) const override;
-  void fillCircle  (double x, double y, double r) const override;
+  void drawPoint(double x, double y) const;
 
-  double lineWidth() const override;
+  void drawLine(double x1, double y1, double x2, double y2) const;
+
+  void fillRect(double x1, double y1, double x2, double y2) const;
+
+  void strokeCircle(double x, double y, double r) const;
+  void fillCircle  (double x, double y, double r) const;
+
+  void mapXY(double x, double y, double &x1, double &y1) const;
+
+  double lineWidth() const;
+
+  void save   () const;
+  void restore() const;
 
  private:
-  QPainter*           painter_ { nullptr };  //! painter
-  CQChartsGeom::Point p_       { 0.0, 0.0 }; //! symbol center
-  double              s_       { 2.0 };      //! size
-  double              w_       { 0.0 };      //! line width
-  QPainterPath        path_;                 //! path
-  QPen                strokePen_;            //! stroke pen
-  QBrush              fillBrush_;            //! fill brush
+  CQChartsPaintDevice* device_  { nullptr };  //!< device
+  CQChartsGeom::Point  p_       { 0.0, 0.0 }; //!< symbol center
+  double               s_       { 2.0 };      //!< size as pixel
+  CQChartsLength       size_;                 //!< size as length
+  double               w_       { 0.0 };      //!< line width
+  QPainterPath         path_;                 //!< path
+  QPen                 strokePen_;            //!< stroke pen
+  QBrush               fillBrush_;            //!< fill brush
+  mutable bool         saved_   { false };    //!< saved
 };
 
 #endif

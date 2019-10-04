@@ -6,6 +6,10 @@
 
 class CQChartsColumnsEdit;
 
+/*!
+ * \brief Columns line edit
+ * \ingroup Charts
+ */
 class CQChartsColumnsLineEdit : public CQChartsLineEditBase {
   Q_OBJECT
 
@@ -22,7 +26,7 @@ class CQChartsColumnsLineEdit : public CQChartsLineEditBase {
   const CQChartsColumns &columns() const;
   void setColumns(const CQChartsColumns &c);
 
-  void drawPreview(QPainter *painter, const QRect &rect);
+  void drawPreview(QPainter *painter, const QRect &rect) override;
 
  signals:
   void columnsChanged();
@@ -39,7 +43,7 @@ class CQChartsColumnsLineEdit : public CQChartsLineEditBase {
 
   void columnsToWidgets();
 
-  void connectSlots(bool b);
+  void connectSlots(bool b) override;
 
   bool textToColumns(const QString &str, CQChartsColumns &columns) const;
 
@@ -54,6 +58,10 @@ class CQChartsColumnsLineEdit : public CQChartsLineEditBase {
 class CQChartsColumnLineEdit;
 class QLabel;
 
+/*!
+ * \brief Columns edit
+ * \ingroup Charts
+ */
 class CQChartsColumnsEdit : public CQChartsEditBase {
   Q_OBJECT
 
@@ -101,7 +109,10 @@ class CQChartsColumnsEdit : public CQChartsEditBase {
 
 #include <CQPropertyViewType.h>
 
-// type for CQChartsColumn
+/*!
+ * \brief type for CQChartsColumns
+ * \ingroup Charts
+ */
 class CQChartsColumnsPropertyViewType : public CQPropertyViewType {
  public:
   CQChartsColumnsPropertyViewType();
@@ -110,18 +121,23 @@ class CQChartsColumnsPropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &index,
             const QVariant &value, bool inside) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "column_list"; }
 };
 
 //---
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsColumn
+/*!
+ * \brief editor factory for CQChartsColumn
+ * \ingroup Charts
+ */
 class CQChartsColumnsPropertyViewEditor : public CQPropertyViewEditorFactory {
  public:
   CQChartsColumnsPropertyViewEditor();

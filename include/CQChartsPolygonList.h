@@ -4,6 +4,10 @@
 #include <CQChartsUtil.h>
 #include <QPolygonF>
 
+/*!
+ * \brief polygon list
+ * \ingroup Charts
+ */
 class CQChartsPolygonList {
  public:
   using Polygons = std::vector<QPolygonF>;

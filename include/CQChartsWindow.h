@@ -6,10 +6,11 @@
 
 class CQChartsWindow;
 class CQChartsView;
+class CQChartsPlot;
 class CQChartsViewExpander;
 class CQChartsViewSettings;
 class CQChartsFilterEdit;
-class CQChartsModelView;
+class CQChartsModelViewHolder;
 class CQChartsViewStatus;
 class CQChartsViewToolBar;
 class CQChartsWindowRangeScroll;
@@ -19,12 +20,14 @@ class QStackedWidget;
 
 /*!
  * \brief Class to manage created windows
+ * \ingroup Charts
  */
 class CQChartsWindowMgr {
  public:
   static CQChartsWindowMgr *instance();
 
   CQChartsWindow *createWindow(CQChartsView *view);
+  void removeWindow(CQChartsWindow *window);
 
  ~CQChartsWindowMgr();
 
@@ -43,6 +46,7 @@ class CQChartsWindowMgr {
 
 /*!
  * \brief Widget to hold view and associated controls
+ * \ingroup Charts
  */
 class CQChartsWindow : public QFrame {
   Q_OBJECT
@@ -84,7 +88,10 @@ class CQChartsWindow : public QFrame {
 
   void resizeEvent(QResizeEvent *) override;
 
-  QSize sizeHint() const;
+  QSize sizeHint() const override;
+
+ private:
+  CQChartsPlot *objectPlot(QObject *obj) const;
 
  signals:
   void interfacePaletteChanged();
@@ -103,6 +110,8 @@ class CQChartsWindow : public QFrame {
 
   void filterChangedSlot();
 
+  void removeViewSlot(CQChartsView *view);
+
   void plotSlot();
   void modeSlot();
   void selectModeSlot();
@@ -114,26 +123,27 @@ class CQChartsWindow : public QFrame {
   void propertyItemSelected(QObject *obj, const QString &path);
 
  private:
-  CQChartsView*              view_         { nullptr }; //! parent view
-  bool                       xRangeMap_    { false };   //! xrange map
-  bool                       yRangeMap_    { false };   //! xrange map
-  bool                       dataTable_    { true };    //! data table
-  bool                       viewSettings_ { true };    //! view settings
-  CQChartsWindowRangeScroll* xrangeScroll_ { nullptr }; //! xrange scroll
-  CQChartsWindowRangeScroll* yrangeScroll_ { nullptr }; //! yrange scroll
-  CQChartsViewSettings*      settings_     { nullptr }; //! settings widget
-  QFrame*                    tableFrame_   { nullptr }; //! table frame
-  QStackedWidget*            viewStack_    { nullptr }; //! view stack
-  CQChartsFilterEdit*        filterEdit_   { nullptr }; //! filter edit
-  CQChartsModelView*         modelView_    { nullptr }; //! model view
-  CQChartsViewToolBar*       toolbar_      { nullptr }; //! toolbar
-  CQChartsViewStatus*        status_       { nullptr }; //! status
+  CQChartsView*              view_         { nullptr }; //!< parent view
+  bool                       xRangeMap_    { false };   //!< xrange map
+  bool                       yRangeMap_    { false };   //!< xrange map
+  bool                       dataTable_    { false };   //!< data table
+  bool                       viewSettings_ { true };    //!< view settings
+  CQChartsWindowRangeScroll* xrangeScroll_ { nullptr }; //!< xrange scroll
+  CQChartsWindowRangeScroll* yrangeScroll_ { nullptr }; //!< yrange scroll
+  CQChartsViewSettings*      settings_     { nullptr }; //!< settings widget
+  QFrame*                    tableFrame_   { nullptr }; //!< table frame
+  QStackedWidget*            viewStack_    { nullptr }; //!< view stack
+  CQChartsFilterEdit*        filterEdit_   { nullptr }; //!< filter edit
+  CQChartsModelViewHolder*   modelView_    { nullptr }; //!< model view
+  CQChartsViewToolBar*       toolbar_      { nullptr }; //!< toolbar
+  CQChartsViewStatus*        status_       { nullptr }; //!< status
 };
 
 //-----
 
 /*!
  * \brief Range scroll control for window
+ * \ingroup Charts
  */
 class CQChartsWindowRangeScroll : public CQRangeScroll {
   Q_OBJECT

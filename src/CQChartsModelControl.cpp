@@ -2,17 +2,28 @@
 #include <CQChartsModelData.h>
 #include <CQChartsColumnType.h>
 #include <CQChartsExprModel.h>
+#include <CQChartsModelFilter.h>
 #include <CQChartsModelUtil.h>
+#include <CQChartsColorEdit.h>
 #include <CQCharts.h>
-#include <CQBaseModel.h>
+
+#include <CQPropertyViewModel.h>
+#include <CQPropertyViewTree.h>
+#include <CQPivotModel.h>
+#include <CQCsvModel.h>
+#include <CQTsvModel.h>
+#include <CQGnuDataModel.h>
+#include <CQJsonModel.h>
+#include <CQDataModel.h>
 #include <CQLineEdit.h>
+#include <CQCheckBox.h>
 #include <CQUtil.h>
 
+#include <QSortFilterProxyModel>
 #include <QVBoxLayout>
 #include <QTabWidget>
 #include <QStackedWidget>
 #include <QRadioButton>
-#include <QCheckBox>
 #include <QComboBox>
 #include <QLabel>
 #include <QPushButton>
@@ -21,28 +32,68 @@ class CQChartsParamEdit : public QFrame {
  public:
   CQChartsParamEdit(QWidget *parent=nullptr) :
    QFrame(parent) {
-    layout_ = new QHBoxLayout(this);
-    layout_->setMargin(0); layout_->setSpacing(0);
+    layout_ = CQUtil::makeLayout<QHBoxLayout>(this, 0, 0);
   }
 
   void setString(const QString &str="") {
-    reset();
+    if (! edit_) {
+      reset();
 
-    edit_ = CQUtil::makeWidget<CQLineEdit>("edit");
+      edit_ = CQUtil::makeWidget<CQLineEdit>("edit");
+
+      layout_->addWidget(edit_);
+    }
 
     edit_->setText(str);
-
-    layout_->addWidget(edit_);
   }
 
   void setBool(bool b=false) {
-    reset();
+    if (! check_) {
+      reset();
 
-    check_ = new QCheckBox;
+      check_ = CQUtil::makeWidget<CQCheckBox>("edit");
+
+      layout_->addWidget(check_);
+    }
 
     check_->setChecked(b);
+  }
 
-    layout_->addWidget(check_);
+  void setEnum(const QString &str, const QStringList &values) {
+    if (! combo_) {
+      reset();
+
+      combo_ = CQUtil::makeWidget<QComboBox>("edit");
+
+      layout_->addWidget(combo_);
+    }
+
+    // make optional
+    QStringList values1;
+    values1 << "";
+    values1 << values;
+
+    combo_->clear();
+    combo_->addItems(values1);
+
+    int pos = combo_->findText(str);
+    if (pos < 0) pos = 0;
+
+    combo_->setCurrentIndex(pos);
+  }
+
+  void setColor(const QString &str="") {
+    if (! color_) {
+      reset();
+
+      color_ = CQUtil::makeWidget<CQChartsColorLineEdit>("edit");
+
+      layout_->addWidget(color_);
+    }
+
+    CQChartsColor c(str);
+
+    color_->setColor(c);
   }
 
   QString getString() const {
@@ -57,18 +108,36 @@ class CQChartsParamEdit : public QFrame {
     return check_->isChecked();
   }
 
+  QString getEnum() const {
+    assert(combo_);
+
+    return combo_->currentText();
+  }
+
+  QString getColor() const {
+    assert(color_);
+
+    return color_->color().toString();
+  }
+
   void reset() {
     delete edit_;
     delete check_;
+    delete combo_;
+    delete color_;
 
     edit_  = nullptr;
     check_ = nullptr;
+    combo_ = nullptr;
+    color_ = nullptr;
   }
 
  private:
-  QHBoxLayout *layout_ { nullptr };
-  CQLineEdit  *edit_   { nullptr };
-  QCheckBox   *check_  { nullptr };
+  QHBoxLayout*           layout_ { nullptr };
+  CQLineEdit*            edit_   { nullptr };
+  CQCheckBox*            check_  { nullptr };
+  QComboBox*             combo_  { nullptr };
+  CQChartsColorLineEdit* color_  { nullptr };
 };
 
 //---
@@ -77,32 +146,56 @@ CQChartsModelControl::
 CQChartsModelControl(CQCharts *charts, CQChartsModelData *modelData) :
  charts_(charts)
 {
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setMargin(0); layout->setSpacing(2);
+  setObjectName("control");
+
+  QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 0, 2);
 
   //---
 
-  QTabWidget *controlTab = CQUtil::makeWidget<QTabWidget>("controlTab");
+  QTabWidget *controlTab = CQUtil::makeWidget<QTabWidget>("tab");
 
-  controlTab->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  controlTab->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
   layout->addWidget(controlTab);
 
-  //------
+  //---
 
-  QFrame *exprFrame = CQUtil::makeWidget<QFrame>("exprFrame");
+  QFrame *exprFrame = addExprFrame();
 
   controlTab->addTab(exprFrame, "Expression");
 
-  QVBoxLayout *exprFrameLayout = new QVBoxLayout(exprFrame);
-  exprFrameLayout->setMargin(0); exprFrameLayout->setSpacing(2);
+  QFrame *foldFrame = addFoldFrame();
+
+  controlTab->addTab(foldFrame, "Fold");
+
+  QFrame *columnDataFrame = addColumnDataFrame();
+
+  controlTab->addTab(columnDataFrame, "Column Data");
+
+  QFrame *propertiesFrame = addPropertiesFrame();
+
+  controlTab->addTab(propertiesFrame, "Properties");
+
+  //---
+
+  setModelData(modelData);
+
+  expressionModeSlot();
+}
+
+QFrame *
+CQChartsModelControl::
+addExprFrame()
+{
+  QFrame *exprFrame = CQUtil::makeWidget<QFrame>("exprFrame");
+
+  QVBoxLayout *exprFrameLayout = CQUtil::makeLayout<QVBoxLayout>(exprFrame, 0, 2);
 
   //--
 
   QFrame *exprModeFrame = CQUtil::makeWidget<QFrame>("exprMode");
 
-  QHBoxLayout *exprModeLayout = new QHBoxLayout(exprModeFrame);
-  exprModeLayout->setMargin(0); exprModeLayout->setSpacing(2);
+  QHBoxLayout *exprModeLayout = CQUtil::makeLayout<QHBoxLayout>(exprModeFrame, 0, 2);
 
   exprFrameLayout->addWidget(exprModeFrame);
 
@@ -127,8 +220,7 @@ CQChartsModelControl(CQCharts *charts, CQChartsModelData *modelData) :
 
   //--
 
-  QGridLayout *exprGridLayout = new QGridLayout;
-  exprGridLayout->setMargin(0); exprGridLayout->setSpacing(2);
+  QGridLayout *exprGridLayout = CQUtil::makeLayout<QGridLayout>(0, 2);
 
   exprFrameLayout->addLayout(exprGridLayout);
 
@@ -136,8 +228,7 @@ CQChartsModelControl(CQCharts *charts, CQChartsModelData *modelData) :
 
   //---
 
-  exprValueLabel_ = new QLabel("Expression");
-  exprValueLabel_->setObjectName("exprValueLabel");
+  exprValueLabel_ = CQUtil::makeLabelWidget<QLabel>("Expression", "exprValueLabel");
 
   exprValueEdit_ = CQUtil::makeWidget<CQLineEdit>("exprValueEdit");
 
@@ -153,8 +244,7 @@ CQChartsModelControl(CQCharts *charts, CQChartsModelData *modelData) :
 
   //----
 
-  exprColumnLabel_ = new QLabel("Column");
-  exprColumnLabel_->setObjectName("exprEditLabel");
+  exprColumnLabel_ = CQUtil::makeLabelWidget<QLabel>("Column", "exprEditLabel");
 
   exprColumnEdit_ = CQUtil::makeWidget<CQLineEdit>("exprColumnEdit");
 
@@ -167,8 +257,7 @@ CQChartsModelControl(CQCharts *charts, CQChartsModelData *modelData) :
 
   //----
 
-  exprNameLabel_ = new QLabel("Name");
-  exprNameLabel_->setObjectName("exprNameLabel");
+  exprNameLabel_ = CQUtil::makeLabelWidget<QLabel>("Name", "exprNameLabel");
 
   exprNameEdit_ = CQUtil::makeWidget<CQLineEdit>("exprNameEdit");
 
@@ -181,8 +270,7 @@ CQChartsModelControl(CQCharts *charts, CQChartsModelData *modelData) :
 
   //--
 
-  exprTypeLabel_ = new QLabel("Type");
-  exprTypeLabel_->setObjectName("exprTypeLabel");
+  exprTypeLabel_ = CQUtil::makeLabelWidget<QLabel>("Type", "exprTypeLabel");
 
   exprTypeEdit_ = CQUtil::makeWidget<CQLineEdit>("exprTypeEdit");
 
@@ -199,34 +287,34 @@ CQChartsModelControl(CQCharts *charts, CQChartsModelData *modelData) :
 
   //--
 
-  QHBoxLayout *exprButtonLayout = new QHBoxLayout;
-  exprButtonLayout->setMargin(0); exprButtonLayout->setSpacing(2);
+  QHBoxLayout *exprButtonLayout = CQUtil::makeLayout<QHBoxLayout>(0, 2);
 
   exprFrameLayout->addLayout(exprButtonLayout);
 
-  QPushButton *exprApplyButton = CQUtil::makeWidget<QPushButton>("exprApply");
-
-  exprApplyButton->setText("Apply");
+  QPushButton *exprApplyButton = CQUtil::makeLabelWidget<QPushButton>("Apply", "exprApply");
 
   connect(exprApplyButton, SIGNAL(clicked()), this, SLOT(exprApplySlot()));
 
   exprButtonLayout->addStretch(1);
   exprButtonLayout->addWidget(exprApplyButton);
 
-  //------
+  //---
+
+  return exprFrame;
+}
 
 #ifdef CQCHARTS_FOLDED_MODEL
+QFrame *
+CQChartsModelControl::
+addFoldFrame()
+{
   QFrame *foldFrame = CQUtil::makeWidget<QFrame>("foldFrame");
 
-  controlTab->addTab(foldFrame, "Fold");
-
-  QVBoxLayout *foldFrameLayout = new QVBoxLayout(foldFrame);
-  foldFrameLayout->setMargin(0); foldFrameLayout->setSpacing(2);
+  QVBoxLayout *foldFrameLayout = CQUtil::makeLayout<QVBoxLayout>(foldFrame, 0, 2);
 
   //---
 
-  QGridLayout *foldWidgetsLayout = new QGridLayout;
-  foldWidgetsLayout->setMargin(0); foldWidgetsLayout->setSpacing(2);
+  QGridLayout *foldWidgetsLayout = CQUtil::makeLayout<QGridLayout>(0, 2);
 
   foldFrameLayout->addLayout(foldWidgetsLayout);
 
@@ -234,7 +322,7 @@ CQChartsModelControl(CQCharts *charts, CQChartsModelData *modelData) :
 
   foldColumnEdit_ = addLineEdit(foldWidgetsLayout, foldRow, "Column", "column");
 
-  foldAutoCheck_ = CQUtil::makeWidget<QCheckBox>("foldAuto");
+  foldAutoCheck_ = CQUtil::makeWidget<CQCheckBox>("foldAuto");
 
   foldAutoCheck_->setText("Auto");
   foldAutoCheck_->setChecked(true);
@@ -253,33 +341,33 @@ CQChartsModelControl(CQCharts *charts, CQChartsModelData *modelData) :
 
   //--
 
-  QHBoxLayout *foldButtonLayout = new QHBoxLayout;
-  foldButtonLayout->setMargin(0); foldButtonLayout->setSpacing(2);
+  QHBoxLayout *foldButtonLayout = CQUtil::makeLayout<QHBoxLayout>(0, 2);
 
   foldFrameLayout->addLayout(foldButtonLayout);
 
-  QPushButton *foldApplyButton = CQUtil::makeWidget<QPushButton>("foldApply");
-
-  foldApplyButton->setText("Apply");
+  QPushButton *foldApplyButton = CQUtil::makeLabelWidget<QPushButton>("Apply", "foldApply");
 
   connect(foldApplyButton, SIGNAL(clicked()), this, SLOT(foldApplySlot()));
 
-  QPushButton *foldClearButton = CQUtil::makeWidget<QPushButton>("foldClear");
-
-  foldClearButton->setText("Clear");
+  QPushButton *foldClearButton = CQUtil::makeLabelWidget<QPushButton>("Clear", "foldClear");
 
   connect(foldClearButton, SIGNAL(clicked()), this, SLOT(foldClearSlot()));
 
   foldButtonLayout->addStretch(1);
   foldButtonLayout->addWidget(foldApplyButton);
   foldButtonLayout->addWidget(foldClearButton);
+
+  //--
+
+  return foldFrame;
+}
 #endif
 
-  //------
-
+QFrame *
+CQChartsModelControl::
+addColumnDataFrame()
+{
   QFrame *columnDataFrame = CQUtil::makeWidget<QFrame>("columnDataFrame");
-
-  controlTab->addTab(columnDataFrame, "Column Data");
 
   QVBoxLayout *columnDataLayout = CQUtil::makeLayout<QVBoxLayout>(columnDataFrame, 2, 2);
 
@@ -287,8 +375,7 @@ CQChartsModelControl(CQCharts *charts, CQChartsModelData *modelData) :
 
   columnEditData_.editFrame = CQUtil::makeWidget<QFrame>("columnEditFrame");
 
-  columnEditData_.editLayout = new QGridLayout(columnEditData_.editFrame);
-  columnEditData_.editLayout->setMargin(0); columnEditData_.editLayout->setSpacing(2);
+  columnEditData_.editLayout = CQUtil::makeLayout<QGridLayout>(columnEditData_.editFrame, 0, 2);
 
   columnDataLayout->addWidget(columnEditData_.editFrame);
 
@@ -309,8 +396,8 @@ CQChartsModelControl(CQCharts *charts, CQChartsModelData *modelData) :
 
   columnEditData_.typeCombo->addItems(typeNames);
 
-  columnEditData_.numEdit ->setToolTip("Column Number");
-  columnEditData_.nameEdit->setToolTip("Column Name");
+  columnEditData_.numEdit  ->setToolTip("Column Number");
+  columnEditData_.nameEdit ->setToolTip("Column Name");
   columnEditData_.typeCombo->setToolTip("Column Type");
 
   columnEditData_.editLayout->setRowStretch(columnEditData_.row, 1);
@@ -320,14 +407,15 @@ CQChartsModelControl(CQCharts *charts, CQChartsModelData *modelData) :
 
   //---
 
-  QHBoxLayout *columnButtonLayout = new QHBoxLayout;
-  columnButtonLayout->setMargin(0); columnButtonLayout->setSpacing(2);
+  columnDataLayout->addStretch(1);
+
+  //---
+
+  QHBoxLayout *columnButtonLayout = CQUtil::makeLayout<QHBoxLayout>(0, 2);
 
   columnDataLayout->addLayout(columnButtonLayout);
 
-  QPushButton *typeApplyButton = CQUtil::makeWidget<QPushButton>("typeApply");
-
-  typeApplyButton->setText("Apply");
+  QPushButton *typeApplyButton = CQUtil::makeLabelWidget<QPushButton>("Apply", "typeApply");
 
   connect(typeApplyButton, SIGNAL(clicked()), this, SLOT(typeApplySlot()));
 
@@ -336,18 +424,35 @@ CQChartsModelControl(CQCharts *charts, CQChartsModelData *modelData) :
 
   //---
 
-  setModelData(modelData);
+  return columnDataFrame;
+}
+
+QFrame *
+CQChartsModelControl::
+addPropertiesFrame()
+{
+  QFrame *propertiesFrame = CQUtil::makeWidget<QFrame>("propertiesFrame");
+
+  QVBoxLayout *propertiesFrameLayout = CQUtil::makeLayout<QVBoxLayout>(propertiesFrame, 2, 2);
 
   //---
 
-  expressionModeSlot();
+  propertyModel_ = new CQPropertyViewModel;
+
+  propertyTree_ = new CQPropertyViewTree(this, propertyModel_);
+
+  propertiesFrameLayout->addWidget(propertyTree_);
+
+  //------
+
+  return propertiesFrame;
 }
 
 CQLineEdit *
 CQChartsModelControl::
 addLineEdit(QGridLayout *grid, int &row, const QString &name, const QString &objName) const
 {
-  QLabel     *label = CQUtil::makeWidget<QLabel    >(objName + "Label");
+  QLabel     *label = CQUtil::makeLabelWidget<QLabel>("", objName + "Label");
   CQLineEdit *edit  = CQUtil::makeWidget<CQLineEdit>(objName + "Edit" );
 
   label->setText(name);
@@ -364,8 +469,8 @@ QComboBox *
 CQChartsModelControl::
 addComboBox(QGridLayout *grid, int &row, const QString &name, const QString &objName) const
 {
-  QLabel    *label = CQUtil::makeWidget<QLabel   >(objName + "Label");
-  QComboBox *combo  = CQUtil::makeWidget<QComboBox>(objName + "Combo");
+  QLabel    *label = CQUtil::makeLabelWidget<QLabel>("", objName + "Label");
+  QComboBox *combo = CQUtil::makeWidget<QComboBox>(objName + "Combo");
 
   label->setText(name);
 
@@ -524,6 +629,90 @@ setModelData(CQChartsModelData *modelData)
 
     if (modelData_)
       connect(modelData_, SIGNAL(currentColumnChanged(int)), this, SLOT(setColumnData(int)));
+
+    //---
+
+    if (modelData_) {
+      propertyModel_->clear();
+
+      ModelP model = modelData_->currentModel();
+
+      QAbstractItemModel *absModel = CQChartsModelUtil::getBaseModel(model.data());
+
+      CQBaseModel *baseModel = qobject_cast<CQBaseModel *>(absModel);
+      CQDataModel *dataModel = CQChartsModelUtil::getDataModel(model.data());
+
+      CQChartsExprModel *exprModel = CQChartsModelUtil::getExprModel(absModel);
+
+      CQChartsModelFilter *modelFilter = qobject_cast<CQChartsModelFilter *>(absModel);
+
+      CQPivotModel *pivotModel = qobject_cast<CQPivotModel *>(baseModel);
+
+      CQCsvModel     *csvModel  = qobject_cast<CQCsvModel     *>(absModel);
+      CQTsvModel     *tsvModel  = qobject_cast<CQTsvModel     *>(absModel);
+      CQGnuDataModel *gnuModel  = qobject_cast<CQGnuDataModel *>(absModel);
+      CQJsonModel    *jsonModel = qobject_cast<CQJsonModel    *>(absModel);
+
+      if (baseModel) {
+        propertyModel_->addProperty("", baseModel, "dataType"   , "");
+        propertyModel_->addProperty("", baseModel, "title"      , "");
+        propertyModel_->addProperty("", baseModel, "maxTypeRows", "");
+      }
+
+      if (dataModel) {
+        propertyModel_->addProperty("", dataModel, "readOnly", "");
+        propertyModel_->addProperty("", dataModel, "filter"  , "");
+      }
+
+      if (exprModel) {
+        propertyModel_->addProperty("", exprModel, "debug", "");
+      }
+
+      if (modelFilter) {
+        propertyModel_->addProperty("", modelFilter, "filter", "");
+        propertyModel_->addProperty("", modelFilter, "type"  , "");
+        propertyModel_->addProperty("", modelFilter, "invert", "");
+      }
+
+      if (pivotModel) {
+        propertyModel_->addProperty("", pivotModel, "valueType"    , "");
+        propertyModel_->addProperty("", pivotModel, "includeTotals", "");
+      }
+
+      if (csvModel) {
+        propertyModel_->addProperty("", csvModel, "filename"         , "");
+        propertyModel_->addProperty("", csvModel, "commentHeader"    , "");
+        propertyModel_->addProperty("", csvModel, "firstLineHeader"  , "");
+        propertyModel_->addProperty("", csvModel, "firstColumnHeader", "");
+        propertyModel_->addProperty("", csvModel, "separator"        , "");
+      }
+
+      if (tsvModel) {
+        propertyModel_->addProperty("", tsvModel, "filename"         , "");
+        propertyModel_->addProperty("", tsvModel, "commentHeader"    , "");
+        propertyModel_->addProperty("", tsvModel, "firstLineHeader"  , "");
+        propertyModel_->addProperty("", tsvModel, "firstColumnHeader", "");
+      }
+
+      if (gnuModel) {
+        propertyModel_->addProperty("", gnuModel, "filename"         , "");
+        propertyModel_->addProperty("", gnuModel, "commentHeader"    , "");
+        propertyModel_->addProperty("", gnuModel, "firstLineHeader"  , "");
+        propertyModel_->addProperty("", gnuModel, "firstColumnHeader", "");
+        propertyModel_->addProperty("", gnuModel, "commentChars"     , "");
+        propertyModel_->addProperty("", gnuModel, "missingStr"       , "");
+        propertyModel_->addProperty("", gnuModel, "separator"        , "");
+        propertyModel_->addProperty("", gnuModel, "parseStrings"     , "");
+        propertyModel_->addProperty("", gnuModel, "setBlankLines"    , "");
+        propertyModel_->addProperty("", gnuModel, "subSetBlankLines" , "");
+        propertyModel_->addProperty("", gnuModel, "keepQuotes"       , "");
+      }
+
+      if (jsonModel) {
+        propertyModel_->addProperty("", jsonModel, "hierarchical", "");
+        propertyModel_->addProperty("", jsonModel, "flat"        , "");
+      }
+    }
   }
 }
 
@@ -602,11 +791,12 @@ typeApplySlot()
 
       QString value;
 
-      if (param->type() == CQBaseModelType::BOOLEAN) {
-        bool b = paramEdit.edit->getBool();
-
-        value = (b ? "1" : "0");
-      }
+      if      (param->type() == CQBaseModelType::BOOLEAN)
+        value = (paramEdit.edit->getBool() ? "1" : "0");
+      else if (param->type() == CQBaseModelType::ENUM)
+        value = paramEdit.edit->getEnum();
+      else if (param->type() == CQBaseModelType::COLOR)
+        value = paramEdit.edit->getColor();
       else
         value = paramEdit.edit->getString();
 
@@ -667,7 +857,7 @@ setColumnData(int column)
         ParamEdit paramEdit;
 
         paramEdit.row   = columnEditData_.row + paramInd;
-        paramEdit.label = new QLabel;
+        paramEdit.label = CQUtil::makeLabelWidget<QLabel>("", "label");
         paramEdit.edit  = new CQChartsParamEdit;
 
         columnEditData_.editLayout->addWidget(paramEdit.label, paramEdit.row, 0);
@@ -678,20 +868,24 @@ setColumnData(int column)
 
       ParamEdit &paramEdit = columnEditData_.paramEdits[paramInd];
 
-      paramEdit.label->setText(param.name());
+      paramEdit.label->setText(param->name());
 
       QVariant var;
 
-      nameValues.nameValue(param.name(), var);
+      nameValues.nameValue(param->name(), var);
 
-      if (param.type() == CQBaseModelType::BOOLEAN)
+      if      (param->type() == CQBaseModelType::BOOLEAN)
         paramEdit.edit->setBool(var.toBool());
+      else if (param->type() == CQBaseModelType::ENUM)
+        paramEdit.edit->setEnum(var.toString(), param->values());
+      else if (param->type() == CQBaseModelType::COLOR)
+        paramEdit.edit->setColor(var.toString());
       else
         paramEdit.edit->setString(var.toString());
 
-      paramEdit.label->setObjectName(param.name() + "_label");
-      paramEdit.edit ->setObjectName(param.name() + "_edit" );
-      paramEdit.edit ->setToolTip(param.tip());
+      paramEdit.label->setObjectName(param->name() + "_label");
+      paramEdit.edit ->setObjectName(param->name() + "_edit" );
+      paramEdit.edit ->setToolTip(param->tip());
 
       ++paramInd;
     }

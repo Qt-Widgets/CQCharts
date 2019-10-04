@@ -3,10 +3,15 @@
 
 #include <CQChartsEnum.h>
 
+/*!
+ * \brief key location
+ * \ingroup Charts
+ */
 class CQChartsKeyLocation : public CQChartsEnum {
  public:
   enum Type {
     NONE,
+    AUTO,
     TOP_LEFT,
     TOP_CENTER,
     TOP_RIGHT,
@@ -48,7 +53,7 @@ class CQChartsKeyLocation : public CQChartsEnum {
 
   //---
 
-  QStringList enumNames() const;
+  QStringList enumNames() const override;
 
   //---
 
@@ -64,6 +69,8 @@ class CQChartsKeyLocation : public CQChartsEnum {
   }
 
   //---
+
+  bool isAuto() const { return (type_ == Type::AUTO); }
 
   bool onLeft() const {
     return (type_ == Type::TOP_LEFT ||

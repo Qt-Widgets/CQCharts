@@ -4,6 +4,10 @@
 #include <QString>
 #include <iostream>
 
+/*!
+ * \brief Box sides class
+ * \ingroup Charts
+ */
 class CQChartsSides {
  public:
   enum class Side {
@@ -11,7 +15,8 @@ class CQChartsSides {
     LEFT   = (1<<0),
     RIGHT  = (1<<1),
     TOP    = (1<<2),
-    BOTTOM = (1<<3)
+    BOTTOM = (1<<3),
+    ALL    = LEFT|RIGHT|TOP|BOTTOM
   };
 
   using Sides = unsigned int;
@@ -26,6 +31,10 @@ class CQChartsSides {
 
   CQChartsSides(const Sides &sides) :
    sides_(sides) {
+  }
+
+  CQChartsSides(const Side &side) :
+   sides_(Sides(side)) {
   }
 
   CQChartsSides(const QString &s) {

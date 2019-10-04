@@ -1,10 +1,15 @@
 #ifndef CQChartsTip_H
 #define CQChartsTip_H
 
+/*!
+ * \brief class to build tip text as an HTML table
+ * \ingroup Charts
+ */
 class CQChartsTableTip {
  public:
   CQChartsTableTip() {
     //str_ += "<b></b>\n";
+    str_ += "<style>p { margin: 0 0 0 0 }</style><p style='white-space:pre'>\n";
   }
 
   void addBoldLine(const QString &name) {
@@ -47,7 +52,7 @@ class CQChartsTableTip {
 
   QString str() {
     if (inTable_)
-      str_ += "</table>\n";
+      str_ += "</table>";
 
     return str_;
   }

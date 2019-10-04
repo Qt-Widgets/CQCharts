@@ -8,6 +8,7 @@
 class CQGnuDataModel : public CQDataModel {
   Q_OBJECT
 
+  Q_PROPERTY(QString filename          READ filename            WRITE setFilename         )
   Q_PROPERTY(bool    commentHeader     READ isCommentHeader     WRITE setCommentHeader    )
   Q_PROPERTY(bool    firstLineHeader   READ isFirstLineHeader   WRITE setFirstLineHeader  )
   Q_PROPERTY(bool    firstColumnHeader READ isFirstColumnHeader WRITE setFirstColumnHeader)
@@ -29,6 +30,9 @@ class CQGnuDataModel : public CQDataModel {
   CQGnuDataModel();
 
  ~CQGnuDataModel() { }
+
+  const QString &filename() const { return filename_; }
+  void setFilename(const QString &v) { filename_ = v; }
 
   bool isCommentHeader() const { return commentHeader_; }
   void setCommentHeader(bool b) { commentHeader_ = b; }
@@ -76,23 +80,23 @@ class CQGnuDataModel : public CQDataModel {
   using SetString    = std::map<int,SubSetString>;
   using OptString    = boost::optional<QString>;
 
-  bool        commentHeader_     { true };  // use comment line for header
-  bool        firstLineHeader_   { false }; // use first line for horizontal header
-  bool        firstColumnHeader_ { false }; // use first column for vertical header
-  OptString   commentChars_;                // comment start string
-  QString     missingStr_;                  // missing string
-  char        separator_         { '\0' };  // field separator
-  bool        parseStrings_      { true };  // parse strings
-  int         setBlankLines_     { 2 };     // number of blank lines between sets
-  int         subSetBlankLines_  { 1 };     // number of blank lines between sub sets
-  bool        keepQuotes_        { false }; // key quotes for strings
-  SetString   commentStrs_;                 // comment strings
-  QString     filename_;                    // filename
-  QStringList lines_;                       // file lines
-  Set         set_;                         // set of sub sets of lines
-  Fields      columnHeaderFields_;          // column headers
-  Fields      rowHeaderFields_;             // row headers
-  int         maxNumFields_      { 0 };     // max number of fields in file lines
+  QString     filename_;                    //!< filename
+  bool        commentHeader_     { true };  //!< use comment line for header
+  bool        firstLineHeader_   { false }; //!< use first line for horizontal header
+  bool        firstColumnHeader_ { false }; //!< use first column for vertical header
+  OptString   commentChars_;                //!< comment start string
+  QString     missingStr_;                  //!< missing string
+  char        separator_         { '\0' };  //!< field separator
+  bool        parseStrings_      { true };  //!< parse strings
+  int         setBlankLines_     { 2 };     //!< number of blank lines between sets
+  int         subSetBlankLines_  { 1 };     //!< number of blank lines between sub sets
+  bool        keepQuotes_        { false }; //!< key quotes for strings
+  SetString   commentStrs_;                 //!< comment strings
+  QStringList lines_;                       //!< file lines
+  Set         set_;                         //!< set of sub sets of lines
+  Fields      columnHeaderFields_;          //!< column headers
+  Fields      rowHeaderFields_;             //!< row headers
+  int         maxNumFields_      { 0 };     //!< max number of fields in file lines
 };
 
 #endif

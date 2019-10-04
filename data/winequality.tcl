@@ -30,17 +30,18 @@ set view1 [create_charts_view]
 set box_plots {}
 
 for {set c 0} {$c < $nc} {incr c} {
-  set plot [create_charts_plot -view $view1 -model $model -type boxplot -columns "group=(0),value=$c"]
+  set plot [create_charts_plot -view $view1 -model $model -type boxplot \
+    -columns [list [list group "(0)"] [list value $c]]]
 
   lappend box_plots $plot
 
-  set_charts_property -plot $plot -name box.width                     -value 0.4
-  set_charts_property -plot $plot -name xaxis.visible                 -value 0
-  set_charts_property -plot $plot -name yaxis.grid.line.major.visible -value 1
-  set_charts_property -plot $plot -name key.visible                   -value 0
-  set_charts_property -plot $plot -name labels.visible                -value 0
-  set_charts_property -plot $plot -name box.fill.color                -value green
-  set_charts_property -plot $plot -name outlier.symbol.fill.color     -value green
+  set_charts_property -plot $plot -name box.width                 -value 0.4
+  set_charts_property -plot $plot -name xaxis.visible             -value 0
+  set_charts_property -plot $plot -name yaxis.grid.lines          -value MAJOR
+  set_charts_property -plot $plot -name key.visible               -value 0
+  set_charts_property -plot $plot -name labels.visible            -value 0
+  set_charts_property -plot $plot -name box.fill.color            -value green
+  set_charts_property -plot $plot -name outlier.symbol.fill.color -value green
 }
 
 place_charts_plots -horizontal $box_plots
@@ -52,30 +53,31 @@ set view2 [create_charts_view]
 set dist_plots {}
 
 for {set c 0} {$c < $nc} {incr c} {
-  set plot [create_charts_plot -view $view2 -model $model -type distribution -columns "value=$c"]
+  set plot [create_charts_plot -view $view2 -model $model -type distribution \
+    -columns [list [list value $c]]]
 
   lappend dist_plots $plot
 
-  set_charts_property -plot $plot -name bucket.auto                   -value 1
-  set_charts_property -plot $plot -name key.visible                   -value 0
-  set_charts_property -plot $plot -name yaxis.grid.line.major.visible -value 1
-  set_charts_property -plot $plot -name yaxis.label.visible           -value 0
+  set_charts_property -plot $plot -name bucket.auto              -value 1
+  set_charts_property -plot $plot -name key.visible              -value 0
+  set_charts_property -plot $plot -name yaxis.grid.lines         -value MAJOR
+  set_charts_property -plot $plot -name yaxis.label.text.visible -value 0
 }
 
 place_charts_plots -horizontal $dist_plots
 
 #---
 
-set corrModel [create_correlation_model -model $model]
+set corrModel [create_charts_correlation_model -model $model]
 
 set view3 [create_charts_view]
 
 set plot3 [create_charts_plot -view $view3 -model $corrModel -type image]
 
-set_charts_property -plot $plot3 -name labels.x.visible    -value 1
-set_charts_property -plot $plot3 -name labels.y.visible    -value 1
-set_charts_property -plot $plot3 -name labels.cell.visible -value 1
-set_charts_property -plot $plot3 -name invert.y            -value 1
+set_charts_property -plot $plot3 -name xaxis.text.visible -value 1
+set_charts_property -plot $plot3 -name yaxis.text.visible -value 1
+set_charts_property -plot $plot3 -name cell.text.visible  -value 1
+set_charts_property -plot $plot3 -name invert.y           -value 1
 
 #---
 

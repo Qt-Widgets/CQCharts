@@ -6,9 +6,9 @@
 #include <CQPropertyView.h>
 #include <CQWidgetMenu.h>
 #include <CQGroupBox.h>
+#include <CQLineEdit.h>
 
 #include <QComboBox>
-#include <QLineEdit>
 #include <QCheckBox>
 #include <QLabel>
 #include <QHBoxLayout>
@@ -28,7 +28,9 @@ CQChartsColumnLineEdit(QWidget *parent) :
 
   menu_->setWidget(dataEdit_);
 
-  connect(dataEdit_, SIGNAL(columnChanged()), this, SLOT(menuEditChanged()));
+  //---
+
+  connectSlots(true);
 }
 
 void
@@ -77,10 +79,10 @@ updateColumn(const CQChartsColumn &column, bool updateText)
 
   dataEdit_->setColumn(column);
 
+  connectSlots(true);
+
   if (updateText)
     columnToWidgets();
-
-  connectSlots(true);
 
   emit columnChanged();
 }
@@ -181,21 +183,33 @@ setEditorData(CQPropertyViewItem *item, const QVariant &value)
 
 void
 CQChartsColumnPropertyViewType::
-draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
      const QStyleOptionViewItem &option, const QModelIndex &ind,
      const QVariant &value, bool inside)
 {
   delegate->drawBackground(painter, option, ind, inside);
 
   CQChartsColumn column = value.value<CQChartsColumn>();
+  if (! column.isValid()) return;
+
+  //---
 
   QString str = column.toString();
+
+  CQChartsPlot *plot = qobject_cast<CQChartsPlot *>(item->object());
+
+  if (plot) {
+    QString str1 = plot->columnHeaderName(column);
+
+    if (str1.length())
+      str += " (" + str1 + ")";
+  }
+
+  //---
 
   QFontMetricsF fm(option.font);
 
   double w = fm.width(str);
-
-  //---
 
   QStyleOptionViewItem option1 = option;
 
@@ -280,12 +294,11 @@ CQChartsColumnEdit(QWidget *parent) :
 {
   setObjectName("columnEdit");
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setMargin(2); layout->setSpacing(2);
+  QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 2, 2);
 
   //---
 
-  columnGroup_ = new CQGroupBox("Column");
+  columnGroup_ = CQUtil::makeLabelWidget<CQGroupBox>("Column", "columnGroup");
 
   columnGroup_->setCheckable(true);
   columnGroup_->setChecked(true);
@@ -296,23 +309,22 @@ CQChartsColumnEdit(QWidget *parent) :
 
   //--
 
-  QVBoxLayout *menuColumnGroupLayout = new QVBoxLayout(columnGroup_);
-  menuColumnGroupLayout->setMargin(2); menuColumnGroupLayout->setSpacing(2);
+  QVBoxLayout *menuColumnGroupLayout = CQUtil::makeLayout<QVBoxLayout>(columnGroup_, 2, 2);
 
-  columnCombo_ = new QComboBox;
+  columnCombo_ = CQUtil::makeWidget<QComboBox>("columnCombo");
 
   connect(columnCombo_, SIGNAL(currentIndexChanged(int)),
           this, SLOT(menuColumnChanged(int)));
 
   menuColumnGroupLayout->addWidget(columnCombo_);
 
-  QFrame *roleFrame = new QFrame;
+  QFrame *roleFrame = CQUtil::makeWidget<QFrame>("roleFrame");
 
-  QHBoxLayout *roleLayout = new QHBoxLayout(roleFrame);
+  QHBoxLayout *roleLayout = CQUtil::makeLayout<QHBoxLayout>(roleFrame, 2, 2);
 
-  roleLayout->addWidget(new QLabel("Role"));
+  roleLayout->addWidget(CQUtil::makeLabelWidget<QLabel>("Role", "roleLabel"));
 
-  roleEdit_ = new QLineEdit;
+  roleEdit_ = CQUtil::makeWidget<CQLineEdit>("edit");
 
   connect(roleEdit_, SIGNAL(textChanged(const QString &)),
           this, SLOT(roleTextChanged(const QString &)));
@@ -323,7 +335,7 @@ CQChartsColumnEdit(QWidget *parent) :
 
   //---
 
-  menuExprGroup_ = new CQGroupBox("Expression");
+  menuExprGroup_ = CQUtil::makeLabelWidget<CQGroupBox>("Expression", "menuExprGroup");
 
   menuExprGroup_->setCheckable(true);
   menuExprGroup_->setChecked(false);
@@ -334,10 +346,9 @@ CQChartsColumnEdit(QWidget *parent) :
 
   //--
 
-  QVBoxLayout *menuExprGroupLayout = new QVBoxLayout(menuExprGroup_);
-  menuExprGroupLayout->setMargin(2); menuExprGroupLayout->setSpacing(2);
+  QVBoxLayout *menuExprGroupLayout = CQUtil::makeLayout<QVBoxLayout>(menuExprGroup_, 2, 2);
 
-  expressionEdit_ = new QLineEdit;
+  expressionEdit_ = CQUtil::makeWidget<CQLineEdit>("edit");
 
   connect(expressionEdit_, SIGNAL(textChanged(const QString &)),
           this, SLOT(expressionTextChanged(const QString &)));
@@ -346,7 +357,7 @@ CQChartsColumnEdit(QWidget *parent) :
 
   //---
 
-  vheaderCheck_ = new QCheckBox("Vertical Header");
+  vheaderCheck_ = CQUtil::makeLabelWidget<QCheckBox>("Vertical Header", "vheaderCheck");
 
   connect(vheaderCheck_, SIGNAL(clicked(bool)), this, SLOT(vheaderCheckClicked(bool)));
 

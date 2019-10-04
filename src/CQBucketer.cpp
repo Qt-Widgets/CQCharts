@@ -182,8 +182,8 @@ bucketMinMax(int bucket, QVariant &min, QVariant &max) const
     bucketRValues(bucket, rmin, rmax);
 
     if (isIntegral()) {
-      int imin = rmin;
-      int imax = rmax;
+      int imin = CMathRound::RoundNearest(rmin);
+      int imax = CMathRound::RoundNearest(rmax);
 
       min = imin;
       max = imax;
@@ -199,8 +199,8 @@ bucketMinMax(int bucket, QVariant &min, QVariant &max) const
     autoBucketValues(bucket, rmin, rmax);
 
     if (isIntegral()) {
-      int imin = rmin;
-      int imax = rmax;
+      int imin = CMathRound::RoundNearest(rmin);
+      int imax = CMathRound::RoundNearest(rmax);
 
       min = imin;
       max = imax;
@@ -218,7 +218,7 @@ bucketMinMax(int bucket, QVariant &min, QVariant &max) const
 
 QString
 CQBucketer::
-bucketName(int bucket, bool utfArrow) const
+bucketName(int bucket, NameFormat format) const
 {
   if      (type() == Type::STRING) {
     return bucketString(bucket);
@@ -228,7 +228,7 @@ bucketName(int bucket, bool utfArrow) const
 
     bucketIValues(bucket, imin, imax);
 
-    return bucketName(imin, imax, utfArrow);
+    return bucketName(imin, imax, format);
   }
   else if (type() == Type::REAL_RANGE) {
     double rmin = 0.0, rmax = 0.0;
@@ -236,16 +236,16 @@ bucketName(int bucket, bool utfArrow) const
     bucketRValues(bucket, rmin, rmax);
 
     if (isIntegral()) {
-      int imin = rmin;
-      int imax = rmax;
+      int imin = CMathRound::RoundNearest(rmin);
+      int imax = CMathRound::RoundNearest(rmax);
 
-      if (imax > imin + 1)
-        return bucketName(imin, imax, utfArrow);
+      if (imax > imin)
+        return bucketName(imin, imax, format);
       else
         return QString("%1").arg(imin);
     }
 
-    return bucketName(rmin, rmax, utfArrow);
+    return bucketName(rmin, rmax, format);
   }
   else if (type() == Type::REAL_AUTO) {
     double rmin = 0.0, rmax = 0.0;
@@ -253,16 +253,16 @@ bucketName(int bucket, bool utfArrow) const
     autoBucketValues(bucket, rmin, rmax);
 
     if (isIntegral()) {
-      int imin = rmin;
-      int imax = rmax;
+      int imin = CMathRound::RoundNearest(rmin);
+      int imax = CMathRound::RoundNearest(rmax);
 
-      if (imax > imin + 1)
-        return bucketName(imin, imax, utfArrow);
+      if (imax > imin)
+        return bucketName(imin, imax, format);
       else
         return QString("%1").arg(imin);
     }
 
-    return bucketName(rmin, rmax, utfArrow);
+    return bucketName(rmin, rmax, format);
   }
   else
     return QString("%1").arg(bucket);
@@ -270,24 +270,42 @@ bucketName(int bucket, bool utfArrow) const
 
 QString
 CQBucketer::
-bucketName(int imin, int imax, bool utfArrow) const
+bucketName(int imin, int imax, NameFormat format)
 {
   static QChar arrowChar(0x2192);
 
-  QChar dashChar = (utfArrow ? arrowChar : QChar('-'));
-
-  return QString("%1%2%3").arg(imin).arg(dashChar).arg(imax);
+  if      (format == NameFormat::DASH) {
+    if (imax > imin + 1)
+      return QString("%1-%2").arg(imin).arg(imax);
+    else
+      return QString("%1").arg(imin);
+  }
+  else if (format == NameFormat::ARROW) {
+    if (imax > imin + 1)
+      return QString("%1%2%3").arg(imin).arg(arrowChar).arg(imax);
+    else
+      return QString("%1").arg(imin);
+  }
+  else if (format == NameFormat::BRACKETED)
+    return QString("(%1,%2]").arg(imin).arg(imax);
+  else
+    assert(false);
 }
 
 QString
 CQBucketer::
-bucketName(double rmin, double rmax, bool utfArrow) const
+bucketName(double rmin, double rmax, NameFormat format)
 {
   static QChar arrowChar(0x2192);
 
-  QChar dashChar = (utfArrow ? arrowChar : QChar('-'));
-
-  return QString("%1%2%3").arg(rmin).arg(dashChar).arg(rmax);
+  if      (format == NameFormat::DASH)
+    return QString("%1-%2").arg(rmin).arg(rmax);
+  else if (format == NameFormat::ARROW)
+    return QString("%1%2%3").arg(rmin).arg(arrowChar).arg(rmax);
+  else if (format == NameFormat::BRACKETED)
+    return QString("(%1,%2]").arg(rmin).arg(rmax);
+  else
+    assert(false);
 }
 
 //----
@@ -350,7 +368,9 @@ intBucket(int i) const
   int idelta = this->idelta();
   int istart = this->calcIStart();
 
-  if (idelta > 0)
+  if      (i == istart)
+    return 0;
+  else if (idelta > 0)
     n = (i - istart)/idelta;
 
   return n;
@@ -365,8 +385,16 @@ realBucket(double r) const
   double rdelta = this->rdelta();
   double rstart = this->calcRStart();
 
-  if (rdelta > 0)
-    n = CMathRound::RoundDown((r - rstart)/rdelta);
+  if      (r == rstart)
+    return 0;
+  else if (rdelta > 0) {
+    double nr = (r - rstart)/rdelta;
+
+    if (nr > INT_MAX)
+      return INT_MAX;
+
+    n = CMathRound::RoundDown(nr);
+  }
 
   return n;
 }
@@ -380,9 +408,18 @@ autoRealBucket(double r) const
   int n = INT_MIN; // optional ?
 
   double rdelta = this->calcDelta();
+  double rstart = this->calcMin();
 
-  if (rdelta > 0)
-    n = CMathRound::RoundDown((r - this->calcMin())/rdelta);
+  if      (r == rstart)
+    return 0;
+  else if (rdelta > 0) {
+    double nr = (r - rstart)/rdelta;
+
+    if (nr > INT_MAX)
+      return INT_MAX;
+
+    n = CMathRound::RoundDown(nr);
+  }
 
   return n;
 }
@@ -393,8 +430,19 @@ double
 CQBucketer::
 calcRStart() const
 {
-  double rstart = std::min(rmin(), this->rstart());
+  // adjust start to be less than min
+  double rstart = this->rstart();
 
+  if (rmin() < rstart) {
+    if (rdelta() > 0) {
+      int n = CMathRound::RoundUp((rstart - rmin())/rdelta());
+      assert(n > 0);
+
+      rstart -= n*rdelta();
+    }
+  }
+
+  // round start
   double d = rdelta()/100;
 
   if (d > 0.0) {

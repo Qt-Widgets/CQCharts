@@ -9,7 +9,8 @@ class CQJsonModel : public CQBaseModel {
   Q_OBJECT
 
   Q_PROPERTY(bool hierarchical READ isHierarchical WRITE setHierarchical)
-  Q_PROPERTY(bool flag         READ isFlat         WRITE setFlat        )
+  Q_PROPERTY(bool flat         READ isFlat         WRITE setFlat        )
+  Q_PROPERTY(bool readOnly     READ isReadOnly     WRITE setReadOnly    )
 
  public:
   CQJsonModel();
@@ -18,11 +19,19 @@ class CQJsonModel : public CQBaseModel {
 
   bool load(const QString &filename);
 
+  const QString &filename() const { return filename_; }
+  void setFilename(const QString &s) { filename_ = s; }
+
   bool isHierarchical() const { return hier_; }
   void setHierarchical(bool b) { hier_ = b; };
 
   bool isFlat() const { return flat_; }
   void setFlat(bool b) { flat_ = b; }
+
+  bool isReadOnly() const { return readOnly_; }
+  void setReadOnly(bool b) { readOnly_ = b; }
+
+  //---
 
   bool applyMatch(const QString &match);
 
@@ -39,6 +48,8 @@ class CQJsonModel : public CQBaseModel {
                      const QVariant &value, int role=Qt::DisplayRole) override;
 
   QVariant data(const QModelIndex &index, int role=Qt::DisplayRole) const override;
+
+  bool setData(const QModelIndex &index, const QVariant &value, int role=Qt::DisplayRole) override;
 
   QModelIndex index(int row, int column, const QModelIndex &parent=QModelIndex()) const override;
 
@@ -71,6 +82,7 @@ class CQJsonModel : public CQBaseModel {
   CJson::Values jsonValues_;
   bool          hier_      { false };
   bool          flat_      { false };
+  bool          readOnly_  { false };
   QString       hierName_;
   QStringList   hierColumns_;
 };

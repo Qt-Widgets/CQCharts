@@ -6,15 +6,17 @@
 #include <CQChartsFillDataEdit.h>
 #include <CQChartsView.h>
 #include <CQChartsPlot.h>
+#include <CQChartsDrawUtil.h>
+#include <CQChartsPaintDevice.h>
 #include <CQCharts.h>
 
 #include <CQPropertyView.h>
 #include <CQWidgetMenu.h>
 #include <CQGroupBox.h>
+#include <CQUtil.h>
 
 #include <QLabel>
 #include <QVBoxLayout>
-#include <QPainter>
 
 CQChartsSymbolDataLineEdit::
 CQChartsSymbolDataLineEdit(QWidget *parent) :
@@ -28,9 +30,9 @@ CQChartsSymbolDataLineEdit(QWidget *parent) :
 
   menu_->setWidget(dataEdit_);
 
-  connect(dataEdit_, SIGNAL(symbolDataChanged()), this, SLOT(menuEditChanged()));
-
   //---
+
+  connectSlots(true);
 
   symbolDataToWidgets();
 }
@@ -57,10 +59,10 @@ updateSymbolData(const CQChartsSymbolData &symbolData, bool updateText)
 
   dataEdit_->setData(symbolData);
 
+  connectSlots(true);
+
   if (updateText)
     symbolDataToWidgets();
-
-  connectSlots(true);
 
   emit symbolDataChanged();
 }
@@ -216,49 +218,39 @@ CQChartsSymbolDataEdit(QWidget *parent, bool optional) :
 {
   setObjectName("symbolDataEdit");
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setMargin(0); layout->setSpacing(2);
+  QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 0, 2);
 
   //---
 
   if (optional) {
-    groupBox_ = new CQGroupBox;
+    groupBox_ = CQUtil::makeLabelWidget<CQGroupBox>("Visible", "groupBox");
 
-    groupBox_->setObjectName("groupBox");
     groupBox_->setCheckable(true);
     groupBox_->setChecked(false);
     groupBox_->setTitle("Visible");
-
-    connect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
 
     layout->addWidget(groupBox_);
   }
 
   //---
 
-  QGridLayout *groupLayout = new QGridLayout(groupBox_);
+  QGridLayout *groupLayout = CQUtil::makeLayout<QGridLayout>(groupBox_, 2, 2);
 
   if (! optional)
     layout->addLayout(groupLayout);
 
   // symbol
-  QLabel *symbolLabel = new QLabel("Symbol");
-  symbolLabel->setObjectName("symbolLabel");
+  QLabel *symbolLabel = CQUtil::makeLabelWidget<QLabel>("Symbol", "symbolLabel");
 
   symbolEdit_ = new CQChartsSymbolEdit;
-
-  connect(symbolEdit_, SIGNAL(symbolChanged()), this, SLOT(widgetsToData()));
 
   groupLayout->addWidget(symbolLabel, 0, 0);
   groupLayout->addWidget(symbolEdit_, 0, 1);
 
   // size
-  QLabel *sizeLabel = new QLabel("Size");
-  sizeLabel->setObjectName("sizeLabel");
+  QLabel *sizeLabel = CQUtil::makeLabelWidget<QLabel>("Size", "sizeLabel");
 
   sizeEdit_ = new CQChartsLengthEdit;
-
-  connect(sizeEdit_, SIGNAL(lengthChanged()), this, SLOT(widgetsToData()));
 
   groupLayout->addWidget(sizeLabel, 1, 0);
   groupLayout->addWidget(sizeEdit_, 1, 1);
@@ -269,8 +261,6 @@ CQChartsSymbolDataEdit(QWidget *parent, bool optional) :
   strokeEdit_->setTitle("Stroke");
   strokeEdit_->setPreview(false);
 
-  connect(strokeEdit_, SIGNAL(strokeDataChanged()), this, SLOT(widgetsToData()));
-
   groupLayout->addWidget(strokeEdit_, 2, 0, 1, 2);
 
   // fill
@@ -278,8 +268,6 @@ CQChartsSymbolDataEdit(QWidget *parent, bool optional) :
 
   fillEdit_->setTitle("Fill");
   fillEdit_->setPreview(false);
-
-  connect(fillEdit_, SIGNAL(fillDataChanged()), this, SLOT(widgetsToData()));
 
   groupLayout->addWidget(fillEdit_, 3, 0, 1, 2);
 
@@ -296,6 +284,10 @@ CQChartsSymbolDataEdit(QWidget *parent, bool optional) :
   //---
 
   layout->addStretch(1);
+
+  //---
+
+  connectSlots(true);
 
   dataToWidgets();
 }
@@ -352,15 +344,35 @@ setPreview(bool b)
 
 void
 CQChartsSymbolDataEdit::
+connectSlots(bool b)
+{
+  assert(b != connected_);
+
+  connected_ = b;
+
+  //---
+
+  auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
+    if (b)
+      connect(w, from, this, to);
+    else
+      disconnect(w, from, this, to);
+  };
+
+  if (groupBox_)
+    connectDisconnect(b, groupBox_, SIGNAL(clicked(bool)), SLOT(widgetsToData()));
+
+  connectDisconnect(b, symbolEdit_, SIGNAL(symbolChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, sizeEdit_, SIGNAL(lengthChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, strokeEdit_, SIGNAL(strokeDataChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, fillEdit_, SIGNAL(fillDataChanged()), SLOT(widgetsToData()));
+}
+
+void
+CQChartsSymbolDataEdit::
 dataToWidgets()
 {
-  if (groupBox_)
-    disconnect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
-
-  disconnect(symbolEdit_, SIGNAL(symbolChanged()), this, SLOT(widgetsToData()));
-  disconnect(sizeEdit_, SIGNAL(lengthChanged()), this, SLOT(widgetsToData()));
-  disconnect(strokeEdit_, SIGNAL(strokeDataChanged()), this, SLOT(widgetsToData()));
-  disconnect(fillEdit_, SIGNAL(fillDataChanged()), this, SLOT(widgetsToData()));
+  connectSlots(false);
 
   if (groupBox_)
     groupBox_->setChecked(data_.isVisible());
@@ -372,14 +384,7 @@ dataToWidgets()
 
   preview_->update();
 
-  if (groupBox_)
-    connect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
-
-  connect(symbolEdit_, SIGNAL(symbolChanged()), this, SLOT(widgetsToData()));
-  connect(sizeEdit_, SIGNAL(lengthChanged()), this, SLOT(widgetsToData()));
-  connect(strokeEdit_, SIGNAL(strokeDataChanged()), this, SLOT(widgetsToData()));
-  connect(fillEdit_, SIGNAL(fillDataChanged()), this, SLOT(widgetsToData()));
-
+  connectSlots(true);
 }
 
 void
@@ -448,20 +453,13 @@ draw(QPainter *painter, const CQChartsSymbolData &data, const QRect &rect,
   //---
 
   // draw symbol
-  CQChartsGeom::Point p(rect.center().x(), rect.center().y());
+  QPointF p(rect.center().x(), rect.center().y());
 
   double size = data.size().value();
 
-  CQChartsSymbol2DRenderer srenderer(painter, p, size);
+  CQChartsPixelPainter device(painter);
 
-  if (data.fill().isVisible()) {
-    CQChartsPlotSymbolMgr::fillSymbol(data.type(), &srenderer);
+  CQChartsLength symbolSize(CQChartsUnits::PIXEL, size);
 
-    if (data.stroke().isVisible())
-      CQChartsPlotSymbolMgr::strokeSymbol(data.type(), &srenderer);
-  }
-  else {
-    if (data.stroke().isVisible())
-      CQChartsPlotSymbolMgr::drawSymbol(data.type(), &srenderer);
-  }
+  CQChartsDrawUtil::drawSymbol(&device, data.type(), p, symbolSize);
 }

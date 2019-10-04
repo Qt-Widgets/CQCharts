@@ -2,6 +2,7 @@
 #define CQChartsVariant_H
 
 #include <CQChartsUtil.h>
+#include <CQChartsFont.h>
 #include <CQChartsSymbol.h>
 #include <CQChartsLength.h>
 #include <CQUtil.h>
@@ -18,10 +19,10 @@ inline bool toString(const QVariant &var, QString &str) {
     str = var.toString();
   }
   else if (var.type() == QVariant::Double) {
-    str = CQChartsUtil::toString(var.toDouble());
+    str = CQChartsUtil::formatReal(var.toDouble());
   }
   else if (var.type() == QVariant::Int) {
-    str = CQChartsUtil::toString((long) var.toInt());
+    str = CQChartsUtil::formatInteger((long) var.toInt());
   }
   else if (var.type() == QVariant::PointF) {
     QPointF point = var.value<QPointF>();
@@ -212,6 +213,26 @@ inline CQChartsColor toColor(const QVariant &var, bool &ok) {
   return color;
 }
 
+inline CQChartsFont toFont(const QVariant &var, bool &ok) {
+  ok = true;
+
+  if (var.type() == QVariant::Font) {
+    CQChartsFont font(var.value<QFont>());
+    ok = font.isValid();
+    return font;
+  }
+
+  if (var.type() == QVariant::UserType && var.userType() == CQChartsFont::metaTypeId) {
+    CQChartsFont font = var.value<CQChartsFont>();
+    ok = font.isValid();
+    return font;
+  }
+
+  CQChartsFont font(var.toString());
+  ok = font.isValid();
+  return font;
+}
+
 //---
 
 inline bool isSymbol(const QVariant &var) {
@@ -303,8 +324,6 @@ inline std::vector<double> toReals(const QVariant &var, bool &ok) {
     reals.push_back(r);
   }
   else {
-    std::vector<double> reals;
-
     QString str;
 
     if (! toString(var, str))

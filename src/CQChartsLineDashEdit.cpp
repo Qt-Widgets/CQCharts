@@ -1,11 +1,11 @@
 #include <CQChartsLineDashEdit.h>
 #include <CQChartsUtil.h>
 #include <CQIconCombo.h>
+#include <CQLineEdit.h>
 #include <CQUtil.h>
 
 #include <QApplication>
 #include <QHBoxLayout>
-#include <QLineEdit>
 #include <QToolButton>
 #include <QMenu>
 #include <QPainter>
@@ -45,8 +45,8 @@ class CQChartsLineDashEditProxyStyle : public QProxyStyle {
 // TODO: cache pixmap ?
 class CQChartsLineDashEditIconEngine : public QIconEngine {
  public:
-  CQChartsLineDashEditIconEngine(const CQChartsLineDash &dash) :
-   dash_(dash) {
+  CQChartsLineDashEditIconEngine(const CQChartsLineDash &dash, bool bg) :
+   dash_(dash), bg_(bg) {
   }
 
   QSize actualSize(const QSize & size, QIcon::Mode mode, QIcon::State state);
@@ -55,10 +55,11 @@ class CQChartsLineDashEditIconEngine : public QIconEngine {
 
   void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode, QIcon::State state);
 
-  QIconEngine *clone() const { return new CQChartsLineDashEditIconEngine(dash_); }
+  QIconEngine *clone() const { return new CQChartsLineDashEditIconEngine(dash_, bg_); }
 
  private:
   CQChartsLineDash dash_;
+  bool             bg_ { true };
 };
 
 //------
@@ -73,15 +74,13 @@ CQChartsLineDashEdit(QWidget *parent) :
 
   //---
 
-  QHBoxLayout *layout = new QHBoxLayout(this);
-  layout->setMargin(0); layout->setSpacing(0);
+  QHBoxLayout *layout = CQUtil::makeLayout<QHBoxLayout>(this, 0, 0);
 
   //---
 
   // editable controls
 
-  edit_ = new QLineEdit;
-  edit_->setObjectName("edit");
+  edit_ = CQUtil::makeWidget<CQLineEdit>("edit");
 
   edit_->setToolTip("Line Dash\n(List of Dash Lengths)");
 
@@ -89,8 +88,7 @@ CQChartsLineDashEdit(QWidget *parent) :
 
   layout->addWidget(edit_);
 
-  button_ = new QToolButton;
-  button_->setObjectName("button");
+  button_ = CQUtil::makeWidget<QToolButton>("button");
 
   menu_ = new QMenu;
 
@@ -112,9 +110,7 @@ CQChartsLineDashEdit(QWidget *parent) :
 
   // combo control
 
-  combo_ = new CQIconCombo;
-
-  combo_->setObjectName("combo");
+  combo_ = CQUtil::makeWidget<CQIconCombo>("combo");
 
   combo_->setIconWidth(5*is);
 
@@ -167,6 +163,12 @@ CQChartsLineDashEdit(QWidget *parent) :
   //---
 
   updateState();
+}
+
+CQChartsLineDashEdit::
+~CQChartsLineDashEdit()
+{
+  delete menu_;
 }
 
 void
@@ -273,9 +275,9 @@ addDashOption(const std::string &id, const CQChartsLineDash &dash)
 
 QIcon
 CQChartsLineDashEdit::
-dashIcon(const CQChartsLineDash &dash)
+dashIcon(const CQChartsLineDash &dash, bool bg)
 {
-  return QIcon(new CQChartsLineDashEditIconEngine(dash));
+  return QIcon(new CQChartsLineDashEditIconEngine(dash, bg));
 }
 
 //---
@@ -306,9 +308,13 @@ pixmap(const QSize &size, QIcon::Mode mode, QIcon::State state)
 {
   QPixmap pixmap(size);
 
+  pixmap.fill(QColor(0,0,0,0));
+
   QPainter painter(&pixmap);
 
   paint(&painter, QRect(QPoint(0, 0), size), mode, state);
+
+  painter.end();
 
   return pixmap;
 }
@@ -334,7 +340,8 @@ paint(QPainter *painter, const QRect &rect, QIcon::Mode mode, QIcon::State state
     fg = qApp->palette().text().color();
   }
 
-  painter->fillRect(rect, bg);
+  if (bg_)
+    painter->fillRect(rect, bg);
 
   QPen pen;
 
@@ -376,7 +383,7 @@ setEditorData(CQPropertyViewItem *item, const QVariant &value)
 
 void
 CQChartsLineDashPropertyViewType::
-draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+draw(CQPropertyViewItem *, const CQPropertyViewDelegate *delegate, QPainter *painter,
      const QStyleOptionViewItem &option, const QModelIndex &ind,
      const QVariant &value, bool inside)
 {
@@ -384,7 +391,7 @@ draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
 
   CQChartsLineDash dash = value.value<CQChartsLineDash>();
 
-  QIcon icon = CQChartsLineDashEdit::dashIcon(dash);
+  QIcon icon = CQChartsLineDashEdit::dashIcon(dash, /*bg*/false);
 
   QString str = dash.toString();
 

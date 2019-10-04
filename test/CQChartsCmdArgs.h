@@ -5,16 +5,17 @@
 #include <CQChartsPosition.h>
 #include <CQChartsRect.h>
 #include <CQChartsColor.h>
+#include <CQChartsFont.h>
 #include <CQChartsLineDash.h>
 #include <CQChartsSides.h>
 
 #include <CQChartsCmdArg.h>
 #include <CQChartsCmdGroup.h>
 
+#include <CQTclUtil.h>
 #include <CQAlignEdit.h>
 #include <CQStrParse.h>
 
-#include <QFont>
 #include <boost/optional.hpp>
 #include <set>
 
@@ -22,6 +23,7 @@
 
 /*!
  * \brief base class for handling command arguments
+ * \ingroup Charts
  */
 class CQChartsCmdBaseArgs {
  public:
@@ -30,6 +32,10 @@ class CQChartsCmdBaseArgs {
   using OptInt  = boost::optional<int>;
   using OptBool = boost::optional<bool>;
 
+  /*!
+   * \brief command argument
+   * \ingroup Charts
+   */
   class Arg {
    public:
     Arg(const QVariant &var=QVariant()) :
@@ -47,8 +53,8 @@ class CQChartsCmdBaseArgs {
     QString opt() const { assert(isOpt_); return toString(var_).mid(1); }
 
    private:
-    QVariant var_;             // arg value
-    bool     isOpt_ { false }; // is option
+    QVariant var_;             //!< arg value
+    bool     isOpt_ { false }; //!< is option
   };
 
   //---
@@ -200,6 +206,18 @@ class CQChartsCmdBaseArgs {
   }
 
   // get font value of current option
+  bool getOptValue(CQChartsFont &f) {
+    QString str;
+
+    if (! getOptValue(str))
+      return false;
+
+    f = CQChartsFont(str);
+
+    return true;
+  }
+
+  // get font value of current option
   bool getOptValue(QFont &f) {
     QString str;
 
@@ -294,7 +312,8 @@ class CQChartsCmdBaseArgs {
 
     //---
 
-    bool help = false;
+    bool help       = false;
+    bool showHidden = false;
 
     while (! eof()) {
       // get next arg
@@ -310,6 +329,12 @@ class CQChartsCmdBaseArgs {
         // flag if help option
         if (opt == "help") {
           help = true;
+          continue;
+        }
+
+        // flag if hidden option
+        if (opt == "hidden") {
+          showHidden = true;
           continue;
         }
 
@@ -546,7 +571,7 @@ class CQChartsCmdBaseArgs {
 
     // if help option specified ignore other options and process help
     if (help) {
-      this->help();
+      this->help(showHidden);
 
       if (! isDebug()) {
         rc = true;
@@ -735,21 +760,28 @@ class CQChartsCmdBaseArgs {
   }
 
   // get parsed font for option (default returned if not found)
+  CQChartsFont getParseFont(const QString &name, const CQChartsFont &def=CQChartsFont()) const {
+    return getParseValue<CQChartsFont>(name, def);
+  }
+
+  // get parsed font for option (default returned if not found)
   QFont getParseFont(const QString &name, const QFont &def=QFont()) const {
     return getParseValue<QFont>(name, def);
   }
 
-  // get parsed font for option (default returned if not found)
+  // get parsed color for option (default returned if not found)
   CQChartsColor
   getParseColor(const QString &name, const CQChartsColor &def=CQChartsColor()) const {
     return getParseValue<CQChartsColor>(name, def);
   }
 
+  // get parsed line dash for option (default returned if not found)
   CQChartsLineDash
   getParseLineDash(const QString &name, const CQChartsLineDash &def=CQChartsLineDash()) const {
     return getParseValue<CQChartsLineDash>(name, def);
   }
 
+  // get parsed line side for option (default returned if not found)
   CQChartsSides getParseSides(const QString &name, const CQChartsSides &def=CQChartsSides()) const {
     return getParseValue<CQChartsSides>(name, def);
   }
@@ -791,7 +823,7 @@ class CQChartsCmdBaseArgs {
   //---
 
   // display help
-  void help() const {
+  void help(bool showHidden) const {
     using GroupIds = std::set<int>;
 
     GroupIds groupInds;
@@ -799,6 +831,9 @@ class CQChartsCmdBaseArgs {
     std::cerr << cmdName_.toStdString() << "\n";
 
     for (auto &cmdArg : cmdArgs_) {
+      if (! showHidden && cmdArg.isHidden())
+        continue;
+
       int groupInd = cmdArg.groupInd();
 
       if (groupInd > 0) {
@@ -807,7 +842,7 @@ class CQChartsCmdBaseArgs {
         if (p == groupInds.end()) {
           std::cerr << "  ";
 
-          helpGroup(groupInd);
+          helpGroup(groupInd, showHidden);
 
           std::cerr << "\n";
 
@@ -820,7 +855,7 @@ class CQChartsCmdBaseArgs {
         std::cerr << "  ";
 
         if (! cmdArg.isRequired())
-         std::cerr << "[";
+          std::cerr << "[";
 
         helpArg(cmdArg);
 
@@ -835,7 +870,7 @@ class CQChartsCmdBaseArgs {
   }
 
   // display help for group
-  void helpGroup(int groupInd) const {
+  void helpGroup(int groupInd, bool showHidden) const {
     const CQChartsCmdGroup &cmdGroup = cmdGroups_[groupInd - 1];
 
     if (! cmdGroup.isRequired())
@@ -848,6 +883,9 @@ class CQChartsCmdBaseArgs {
     int i = 0;
 
     for (const auto &cmdArg : cmdArgs) {
+      if (! showHidden && cmdArg.isHidden())
+        continue;
+
       if (i > 0)
         std::cerr << "|";
 
@@ -910,7 +948,9 @@ class CQChartsCmdBaseArgs {
         strs.push_back(str);
       }
 
-      return "{" + strs.join(" ") + "}";
+      CQTcl tcl;
+
+      return tcl.mergeList(strs);
     }
     else
       return var.toString();
@@ -1215,6 +1255,7 @@ modelStringToValue(const QString &str, QAbstractItemModel *model) {
 
 /*!
  * \brief derived class for handling command arguments (adds charts classes)
+ * \ingroup Charts
  */
 class CQChartsCmdArgs : public CQChartsCmdBaseArgs {
  public:

@@ -19,26 +19,33 @@ void
 CQChartsHierPlot::
 setNameColumns(const CQChartsColumns &c)
 {
-  CQChartsUtil::testAndSet(nameColumns_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(nameColumns_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsHierPlot::
 setValueColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(valueColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(valueColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsHierPlot::
 addProperties()
 {
+  auto addProp = [&](const QString &path, const QString &name, const QString &alias,
+                     const QString &desc) {
+    return &(this->addProperty(path, this, name, alias)->setDesc(desc));
+  };
+
+  //---
+
   CQChartsPlot::addProperties();
 
-  addProperty("columns", this, "nameColumns", "names")->setDesc("Name columns");
-  addProperty("columns", this, "valueColumn", "value")->setDesc("Value column");
+  addProp("columns", "nameColumns", "name" , "Name columns");
+  addProp("columns", "valueColumn", "value", "Data value column");
 
-  addProperty("options", this, "separator")->setDesc("Hierarchical separator");
+  addProp("options", "separator", "", "Separator for hierarchical path in name column");
 
   addColorMapProperties();
 }

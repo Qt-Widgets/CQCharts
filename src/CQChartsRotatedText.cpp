@@ -1,23 +1,24 @@
 #include <CQChartsRotatedText.h>
+#include <CQChartsPaintDevice.h>
 #include <CQChartsUtil.h>
-#include <QPainter>
 
 #include <cmath>
 
 namespace CQChartsRotatedText {
 
 void
-draw(QPainter *painter, double x, double y, const QString &text,
+draw(CQChartsPaintDevice *device, const QPointF &p, const QString &text,
      double angle, Qt::Alignment align, bool alignBBox, bool contrast)
 {
-  painter->save();
+  if (device->type() != CQChartsPaintDevice::Type::SCRIPT)
+    device->save();
 
-  QFontMetricsF fm(painter->font());
+  QFontMetricsF fm(device->font());
 
   double th = fm.height();
   double tw = fm.width(text);
 
-  double a1 = M_PI*angle/180.0;
+  double a1 = CMathUtil::Deg2Rad(angle);
 
   double c = cos(-a1);
   double s = sin(-a1);
@@ -69,42 +70,43 @@ draw(QPainter *painter, double x, double y, const QString &text,
 
   //------
 
-  QTransform t = painter->transform();
+  QPointF pp = device->windowToPixel(p);
 
-  t.translate(x + tx - ax, y + ty - ay);
-  t.rotate(-angle);
-//t.translate(0, -fm.descent());
+  QPointF pt(pp.x() + tx - ax, pp.y() + ty - ay);
 
-  painter->setTransform(t);
+  QPointF pt1 = device->pixelToWindow(pt);
+
+  device->setTransformRotate(pt1, angle);
 
   if (contrast) {
-    QColor tc = painter->pen().color();
+    QColor tc = device->pen().color();
 
   //QColor icolor = CQChartsUtil::invColor(tc);
     QColor icolor = CQChartsUtil::bwColor(tc);
 
     icolor.setAlphaF(0.5);
 
-    // draw contrast border
-    painter->setPen(icolor);
+    // draw contrast outline
+    device->setPen(icolor);
 
     for (int dy = -2; dy <= 2; ++dy) {
       for (int dx = -2; dx <= 2; ++dx) {
         if (dx != 0 || dy != 0)
-          painter->drawText(QPointF(dx, dy), text);
+          device->drawTransformedText(QPointF(dx, dy), text);
       }
     }
 
     // draw text
-    painter->setPen(tc);
+    device->setPen(tc);
 
-    painter->drawText(QPointF(0, 0), text);
+    device->drawTransformedText(QPointF(0, 0), text);
   }
   else {
-    painter->drawText(QPointF(0, 0), text);
+    device->drawTransformedText(QPointF(0, 0), text);
   }
 
-  painter->restore();
+  if (device->type() != CQChartsPaintDevice::Type::SCRIPT)
+    device->restore();
 }
 
 QRectF
@@ -142,7 +144,7 @@ bboxData(double x, double y, const QString &text, const QFont &font, double angl
   double th = fm.height()    + 2*border;
   double tw = fm.width(text) + 2*border;
 
-  double a1 = M_PI*angle/180.0;
+  double a1 = CMathUtil::Deg2Rad(angle);
 
   double c = cos(-a1);
   double s = sin(-a1);

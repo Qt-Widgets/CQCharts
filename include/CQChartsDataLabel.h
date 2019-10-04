@@ -8,6 +8,7 @@ class CQChartsPlot;
 
 /*!
  * \brief class for plot text box object
+ * \ingroup Charts
  */
 class CQChartsDataLabel : public CQChartsTextBoxObj {
   Q_OBJECT
@@ -77,16 +78,14 @@ class CQChartsDataLabel : public CQChartsTextBoxObj {
 
   //--
 
-  void addPathProperties(const QString &path);
+  void addPathProperties(const QString &path, const QString &desc);
 
   //---
 
-  void draw(QPainter *painter, const QRectF &qrect, const QString &ystr) const;
-
-  void draw(QPainter *painter, const QRectF &qrect, const QString &ystr,
+  void draw(CQChartsPaintDevice *device, const QRectF &qrect, const QString &ystr) const;
+  void draw(CQChartsPaintDevice *device, const QRectF &qrect, const QString &ystr,
             const Position &position) const;
-
-  void draw(QPainter *painter, const QRectF &qrect, const QString &ystr,
+  void draw(CQChartsPaintDevice *device, const QRectF &qrect, const QString &ystr,
             const Position &position, const QPen &tpen) const;
 
   //---
@@ -104,14 +103,18 @@ class CQChartsDataLabel : public CQChartsTextBoxObj {
 
   void textBoxDataInvalidate() override;
 
+  //---
+
+  void write(std::ostream &os, const QString &varName) const;
+
  signals:
   void dataChanged();
 
  private:
-  Position        position_   { Position::TOP_INSIDE }; //! position relative to parent
-  Qt::Orientation direction_  { Qt::Vertical };         //! parent object direction
-  bool            clip_       { false };                //! clip to parent
-  bool            sendSignal_ { false };                //! send signal on data change
+  Position        position_   { Position::TOP_INSIDE }; //!< position relative to parent
+  Qt::Orientation direction_  { Qt::Vertical };         //!< parent object direction
+  bool            clip_       { false };                //!< clip to parent
+  bool            sendSignal_ { false };                //!< send signal on data change
 };
 
 #endif

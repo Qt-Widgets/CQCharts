@@ -8,6 +8,10 @@ class CQChartsBoxDataEdit;
 class CQChartsPlot;
 class CQChartsView;
 
+/*!
+ * \brief Box data line edit
+ * \ingroup Charts
+ */
 class CQChartsBoxDataLineEdit : public CQChartsLineEditBase {
   Q_OBJECT
 
@@ -50,6 +54,10 @@ class CQChartsBoxDataEditPreview;
 class CQRealSpin;
 class CQGroupBox;
 
+/*!
+ * \brief Box data edit
+ * \ingroup Charts
+ */
 class CQChartsBoxDataEdit : public CQChartsEditBase {
   Q_OBJECT
 
@@ -72,21 +80,28 @@ class CQChartsBoxDataEdit : public CQChartsEditBase {
  private:
   void dataToWidgets();
 
+  void connectSlots(bool b);
+
  private slots:
   void widgetsToData();
 
  private:
-  CQChartsBoxData             data_;
-  CQGroupBox*                 groupBox_    { nullptr };
-  CQRealSpin*                 marginEdit_  { nullptr };
-  CQRealSpin*                 paddingEdit_ { nullptr };
-  CQChartsShapeDataEdit*      shapeEdit_   { nullptr };
-  CQChartsSidesEdit*          sidesEdit_   { nullptr };
-  CQChartsBoxDataEditPreview* preview_     { nullptr };
+  CQChartsBoxData             data_;                    //!< box data
+  CQGroupBox*                 groupBox_    { nullptr }; //!< group box
+  CQRealSpin*                 marginEdit_  { nullptr }; //!< margin edit
+  CQRealSpin*                 paddingEdit_ { nullptr }; //!< padding edit
+  CQChartsShapeDataEdit*      shapeEdit_   { nullptr }; //!< shape edit
+  CQChartsSidesEdit*          sidesEdit_   { nullptr }; //!< sides edit
+  CQChartsBoxDataEditPreview* preview_     { nullptr }; //!< preview widget
+  bool                        connected_   { false };   //!< is connected
 };
 
 //---
 
+/*!
+ * \brief Box data edit preview
+ * \ingroup Charts
+ */
 class CQChartsBoxDataEditPreview : public CQChartsEditPreview {
   Q_OBJECT
 
@@ -106,7 +121,10 @@ class CQChartsBoxDataEditPreview : public CQChartsEditPreview {
 
 #include <CQChartsPropertyViewEditor.h>
 
-// type for CQChartsBoxData
+/*!
+ * \brief type for CQChartsBoxData
+ * \ingroup Charts
+ */
 class CQChartsBoxDataPropertyViewType : public CQChartsPropertyViewType {
  public:
   CQPropertyViewEditorFactory *getEditor() const override;
@@ -115,13 +133,18 @@ class CQChartsBoxDataPropertyViewType : public CQChartsPropertyViewType {
                    CQChartsPlot *plot, CQChartsView *view) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "box_data"; }
 };
 
 //---
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsBoxData
+/*!
+ * \brief editor factory for CQChartsBoxData
+ * \ingroup Charts
+ */
 class CQChartsBoxDataPropertyViewEditor : public CQChartsPropertyViewEditorFactory {
  public:
   CQChartsLineEditBase *createPropertyEdit(QWidget *parent);

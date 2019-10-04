@@ -7,8 +7,14 @@
 class CQChartsUnitsEdit;
 class CQPoint2DEdit;
 
+/*!
+ * \brief position edit
+ * \ingroup Charts
+ */
 class CQChartsPositionEdit : public QFrame {
   Q_OBJECT
+
+  Q_PROPERTY(CQChartsPosition position READ position WRITE setPosition)
 
  public:
   CQChartsPositionEdit(QWidget *parent=nullptr);
@@ -30,16 +36,20 @@ class CQChartsPositionEdit : public QFrame {
   void connectSlots(bool b);
 
  private:
-  CQChartsPosition   position_;
-  CQPoint2DEdit*     edit_       { nullptr };
-  CQChartsUnitsEdit* unitsEdit_ { nullptr };
+  CQChartsPosition   position_;              //!< position data
+  CQPoint2DEdit*     edit_      { nullptr }; //!< position edit
+  CQChartsUnitsEdit* unitsEdit_ { nullptr }; //!< units edit
+  bool               connected_ { false };   //!< is connected
 };
 
 //------
 
 #include <CQPropertyViewType.h>
 
-// type for CQChartsPosition
+/*!
+ * \brief type for CQChartsPosition
+ * \ingroup Charts
+ */
 class CQChartsPositionPropertyViewType : public CQPropertyViewType {
  public:
   CQChartsPositionPropertyViewType();
@@ -48,18 +58,23 @@ class CQChartsPositionPropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &index,
             const QVariant &value, bool inside) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "position"; }
 };
 
 //---
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsPosition
+/*!
+ * \brief editor factory for CQChartsPosition
+ * \ingroup Charts
+ */
 class CQChartsPositionPropertyViewEditor : public CQPropertyViewEditorFactory {
  public:
   CQChartsPositionPropertyViewEditor();

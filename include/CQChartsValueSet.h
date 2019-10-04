@@ -2,6 +2,7 @@
 #define CQChartsValueSet_H
 
 #include <CQChartsUtil.h>
+#include <CQStatData.h>
 #include <CQBaseModelTypes.h>
 #include <vector>
 #include <set>
@@ -10,13 +11,14 @@
 #include <boost/optional.hpp>
 
 class CQChartsPlot;
-class CQChartsTrie;
-class CQChartsTriePatterns;
+class CQTrie;
+class CQTriePatterns;
 
 //------
 
 /*!
  * \brief class to store set of real values and returned cached data
+ * \ingroup Charts
  */
 class CQChartsRValues {
  public:
@@ -111,17 +113,19 @@ class CQChartsRValues {
   }
 
   // calculated stats
-  double sum () const { initCalc(); return sum_ ; }
-  double mean() const { initCalc(); return mean_; }
+  const CQStatData &statData() const { initCalc(); return statData_; }
 
-  double stddev() const { initCalc(); return stddev_; }
+  double sum   () const { return statData().sum   ; }
+  double mean  () const { return statData().mean  ; }
+  double stddev() const { return statData().stddev; }
 
-  double median() const { initCalc(); return median_; }
-
-  double lowerMedian() const { initCalc(); return lowerMedian_; }
-  double upperMedian() const { initCalc(); return upperMedian_; }
+  double lowerMedian() const { return statData().lowerMedian; }
+  double median     () const { return statData().median     ; }
+  double upperMedian() const { return statData().upperMedian; }
 
   const Indices &outliers() const { initCalc(); return outliers_; }
+
+  bool isOutlier(double i) const;
 
   double svalue(int i) const { return svalues_[i]; }
 
@@ -142,36 +146,29 @@ class CQChartsRValues {
 
   void calc();
 
-  void medianInd(int i1, int i2, int &n1, int &n2);
-
  private:
   using OptValues = std::vector<OptReal>;
   using KeyCount  = std::pair<int,int>;
   using ValueSet  = std::map<double,KeyCount,CQChartsUtil::RealCmp>;
   using SetValues = std::map<int,double>;
 
-  OptValues                 values_;                 //! all real values
-  Values                    svalues_;                //! sorted real values
-  ValueSet                  valset_;                 //! unique indexed real values
-  SetValues                 setvals_;                //! index to real map
-  int                       numNull_      { 0 };     //! number of null values
-  bool                      calculated_   { false }; //! are stats calculated
-  double                    sum_          { 0.0 };   //! values sum
-  double                    mean_         { 0.0 };   //! values mean
-  double                    stddev_       { 0.0 };   //! values std deviation
-  double                    median_       { 0.0 };   //! values median
-  double                    lowerMedian_  { 0.0 };   //! values lower median
-  double                    upperMedian_  { 0.0 };   //! values upper median
-  double                    outlierRange_ { 1.5 };   //! outlier range
-  Indices                   outliers_;               //! outlier values
-  mutable std::atomic<bool> calcValid_    { false }; //! is calculated
-  mutable std::mutex        calcMutex_;              //! calc mutex
+  OptValues                 values_;               //!< all real values
+  Values                    svalues_;              //!< sorted real values
+  ValueSet                  valset_;               //!< unique indexed real values
+  SetValues                 setvals_;              //!< index to real map
+  int                       numNull_    { 0 };     //!< number of null values
+  bool                      calculated_ { false }; //!< are stats calculated
+  CQStatData                statData_;             //!< stat data
+  Indices                   outliers_;             //!< outlier values
+  mutable std::atomic<bool> calcValid_  { false }; //!< is calculated
+  mutable std::mutex        calcMutex_;            //!< calc mutex
 };
 
 //---
 
 /*!
  * \brief class to store set of integer values and returned cached data
+ * \ingroup Charts
  */
 class CQChartsIValues {
  public:
@@ -262,17 +259,19 @@ class CQChartsIValues {
   }
 
   // calculated stats
-  double sum () const { initCalc(); return sum_ ; }
-  double mean() const { initCalc(); return mean_; }
+  const CQStatData &statData() const { initCalc(); return statData_; }
 
-  double stddev() const { initCalc(); return stddev_; }
+  double sum   () const { return statData().sum   ; }
+  double mean  () const { return statData().mean  ; }
+  double stddev() const { return statData().stddev; }
 
-  double median() const { initCalc(); return median_; }
-
-  double lowerMedian() const { initCalc(); return lowerMedian_; }
-  double upperMedian() const { initCalc(); return upperMedian_; }
+  double lowerMedian() const { return statData().lowerMedian; }
+  double median     () const { return statData().median     ; }
+  double upperMedian() const { return statData().upperMedian; }
 
   const Indices &outliers() const { initCalc(); return outliers_; }
+
+  bool isOutlier(int v) const;
 
   double svalue(int i) const { return svalues_[i]; }
 
@@ -293,36 +292,29 @@ class CQChartsIValues {
 
   void calc();
 
-  void medianInd(int i1, int i2, int &n1, int &n2);
-
  private:
   using OptValues = std::vector<OptInt>;
   using KeyCount  = std::pair<int,int>;
   using ValueSet  = std::map<int,KeyCount>;
   using SetValues = std::map<int,int>;
 
-  OptValues                 values_;                 //! all integer values
-  Values                    svalues_;                //! sorted integer values
-  ValueSet                  valset_;                 //! unique indexed integer values
-  SetValues                 setvals_;                //! index to integer map
-  int                       numNull_      { 0 };     //! number of null values
-  bool                      calculated_   { false }; //! are stats calculated
-  double                    sum_          { 0.0 };   //! values sum
-  double                    mean_         { 0.0 };   //! values mean
-  double                    stddev_       { 0.0 };   //! values std deviation
-  double                    median_       { 0.0 };   //! values median
-  double                    lowerMedian_  { 0.0 };   //! values lower median
-  double                    upperMedian_  { 0.0 };   //! values upper median
-  double                    outlierRange_ { 1.5 };   //! outlier range
-  Indices                   outliers_;               //! outlier values
-  mutable std::atomic<bool> calcValid_    { false }; //! is calculated
-  mutable std::mutex        calcMutex_;              //! calc mutex
+  OptValues                 values_;               //!< all integer values
+  Values                    svalues_;              //!< sorted integer values
+  ValueSet                  valset_;               //!< unique indexed integer values
+  SetValues                 setvals_;              //!< index to integer map
+  int                       numNull_    { 0 };     //!< number of null values
+  bool                      calculated_ { false }; //!< are stats calculated
+  CQStatData                statData_;             //!< stat data
+  Indices                   outliers_;             //!< outlier values
+  mutable std::atomic<bool> calcValid_  { false }; //!< is calculated
+  mutable std::mutex        calcMutex_;            //!< calc mutex
 };
 
 //---
 
 /*!
  * \brief class to store set of string values and returned cached data
+ * \ingroup Charts
  */
 class CQChartsSValues {
  public:
@@ -426,22 +418,23 @@ class CQChartsSValues {
   using ValueSet  = std::map<QString,KeyCount>;
   using SetValues = std::map<int,QString>;
 
-  OptValues values_;        //! all string values
-  ValueSet  valset_;        //! unique indexed string values
-  SetValues setvals_;       //! index to string map
-  int       numNull_ { 0 }; //! number of null values
+  OptValues values_;        //!< all string values
+  ValueSet  valset_;        //!< unique indexed string values
+  SetValues setvals_;       //!< index to string map
+  int       numNull_ { 0 }; //!< number of null values
 
-  int                   initBuckets_  { 10 };      //! initial buckets
-  CQChartsTrie*         trie_         { nullptr }; //! string trie
-  CQChartsTriePatterns* spatterns_    { nullptr }; //! trie patterns
-  bool                  spatternsSet_ { false };   //! trie patterns set
-  mutable std::mutex    mutex_;                    //! mutex
+  int                initBuckets_  { 10 };      //!< initial buckets
+  CQTrie*            trie_         { nullptr }; //!< string trie
+  CQTriePatterns*    spatterns_    { nullptr }; //!< trie patterns
+  bool               spatternsSet_ { false };   //!< trie patterns set
+  mutable std::mutex mutex_;                    //!< mutex
 };
 
 //---
 
 /*!
  * \brief class to store set of color values and returned cached data
+ * \ingroup Charts
  */
 class CQChartsCValues {
  public:
@@ -538,16 +531,17 @@ class CQChartsCValues {
   using ValueSet  = std::map<CQChartsColor,KeyCount,CQChartsUtil::ColorCmp>;
   using SetValues = std::map<int,CQChartsColor>;
 
-  Values    values_;        //! all color values
-  ValueSet  valset_;        //! unique indexed color values
-  SetValues setvals_;       //! index to color map
-  int       numNull_ { 0 }; //! number of null values
+  Values    values_;        //!< all color values
+  ValueSet  valset_;        //!< unique indexed color values
+  SetValues setvals_;       //!< index to color map
+  int       numNull_ { 0 }; //!< number of null values
 };
 
 //------
 
 /*!
  * \brief set of real, integer or string values which will be grouped by their unique values.
+ * \ingroup Charts
  *
  * Auto detects value type from input data
  */
@@ -646,13 +640,22 @@ class CQChartsValueSet : public QObject {
   // check if has value for specified index
   bool hasInd(int i) const;
 
+  // map value to set index
+  int iset(const QVariant &value) const;
+
+  // number of unique values
+  int numUnique() const;
+
+  // map value to index
+  double imap(const QVariant &value) const;
+
   // map nth value to real range (mapMin()->mapMax())
   double imap(int i) const;
 
   // map nth value to real range (min->max)
   double imap(int i, double min, double max) const;
 
-  // get/set allow nam values
+  // get/set allow NaN values
   bool isAllowNaN() const { return allowNaN_; }
   void setAllowNaN(bool b) { allowNaN_ = b; }
 
@@ -708,28 +711,28 @@ class CQChartsValueSet : public QObject {
  protected:
   using Values = std::vector<QVariant>;
 
-  const CQChartsPlot* plot_ { nullptr }; //! plot
+  const CQChartsPlot* plot_ { nullptr }; //!< plot
 
-  CQChartsColumn column_; //! associated model column
+  CQChartsColumn column_; //!< associated model column
 
-  bool   mapped_  { false }; //! is mapped
-  double map_min_ { 0.0 };   //! map min
-  double map_max_ { 1.0 };   //! map max
+  bool   mapped_  { false }; //!< is mapped
+  double map_min_ { 0.0 };   //!< map min
+  double map_max_ { 1.0 };   //!< map max
 
-  Values values_;                //! input values
-  bool   initialized_ { false }; //! are real, integer, string values initialized
+  Values values_;                //!< input values
+  bool   initialized_ { false }; //!< are real, integer, string values initialized
 
-  Type type_ { Type::NONE }; //! calculated type
+  Type type_ { Type::NONE }; //!< calculated type
 
-  CQChartsIValues ivals_; //! integer values
-  CQChartsRValues rvals_; //! real values
-  CQChartsSValues svals_; //! string values
-  CQChartsCValues cvals_; //! color values
-  CQChartsRValues tvals_; //! time values
+  CQChartsIValues ivals_; //!< integer values
+  CQChartsRValues rvals_; //!< real values
+  CQChartsSValues svals_; //!< string values
+  CQChartsCValues cvals_; //!< color values
+  CQChartsRValues tvals_; //!< time values
 
-  bool allowNaN_ { false }; //! allow NaN values
+  bool allowNaN_ { false }; //!< allow NaN values
 
-  mutable std::mutex mutex_; //! mutex
+  mutable std::mutex mutex_; //!< mutex
 };
 
 #endif

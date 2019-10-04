@@ -3,9 +3,10 @@
 #include <CQChartsLoader.h>
 #include <CQChartsInputData.h>
 #include <CQChartsModelData.h>
+#include <CQChartsWidgetUtil.h>
 #include <CQCharts.h>
 #include <CQChartsUtil.h>
-#include <CQDividedArea.h>
+#include <CQTabSplit.h>
 #include <CQFilename.h>
 #include <CQUtil.h>
 
@@ -49,21 +50,21 @@ CQChartsLoadModelDlg(CQCharts *charts) :
   setWindowTitle("Load Model");
   //setWindowIcon(QIcon()); TODO
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
+  QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 2, 2);
 
   //---
 
-  CQDividedArea *area = new CQDividedArea;
-  area->setObjectName("area");
+  CQTabSplit *area = CQUtil::makeWidget<CQTabSplit>("area");
+
+  area->setOrientation(Qt::Vertical);
 
   layout->addWidget(area);
 
   //----
 
-  QFrame *fileFrame = new QFrame;
-  fileFrame->setObjectName("file");
+  QFrame *fileFrame = CQUtil::makeWidget<QFrame>("file");
 
-  QGridLayout *fileFrameLayout = new QGridLayout(fileFrame);
+  QGridLayout *fileFrameLayout = CQUtil::makeLayout<QGridLayout>(fileFrame, 2, 2);
 
   area->addWidget(fileFrame, "File");
 
@@ -72,11 +73,12 @@ CQChartsLoadModelDlg(CQCharts *charts) :
   int row = 0;
 
   // File Prompt
-  fileEdit_ = new CQFilename;
-  fileEdit_->setObjectName("fileEdit");
+  fileEdit_ = CQUtil::makeWidget<CQFilename>("fileEdit");
 
-  fileFrameLayout->addWidget(new QLabel("File"), row, 0);
-  fileFrameLayout->addWidget(fileEdit_         , row, 1);
+  fileEdit_->setToolTip("File name to load");
+
+  fileFrameLayout->addWidget(CQUtil::makeLabelWidget<QLabel>("File", "fileLabel"), row, 0);
+  fileFrameLayout->addWidget(fileEdit_                                           , row, 1);
 
   connect(fileEdit_, SIGNAL(filenameChanged(const QString &)), this, SLOT(previewFileSlot()));
 
@@ -85,17 +87,17 @@ CQChartsLoadModelDlg(CQCharts *charts) :
   //--
 
   // Type Combo
-  typeCombo_ = new QComboBox;
-  typeCombo_->setObjectName("typeCombo");
+  QStringList modelTypeNames;
 
-  typeCombo_->addItem("CSV");
-  typeCombo_->addItem("TSV");
-  typeCombo_->addItem("Json");
-  typeCombo_->addItem("Data");
-  typeCombo_->addItem("Expr");
+  charts_->getModelTypeNames(modelTypeNames);
 
-  fileFrameLayout->addWidget(new QLabel("Type"), row, 0);
-  fileFrameLayout->addWidget(typeCombo_        , row, 1);
+  typeCombo_ = CQUtil::makeWidget<QComboBox>("typeCombo");
+
+  typeCombo_->addItems(modelTypeNames);
+  typeCombo_->setToolTip("File type");
+
+  fileFrameLayout->addWidget(CQUtil::makeLabelWidget<QLabel>("Type", "typeLabel"), row, 0);
+  fileFrameLayout->addWidget(typeCombo_                                          , row, 1);
 
   connect(typeCombo_, SIGNAL(currentIndexChanged(int)), this, SLOT(typeSlot()));
 
@@ -106,30 +108,37 @@ CQChartsLoadModelDlg(CQCharts *charts) :
   // Number Edit
   numberEdit_ = CQUtil::makeWidget<CQLineEdit>("numerEdit");
 
-  numberEdit_->setText("100");
+  numberEdit_->setText(QString("%1").arg(expressionLines()));
+  numberEdit_->setToolTip("Number of rows to generate for expression");
 
-  fileFrameLayout->addWidget(new QLabel("Num Rows"), row, 0);
-  fileFrameLayout->addWidget(numberEdit_           , row, 1);
+  fileFrameLayout->addWidget(CQUtil::makeLabelWidget<QLabel>("Num Rows", "numRowsLabel"), row, 0);
+  fileFrameLayout->addWidget(numberEdit_                                                , row, 1);
 
   ++row;
 
   //--
 
   // Option Checks
-  QHBoxLayout *optionLayout = new QHBoxLayout;
+  QHBoxLayout *optionLayout = CQUtil::makeLayout<QHBoxLayout>(2, 2);
 
-  commentHeaderCheck_ = new QCheckBox("Comment Header");
-  commentHeaderCheck_->setObjectName("commentHeaderCheck");
+  commentHeaderCheck_ =
+    CQUtil::makeLabelWidget<QCheckBox>("Comment Header", "commentHeaderCheck");
+
+  commentHeaderCheck_->setToolTip("Use first comment for horizontal header");
 
   optionLayout->addWidget(commentHeaderCheck_);
 
-  firstLineHeaderCheck_ = new QCheckBox("First Line Header");
-  firstLineHeaderCheck_->setObjectName("firstLineHeaderCheck");
+  firstLineHeaderCheck_ =
+    CQUtil::makeLabelWidget<QCheckBox>("First Line Header", "firstLineHeaderCheck");
+
+  firstLineHeaderCheck_->setToolTip("Use first non-comment line for horizontal header");
 
   optionLayout->addWidget(firstLineHeaderCheck_);
 
-  firstColumnHeaderCheck_ = new QCheckBox("First Column Header");
-  firstColumnHeaderCheck_->setObjectName("firstColumnHeaderCheck");
+  firstColumnHeaderCheck_ =
+    CQUtil::makeLabelWidget<QCheckBox>("First Column Header", "firstColumnHeaderCheck");
+
+  firstColumnHeaderCheck_->setToolTip("Use first column for vertical header");
 
   optionLayout->addWidget(firstColumnHeaderCheck_);
 
@@ -144,8 +153,10 @@ CQChartsLoadModelDlg(CQCharts *charts) :
   // Filter Edit
   filterEdit_ = CQUtil::makeWidget<CQLineEdit>("filterEdit");
 
-  fileFrameLayout->addWidget(new QLabel("Filter"), row, 0);
-  fileFrameLayout->addWidget(filterEdit_         , row, 1);
+  filterEdit_->setToolTip("Filter expression for data");
+
+  fileFrameLayout->addWidget(CQUtil::makeLabelWidget<QLabel>("Filter", "filterLabel"), row, 0);
+  fileFrameLayout->addWidget(filterEdit_                                             , row, 1);
 
   ++row;
 
@@ -155,17 +166,17 @@ CQChartsLoadModelDlg(CQCharts *charts) :
 
   //----
 
-  QFrame *previewFrame = new QFrame;
-  previewFrame->setObjectName("preview");
+  QFrame *previewFrame = CQUtil::makeWidget<QFrame>("preview");
 
-  QVBoxLayout *previewFrameLayout = new QVBoxLayout(previewFrame);
+  QVBoxLayout *previewFrameLayout = CQUtil::makeLayout<QVBoxLayout>(previewFrame, 2, 2);
 
   area->addWidget(previewFrame, "Preview");
 
   //--
 
-  previewText_ = new QTextEdit;
-  previewText_->setObjectName("previewText");
+  previewText_ = CQUtil::makeWidget<QTextEdit>("previewText");
+
+  previewText_->setToolTip("File contents preview");
 
   previewFrameLayout->addWidget(previewText_);
 
@@ -178,28 +189,22 @@ CQChartsLoadModelDlg(CQCharts *charts) :
   //----
 
   // Bottom Buttons
-  QHBoxLayout *buttonLayout = new QHBoxLayout;
+  CQChartsDialogButtons *buttons = new CQChartsDialogButtons(this);
 
-  okButton_ = new QPushButton("OK");
-  okButton_->setObjectName("ok");
+  buttons->connect(this, SLOT(okSlot()), SLOT(applySlot()), SLOT(cancelSlot()));
 
-  applyButton_ = new QPushButton("Apply");
-  applyButton_->setObjectName("apply");
+  buttons->setToolTips("Load model and close dialog",
+                       "Load model and keep dialog open",
+                       "Close dialog without loading model");
 
-  QPushButton *cancelButton = new QPushButton("Cancel");
-  cancelButton->setObjectName("cancel");
+  okButton_    = buttons->okButton();
+  applyButton_ = buttons->applyButton();
 
-  connect(okButton_   , SIGNAL(clicked()), this, SLOT(okSlot()));
-  connect(applyButton_, SIGNAL(clicked()), this, SLOT(applySlot()));
-  connect(cancelButton, SIGNAL(clicked()), this, SLOT(cancelSlot()));
+  layout->addWidget(buttons);
 
-  buttonLayout->addStretch(1);
+  //----
 
-  buttonLayout->addWidget(okButton_);
-  buttonLayout->addWidget(applyButton_);
-  buttonLayout->addWidget(cancelButton);
-
-  layout->addLayout(buttonLayout);
+  typeSlot();
 }
 
 CQChartsLoadModelDlg::
@@ -237,7 +242,7 @@ numRows() const
   int n = CQChartsUtil::toInt(numberEdit_->text(), ok);
 
   if (! ok)
-    n = 100;
+    n = expressionLines();
 
   return n;
 }
@@ -255,11 +260,9 @@ previewFileSlot()
 {
   QString fileName = fileEdit_->name();
 
-  std::size_t maxLines = 10;
-
   QStringList lines;
 
-  if (! CQChartsUtil::fileToLines(fileName, lines, maxLines))
+  if (! CQChartsUtil::fileToLines(fileName, lines, previewLines()))
     return;
 
   QString text;
@@ -332,7 +335,7 @@ applySlot()
 
   //----
 
-  CQChartsFileType fileType = stringToFileType(type);
+  CQChartsFileType fileType = CQChartsFileTypeUtil::stringToFileType(type);
 
   if (fileType == CQChartsFileType::NONE)
     return false;

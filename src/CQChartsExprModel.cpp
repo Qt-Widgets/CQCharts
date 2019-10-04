@@ -21,21 +21,25 @@
 class CQChartsExprTcl : public CQTcl {
  public:
   CQChartsExprTcl(CQChartsExprModel *model) :
-   model_(model), row_(-1) {
+   model_(model) {
   }
 
   int row() const { return row_; }
   void setRow(int i) { row_ = i; }
 
+  int column() const { return column_; }
+  void setColumn(int i) { column_ = i; }
+
   void handleTrace(const char *name, int flags) override {
     if (flags & TCL_TRACE_READS) {
-      model_->setVar(name, row());
+      model_->setVar(name, row(), column());
     }
   }
 
  private:
-  CQChartsExprModel *model_ { nullptr };
-  int                row_   { -1 };
+  CQChartsExprModel *model_  { nullptr };
+  int                row_    { -1 };
+  int                column_ { -1 };
 };
 
 //------
@@ -44,6 +48,8 @@ CQChartsExprModel::
 CQChartsExprModel(CQCharts *charts, CQChartsModelFilter *filter, QAbstractItemModel *model) :
  charts_(charts), filter_(filter), model_(model)
 {
+  assert(model);
+
   setObjectName("exprModel");
 
   qtcl_ = new CQChartsExprTcl(this);
@@ -51,6 +57,9 @@ CQChartsExprModel(CQCharts *charts, CQChartsModelFilter *filter, QAbstractItemMo
   addBuiltinFunctions();
 
   setSourceModel(model);
+
+  connect(model, SIGNAL(dataChanged(const QModelIndex &, const QModelIndex &)),
+          this, SLOT(dataChangedSlot(const QModelIndex &, const QModelIndex &)));
 }
 
 CQChartsExprModel::
@@ -69,31 +78,44 @@ void
 CQChartsExprModel::
 addBuiltinFunctions()
 {
-  qtcl_->createVar("pi" , QVariant(M_PI));
-  qtcl_->createVar("NaN", QVariant(COSNaN::get_nan()));
-
+  // get/set model data (TODO: hierarchical)
   addFunction("column"   );
   addFunction("row"      );
   addFunction("cell"     );
   addFunction("setColumn");
   addFunction("setRow"   );
   addFunction("setCell"  );
+
+  // get/set header data
   addFunction("header"   );
   addFunction("setHeader");
-  addFunction("type"     );
-  addFunction("setType"  );
-  addFunction("map"      );
-  addFunction("bucket"   );
-  addFunction("norm"     );
-  addFunction("scale"    );
-  addFunction("rand"     );
-  addFunction("rnorm"    );
+
+  // get/set column type
+  addFunction("type"   );
+  addFunction("setType");
+
+  // map values
+  addFunction("map"   );
+  addFunction("remap" );
+  addFunction("bucket");
+  addFunction("norm"  );
+  addFunction("scale" );
+
+  // random
+  addFunction("rand" );
+  addFunction("rnorm");
+
+  // string
+  addFunction("match");
+
+  // color
+  addFunction("color");
+
+  // time
+  addFunction("timeval");
+
 //addFunction("key"      );
 //addFunction("concat"   );
-  addFunction("color"    );
-
-  addFunction("remap"    );
-  addFunction("timeval"  );
 }
 
 CQTcl *
@@ -139,6 +161,15 @@ isExtraColumn(int column) const
   int ecolumn = column - numNonExtra;
 
   return (ecolumn >= numExtraColumns());
+}
+
+bool
+CQChartsExprModel::
+isReadOnly() const
+{
+  CQDataModel *dataModel = qobject_cast<CQDataModel *>(model_);
+
+  return (dataModel ? dataModel->isReadOnly() : true);
 }
 
 void
@@ -228,12 +259,12 @@ removeExtraColumn(int column)
   if (ecolumn < 0 || ecolumn >= numExtraColumns())
     return false;
 
+  delete extraColumns_[ecolumn];
+
   beginRemoveColumns(QModelIndex(), column, column);
 
   for (int i = ecolumn + 1; i < numExtraColumns(); ++i)
     extraColumns_[i - 1] = extraColumns_[i];
-
-  delete extraColumns_.back();
 
   extraColumns_.pop_back();
 
@@ -421,6 +452,27 @@ queryColumn(int column, const QString &expr, Rows &rows) const
   return rc;
 }
 
+bool
+CQChartsExprModel::
+getExtraColumnDetails(int column, QString &header, QString &expr) const
+{
+  nc_ = columnCount();
+
+  int numNonExtra = nc_ - numExtraColumns();
+
+  int ecolumn = column - numNonExtra;
+
+  if (ecolumn < 0 || ecolumn >= numExtraColumns())
+    return false;
+
+  const ExtraColumn *extraColumn = extraColumns_[ecolumn];
+
+  header = extraColumn->header;
+  expr   = extraColumn->expr;
+
+  return true;
+}
+
 void
 CQChartsExprModel::
 initCalc() const
@@ -442,6 +494,10 @@ initCalc()
   columnNames_.clear();
   nameColumns_.clear();
 
+  //---
+
+  // add user defined functions
+  // TODO: only add if needed ? (traces)
   for (const auto &np : charts_->procs()) {
     const auto &proc = np.second;
 
@@ -449,6 +505,9 @@ initCalc()
                  arg(proc.name).arg(proc.args).arg(proc.body));
   }
 
+  //---
+
+  // add traces for column names
   for (int column = 0; column < nc_; ++column) {
     QVariant var = this->headerData(column, Qt::Horizontal);
 
@@ -461,6 +520,12 @@ initCalc()
 
     qtcl_->traceVar(name);
   }
+
+  qtcl_->traceVar("row"   );
+  qtcl_->traceVar("column");
+  qtcl_->traceVar("col"   );
+  qtcl_->traceVar("pi"    );
+  qtcl_->traceVar("NaN"   );
 }
 
 void
@@ -1113,30 +1178,46 @@ QVariant
 CQChartsExprModel::
 processCmd(const QString &name, const Values &values)
 {
+  // get/set model data
   if      (name == "column"   ) return columnCmd   (values);
   else if (name == "row"      ) return rowCmd      (values);
   else if (name == "cell"     ) return cellCmd     (values);
   else if (name == "setColumn") return setColumnCmd(values);
   else if (name == "setRow"   ) return setRowCmd   (values);
   else if (name == "setCell"  ) return setCellCmd  (values);
+
+  // get/set header data
   else if (name == "header"   ) return headerCmd   (values);
   else if (name == "setHeader") return setHeaderCmd(values);
-  else if (name == "type"     ) return typeCmd     (values);
-  else if (name == "setType"  ) return setTypeCmd  (values);
-  else if (name == "map"      ) return mapCmd      (values);
-  else if (name == "bucket"   ) return bucketCmd   (values);
-  else if (name == "norm"     ) return normCmd     (values);
-  else if (name == "scale"    ) return scaleCmd    (values);
-  else if (name == "rand"     ) return randCmd     (values);
-  else if (name == "rnorm"    ) return rnormCmd    (values);
-//else if (name == "key"      ) return keyCmd      (values);
-//else if (name == "concat"   ) return concatCmd   (values);
-  else if (name == "color"    ) return colorCmd    (values);
 
-  else if (name == "remap"    ) return remapCmd    (values);
-  else if (name == "timeval"  ) return timevalCmd  (values);
+  // get/set column type
+  else if (name == "type"   ) return typeCmd   (values);
+  else if (name == "setType") return setTypeCmd(values);
 
-  else                          return QVariant(false);
+  // map values
+  else if (name == "map"   ) return mapCmd   (values);
+  else if (name == "remap" ) return remapCmd (values);
+  else if (name == "bucket") return bucketCmd(values);
+  else if (name == "norm"  ) return normCmd  (values);
+  else if (name == "scale" ) return scaleCmd (values);
+
+  // random
+  else if (name == "rand" ) return randCmd (values);
+  else if (name == "rnorm") return rnormCmd(values);
+
+  // string
+  else if (name == "match") return matchCmd(values);
+
+  // color
+  else if (name == "color") return colorCmd(values);
+
+  // time
+  else if (name == "timeval") return timevalCmd(values);
+
+//else if (name == "key"   ) return keyCmd   (values);
+//else if (name == "concat") return concatCmd(values);
+
+  else return QVariant(false);
 }
 
 //------
@@ -1870,6 +1951,26 @@ concatCmd(const Values &values) const
 
 //---
 
+// match string to regexp:
+//   match(name, regexp)
+QVariant
+CQChartsExprModel::
+matchCmd(const Values &values) const
+{
+  if (values.size() == 2) {
+    QString str     = values[0].toString();
+    QString pattern = values[1].toString();
+
+    QRegExp regexp(pattern);
+
+    return regexp.exactMatch(str);
+  }
+
+  return QVariant();
+}
+
+//---
+
 // string to color:
 //   color(name)
 QVariant
@@ -2032,7 +2133,8 @@ evaluateExpression(const QString &expr, QVariant &var) const
   if (expr.length() == 0)
     return false;
 
-  qtcl_->setRow(currentRow_);
+  qtcl_->setRow   (currentRow());
+  qtcl_->setColumn(currentCol());
 
   int rc = qtcl_->evalExpr(expr);
 
@@ -2045,7 +2147,8 @@ evaluateExpression(const QString &expr, QVariant &var) const
       return true;
     }
 
-    std::cerr << qtcl_->errorInfo(rc).toStdString() << std::endl;
+    if (debug_)
+      std::cerr << qtcl_->errorInfo(rc).toStdString() << std::endl;
 
     return false;
   }
@@ -2055,20 +2158,31 @@ evaluateExpression(const QString &expr, QVariant &var) const
 
 void
 CQChartsExprModel::
-setVar(const QString &name, int row)
+setVar(const QString &name, int row, int column)
 {
   auto p = nameColumns_.find(name);
 
-  if (p == nameColumns_.end())
-    return;
+  if (p != nameColumns_.end()) {
+    int col = (*p).second;
 
-  int col = (*p).second;
+    // get model value
+    QVariant var = getCmdData(row, col);
 
-  // get model value
-  QVariant var = getCmdData(row, col);
-
-  // store value in column variable
-  qtcl_->createVar(name, var);
+    // store value in column variable
+    qtcl_->createVar(name, var);
+  }
+  else if (name == "row") {
+    qtcl_->createVar(name, row);
+  }
+  else if (name == "column" || name == "col") {
+    qtcl_->createVar(name, column);
+  }
+  else if (name == "pi") {
+    qtcl_->createVar(name, QVariant(M_PI));
+  }
+  else if (name == "NaN") {
+    qtcl_->createVar(name, QVariant(CMathUtil::getNaN()));
+  }
 }
 
 bool
@@ -2188,4 +2302,13 @@ CQChartsExprModel::
 getModelData() const
 {
   return charts_->getModelData(this->filter_);
+}
+
+//---
+
+void
+CQChartsExprModel::
+dataChangedSlot(const QModelIndex &from, const QModelIndex &to)
+{
+  emit dataChanged(mapFromSource(from), mapFromSource(to));
 }

@@ -7,7 +7,10 @@
 
 class CQChartsPlot;
 
-// margin
+/*!
+ * \brief plot margin
+ * \ingroup Charts
+ */
 class CQChartsPlotMargin {
  public:
   CQChartsPlotMargin(const QString &str) {

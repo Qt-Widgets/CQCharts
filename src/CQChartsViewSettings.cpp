@@ -5,10 +5,7 @@
 #include <CQChartsPlot.h>
 #include <CQChartsFilterEdit.h>
 #include <CQChartsPropertyViewTree.h>
-#include <CQChartsGradientPaletteCanvas.h>
-#include <CQChartsGradientPaletteControl.h>
 #include <CQChartsLoadModelDlg.h>
-#include <CQChartsEditModelDlg.h>
 #include <CQChartsCreatePlotDlg.h>
 #include <CQChartsCreateAnnotationDlg.h>
 #include <CQChartsEditAnnotationDlg.h>
@@ -23,24 +20,169 @@
 #include <CQChartsVariant.h>
 #include <CQChartsUtil.h>
 
+#include <CQColorsEditCanvas.h>
+#include <CQColorsEditControl.h>
+#include <CQColorsEditList.h>
+#include <CQColors.h>
+#include <CQColorsTheme.h>
+
 #include <CQPropertyViewItem.h>
 #include <CQTableWidget.h>
+#include <CQTabWidget.h>
+#include <CQTabSplit.h>
 #include <CQIconCombo.h>
 #include <CQIntegerSpin.h>
 #include <CQUtil.h>
 #include <CQGroupBox.h>
+#include <CQToolTip.h>
 
-#include <QTabWidget>
 #include <QTextBrowser>
 #include <QHeaderView>
 #include <QSpinBox>
-#include <QSplitter>
 #include <QRadioButton>
 #include <QCheckBox>
 #include <QPushButton>
+#include <QToolButton>
 #include <QLabel>
 #include <QVBoxLayout>
 #include <QPainter>
+#include <QFileDialog>
+#include <QDir>
+
+#include <svg/info_svg.h>
+#include <fstream>
+#include <iostream>
+
+class CQChartsPlotTipLabel : public QLabel {
+ public:
+  CQChartsPlotTipLabel() {
+    setWordWrap(true);
+  }
+
+  void setText(const QString &text) {
+    QLabel::setText(text);
+
+    updateSize();
+  }
+
+  void updateSize() {
+    setWordWrap(false);
+
+    QFontMetrics fm(font());
+
+    QSize s = QLabel::sizeHint();
+
+    int w = std::min(s.width(), fm.width("X")*50);
+
+    setMaximumWidth(w);
+
+    setWordWrap(true);
+
+    size_ = QLabel::sizeHint();
+
+    setMaximumWidth(QWIDGETSIZE_MAX);
+
+    resize(size_);
+  }
+
+  QSize sizeHint() const {
+    return size_;
+  }
+
+ public:
+  QSize size_;
+};
+
+class CQChartsPlotTip : public CQToolTipIFace {
+ public:
+  CQChartsPlotTip() :
+   CQToolTipIFace() {
+  }
+
+ ~CQChartsPlotTip() {
+    delete widget_;
+  }
+
+  void setPlot(CQChartsPlot *plot) { plot_ = plot; }
+
+  QWidget *showWidget(const QPoint &p) override {
+    if (! widget_)
+      widget_ = new CQChartsPlotTipLabel;
+
+    updateWidget(p);
+
+    return widget_;
+  }
+
+  void hideWidget() override {
+    delete widget_;
+
+    widget_ = nullptr;
+  }
+
+  //bool trackMouse() const override { return true; }
+
+  bool updateWidget(const QPoint &) override {
+    if (! widget_) return false;
+
+    if (plot_.isNull()) return false;
+
+    QString text;
+
+    QString desc = plot_->type()->description();
+
+    int pos = desc.indexOf("</h2>");
+
+    if (pos > 0) {
+      QString lhs = desc.mid(0, pos);
+      QString rhs = desc.mid(pos);
+
+      if (! expanded_)
+        text = lhs + " (" + plot_->id() + ")</h2>\n<p>(<b>PageDown</b> to expand)</p>";
+      else
+        text = lhs + " (" + plot_->id() + ")" + rhs + "\n<p>(<b>PageUp</b> to collapse)</p>";
+    }
+    else
+      text = plot_->id();
+
+    widget_->setText(text);
+
+    return true;
+  }
+
+  bool isHideKey(int key, Qt::KeyboardModifiers mod) const override {
+    if (key == Qt::Key_PageUp || key == Qt::Key_PageDown)
+      return false;
+
+    return CQToolTipIFace::isHideKey(key, mod);
+  }
+
+  bool keyPress(int key, Qt::KeyboardModifiers mod) override {
+    if (! expanded_) {
+      if (key == Qt::Key_PageDown) {
+        expanded_ = true;
+        return true;
+      }
+    }
+    else {
+      if (key == Qt::Key_PageUp) {
+        expanded_ = false;
+        return true;
+      }
+    }
+
+    return CQToolTipIFace::keyPress(key, mod);
+  }
+
+ private:
+  using PlotP = QPointer<CQChartsPlot>;
+
+  PlotP                 plot_;
+  CQChartsPlotTipLabel* widget_   { nullptr };
+  bool                  expanded_ { false };
+};
+
+//------
 
 class CQChartsViewSettingsModelTable : public CQTableWidget {
  public:
@@ -70,6 +212,9 @@ class CQChartsViewSettingsModelTable : public CQTableWidget {
     for (const auto &modelData : modelDatas) {
       QTableWidgetItem *nameItem = new QTableWidgetItem(modelData->id());
       QTableWidgetItem *indItem  = new QTableWidgetItem(QString("%1").arg(modelData->ind()));
+
+      nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);
+      indItem ->setFlags(indItem ->flags() & ~Qt::ItemIsEditable);
 
       setItem(i, 0, nameItem);
       setItem(i, 1, indItem );
@@ -132,6 +277,8 @@ class CQChartsViewSettingsPlotTable : public CQTableWidget {
       // set id item store plot index in user data
       QTableWidgetItem *idItem = new QTableWidgetItem(plot->id());
 
+      idItem->setFlags(idItem->flags() & ~Qt::ItemIsEditable);
+
       setItem(i, 0, idItem);
 
       int ind = view->plotInd(plot);
@@ -142,6 +289,8 @@ class CQChartsViewSettingsPlotTable : public CQTableWidget {
 
       // set type item
       QTableWidgetItem *typeItem = new QTableWidgetItem(plot->type()->name());
+
+      typeItem->setFlags(typeItem->flags() & ~Qt::ItemIsEditable);
 
       setItem(i, 1, typeItem);
 
@@ -160,6 +309,8 @@ class CQChartsViewSettingsPlotTable : public CQTableWidget {
         stateStr = "normal";
 
       QTableWidgetItem *stateItem = new QTableWidgetItem(stateStr);
+
+      stateItem->setFlags(stateItem->flags() & ~Qt::ItemIsEditable);
 
       setItem(i, 2, stateItem);
     }
@@ -203,6 +354,7 @@ class CQChartsViewSettingsViewAnnotationsTable : public CQTableWidget {
     setObjectName("viewTable");
 
     horizontalHeader()->setStretchLastSection(true);
+    verticalHeader()->setVisible(false);
 
     setSelectionBehavior(QAbstractItemView::SelectRows);
   }
@@ -225,6 +377,8 @@ class CQChartsViewSettingsViewAnnotationsTable : public CQTableWidget {
 
       QTableWidgetItem *idItem = new QTableWidgetItem(annotation->id());
 
+      idItem->setFlags(idItem->flags() & ~Qt::ItemIsEditable);
+
       setItem(i, 0, idItem);
 
       int ind = annotation->ind();
@@ -232,6 +386,8 @@ class CQChartsViewSettingsViewAnnotationsTable : public CQTableWidget {
       idItem->setData(Qt::UserRole, ind);
 
       QTableWidgetItem *typeItem = new QTableWidgetItem(annotation->typeName());
+
+      typeItem->setFlags(typeItem->flags() & ~Qt::ItemIsEditable);
 
       setItem(i, 1, typeItem);
     }
@@ -262,6 +418,7 @@ class CQChartsViewSettingsPlotAnnotationsTable : public CQTableWidget {
     setObjectName("plotTable");
 
     horizontalHeader()->setStretchLastSection(true);
+    verticalHeader()->setVisible(false);
 
     setSelectionBehavior(QAbstractItemView::SelectRows);
   }
@@ -287,6 +444,8 @@ class CQChartsViewSettingsPlotAnnotationsTable : public CQTableWidget {
 
       QTableWidgetItem *idItem = new QTableWidgetItem(annotation->id());
 
+      idItem->setFlags(idItem->flags() & ~Qt::ItemIsEditable);
+
       setItem(i, 0, idItem);
 
       int ind = annotation->ind();
@@ -294,6 +453,8 @@ class CQChartsViewSettingsPlotAnnotationsTable : public CQTableWidget {
       idItem->setData(Qt::UserRole, ind);
 
       QTableWidgetItem *typeItem = new QTableWidgetItem(annotation->typeName());
+
+      typeItem->setFlags(typeItem->flags() & ~Qt::ItemIsEditable);
 
       setItem(i, 1, typeItem);
     }
@@ -318,10 +479,113 @@ class CQChartsViewSettingsPlotAnnotationsTable : public CQTableWidget {
 
 //---
 
-class CQChartsViewSettingsLayerTable : public CQTableWidget {
+class CQChartsViewSettingsViewLayerTable : public CQTableWidget {
  public:
-  CQChartsViewSettingsLayerTable() {
-    setObjectName("layerTable");
+  CQChartsViewSettingsViewLayerTable() {
+    setObjectName("viewLayerTable");
+
+    horizontalHeader()->setStretchLastSection(true);
+
+    setSelectionBehavior(QAbstractItemView::SelectRows);
+  }
+
+  QImage *selectedImage(CQChartsView *view) const {
+    if (! view) return nullptr;
+
+    QList<QTableWidgetItem *> items = selectedItems();
+    if (items.length() <= 0) return nullptr;
+
+    QTableWidgetItem *item = items[0];
+
+    bool ok;
+
+    long l = CQChartsVariant::toInt(item->data(Qt::UserRole), ok);
+    if (! ok) return nullptr;
+
+    CQChartsBuffer *buffer = nullptr;
+
+    if      (l == 0)
+      buffer = view->objectsBuffer();
+    else if (l == 1)
+      buffer = view->overlayBuffer();
+
+    if (! buffer) return nullptr;
+
+    QImage *image = buffer->image();
+
+    return image;
+  }
+
+  void initLayers() {
+    if (rowCount() != 0)
+      return;
+
+    clear();
+
+    setColumnCount(3);
+    setRowCount(2);
+
+    setHorizontalHeaderItem(0, new QTableWidgetItem("Buffer"));
+    setHorizontalHeaderItem(1, new QTableWidgetItem("State" ));
+    setHorizontalHeaderItem(2, new QTableWidgetItem("Rect"  ));
+
+    for (int l = 0; l < 2; ++l) {
+      QTableWidgetItem *item = nullptr;
+
+      if (l == 0)
+        item = new QTableWidgetItem("Objects");
+      else
+        item = new QTableWidgetItem("Overlay");
+
+      setItem(l, 0, item);
+
+      item->setData(Qt::UserRole, l);
+
+      QTableWidgetItem *stateItem = new QTableWidgetItem("");
+
+      stateItem->setFlags(stateItem->flags() & ~Qt::ItemIsEditable);
+
+      setItem(l, 1, stateItem);
+
+      QTableWidgetItem *rectItem = new QTableWidgetItem("");
+
+      rectItem->setFlags(rectItem->flags() & ~Qt::ItemIsEditable);
+
+      setItem(l, 2, rectItem);
+    }
+  }
+
+  void updateLayers(CQChartsView *view) {
+    for (int l = 0; l < 2; ++l) {
+      CQChartsBuffer *buffer = nullptr;
+
+      if      (l == 0)
+        buffer = view->objectsBuffer();
+      else if (l == 1)
+        buffer = view->overlayBuffer();
+
+  //  QTableWidgetItem *idItem    = item(l, 0);
+      QTableWidgetItem *stateItem = item(l, 1);
+      QTableWidgetItem *rectItem  = item(l, 2);
+
+      stateItem->setText("");
+
+      QRectF rect = (buffer ? buffer->rect() : QRectF());
+
+      QString rectStr = QString("X:%1, Y:%2, W:%3, H:%4").
+                          arg(rect.x()).arg(rect.y()).arg(rect.width()).arg(rect.height());
+
+      rectItem->setText(rectStr);
+    }
+  }
+};
+
+//---
+
+class CQChartsViewSettingsPlotLayerTable : public CQTableWidget {
+ public:
+  CQChartsViewSettingsPlotLayerTable() {
+    setObjectName("plotLayerTable");
 
     horizontalHeader()->setStretchLastSection(true);
 
@@ -377,6 +641,8 @@ class CQChartsViewSettingsLayerTable : public CQTableWidget {
 
       QTableWidgetItem *idItem = new QTableWidgetItem(name);
 
+      idItem->setFlags(idItem->flags() & ~Qt::ItemIsEditable);
+
       setItem(i, 0, idItem);
 
       idItem->setData(Qt::UserRole, l);
@@ -385,11 +651,13 @@ class CQChartsViewSettingsLayerTable : public CQTableWidget {
 
     //stateItem->setFlags(stateItem->flags() | Qt::ItemIsEnabled);
       stateItem->setFlags(stateItem->flags() | Qt::ItemIsUserCheckable);
-    //stateItem->setFlags(stateItem->flags() & ! Qt::ItemIsEditable);
+    //stateItem->setFlags(stateItem->flags() & ~Qt::ItemIsEditable);
 
       setItem(i, 1, stateItem);
 
       QTableWidgetItem *rectItem = new QTableWidgetItem("");
+
+      rectItem->setFlags(rectItem->flags() & ~Qt::ItemIsEditable);
 
       setItem(i, 2, rectItem);
     }
@@ -459,6 +727,7 @@ CQChartsViewSettings(CQChartsWindow *window) :
   CQCharts *charts = view->charts();
 
   connect(charts, SIGNAL(modelDataAdded(int)), this, SLOT(updateModels()));
+  connect(charts, SIGNAL(modelDataRemoved(int)), this, SLOT(updateModels()));
   connect(charts, SIGNAL(currentModelChanged(int)), this, SLOT(invalidateModelDetails()));
   connect(charts, SIGNAL(modelNameChanged(const QString &)), this, SLOT(updateModels()));
 
@@ -488,6 +757,7 @@ CQChartsViewSettings(CQChartsWindow *window) :
 CQChartsViewSettings::
 ~CQChartsViewSettings()
 {
+//delete propertiesWidgets_.plotTip;
 }
 
 void
@@ -496,7 +766,7 @@ addWidgets()
 {
   QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 2, 2);
 
-  tab_ = CQUtil::makeWidget<QTabWidget>("tab");
+  tab_ = CQUtil::makeWidget<CQTabWidget>("tab");
 
   layout->addWidget(tab_);
 
@@ -543,7 +813,7 @@ addWidgets()
   // Theme Tab
   QFrame *themeFrame = CQUtil::makeWidget<QFrame>("themeFrame");
 
-  tab_->addTab(themeFrame, "Theme");
+  tab_->addTab(themeFrame, "Colors");
 
   initThemeFrame(themeFrame);
 
@@ -588,26 +858,27 @@ initPropertiesFrame(QFrame *propertiesFrame)
 
   //--
 
-  QSplitter *splitter = CQUtil::makeWidget<QSplitter>("splitter");
+  CQTabSplit *propertiesSplit = CQUtil::makeWidget<CQTabSplit>("propertiesSplit");
 
-  splitter->setOrientation(Qt::Vertical);
+  propertiesSplit->setOrientation(Qt::Vertical);
+  propertiesSplit->setGrouped(true);
 
-  propertiesLayout->addWidget(splitter);
+  propertiesLayout->addWidget(propertiesSplit);
 
   //----
 
-  // Create View Properties Group
-  CQGroupBox *viewGroup = CQUtil::makeLabelWidget<CQGroupBox>("View", "viewGroup");
+  // Create View Properties Frame
+  QFrame *viewFrame = CQUtil::makeWidget<QFrame>("viewFrame");
 
-  QVBoxLayout *viewGroupLayout = CQUtil::makeLayout<QVBoxLayout>(viewGroup, 2, 2);
+  QVBoxLayout *viewFrameLayout = CQUtil::makeLayout<QVBoxLayout>(viewFrame, 2, 2);
 
-  splitter->addWidget(viewGroup);
+  propertiesSplit->addWidget(viewFrame, "View");
 
   //--
 
   propertiesWidgets_.viewPropertyTree = new CQChartsViewSettingsViewPropertiesWidget(this, view);
 
-  viewGroupLayout->addWidget(propertiesWidgets_.viewPropertyTree);
+  viewFrameLayout->addWidget(propertiesWidgets_.viewPropertyTree);
 
   //--
 
@@ -624,23 +895,25 @@ initPropertiesFrame(QFrame *propertiesFrame)
   viewEditFrameLayout->addWidget(viewWriteButton);
   viewEditFrameLayout->addStretch(1);
 
-  viewGroupLayout->addWidget(viewEditFrame);
+  viewFrameLayout->addWidget(viewEditFrame);
 
   //----
 
-  // Create Plots Properties Group
-  CQGroupBox *plotsGroup = CQUtil::makeLabelWidget<CQGroupBox>("Plots", "plotsGroup");
+  // Create Plots Properties Frame
+  QFrame *plotsFrame = CQUtil::makeWidget<QFrame>("plotsFrame");
 
-  QVBoxLayout *plotsGroupLayout = CQUtil::makeLayout<QVBoxLayout>(plotsGroup, 2, 2);
+  QVBoxLayout *plotsFrameLayout = CQUtil::makeLayout<QVBoxLayout>(plotsFrame, 2, 2);
 
-  splitter->addWidget(plotsGroup);
+  propertiesSplit->addWidget(plotsFrame, "Plots");
 
   //--
 
-  propertiesWidgets_.plotsTab = CQUtil::makeWidget<QTabWidget>("tab");
+  propertiesWidgets_.plotsTab = CQUtil::makeWidget<CQTabWidget>("tab");
 
-  plotsGroupLayout->addWidget(propertiesWidgets_.plotsTab);
+  plotsFrameLayout->addWidget(propertiesWidgets_.plotsTab);
 
+  connect(propertiesWidgets_.plotsTab, SIGNAL(currentChanged(int)),
+          this, SLOT(plotsTabChangedSlot()));
   //--
 
   QFrame *plotEditFrame = CQUtil::makeWidget<QFrame>("plotEditFrame");
@@ -665,11 +938,28 @@ initPropertiesFrame(QFrame *propertiesFrame)
   plotEditFrameLayout->addWidget(plotWriteButton);
   plotEditFrameLayout->addStretch(1);
 
-  plotsGroupLayout->addWidget(plotEditFrame);
+  plotsFrameLayout->addWidget(plotEditFrame);
 
   //--
 
-  splitter->setSizes(QList<int>({INT_MAX, INT_MAX}));
+#if 0
+  propertiesWidgets_.plotTip = new CQChartsPlotTip;
+
+  propertiesWidgets_.plotTipButton = new QToolButton;
+
+  propertiesWidgets_.plotTipButton->setIcon(CQPixmapCacheInst->getIcon("INFO"));
+
+  plotsFrame->setCornerWidget(propertiesWidgets_.plotTipButton);
+
+  CQToolTip::setToolTip(propertiesWidgets_.plotTipButton, propertiesWidgets_.plotTip);
+#endif
+
+  //---
+
+  int i1 = INT_MAX*0.4;
+  int i2 = INT_MAX - i1;
+
+  propertiesSplit->setSizes(QList<int>({i1, i2}));
 }
 
 void
@@ -680,20 +970,20 @@ initModelsFrame(QFrame *modelsFrame)
 
   //----
 
-  QSplitter *splitter = CQUtil::makeWidget<QSplitter>("splitter");
+  CQTabSplit *modelsSplit = CQUtil::makeWidget<CQTabSplit>("modelsSplit");
 
-  splitter->setOrientation(Qt::Vertical);
+  modelsSplit->setOrientation(Qt::Vertical);
 
-  modelsFrameLayout->addWidget(splitter);
+  modelsFrameLayout->addWidget(modelsSplit);
 
   //----
 
-  // Model Table
-  CQGroupBox *modelsGroup = CQUtil::makeLabelWidget<CQGroupBox>("Models", "modelsGroup");
+  // Models Frame
+  QFrame *modelsModelsFrame = CQUtil::makeWidget<QFrame>("modelsModelsFrame");
 
-  QVBoxLayout *modelsGroupLayout = CQUtil::makeLayout<QVBoxLayout>(modelsGroup, 2, 2);
+  QVBoxLayout *modelsModelsFrameLayout = CQUtil::makeLayout<QVBoxLayout>(modelsModelsFrame, 2, 2);
 
-  splitter->addWidget(modelsGroup);
+  modelsSplit->addWidget(modelsModelsFrame, "Models");
 
   //--
 
@@ -702,18 +992,17 @@ initModelsFrame(QFrame *modelsFrame)
   connect(modelsWidgets_.modelTable, SIGNAL(itemSelectionChanged()),
           this, SLOT(modelsSelectionChangeSlot()));
 
-  modelsGroupLayout->addWidget(modelsWidgets_.modelTable);
+  modelsModelsFrameLayout->addWidget(modelsWidgets_.modelTable);
 
   //----
 
   // Model Details
-  modelsWidgets_.detailsGroup =
-    CQUtil::makeLabelWidget<CQGroupBox>("Details", "detailsGroup");
+  modelsWidgets_.detailsFrame = CQUtil::makeWidget<QFrame>("detailsFrame");
 
-  QVBoxLayout *detailsGroupLayout =
-    CQUtil::makeLayout<QVBoxLayout>(modelsWidgets_.detailsGroup, 2, 2);
+  QVBoxLayout *detailsFrameLayout =
+    CQUtil::makeLayout<QVBoxLayout>(modelsWidgets_.detailsFrame, 2, 2);
 
-  splitter->addWidget(modelsWidgets_.detailsGroup);
+  modelsSplit->addWidget(modelsWidgets_.detailsFrame, "Details");
 
   //--
 
@@ -722,30 +1011,41 @@ initModelsFrame(QFrame *modelsFrame)
 
   modelsWidgets_.detailsWidget = new CQChartsModelDetailsWidget(charts);
 
-  detailsGroupLayout->addWidget(modelsWidgets_.detailsWidget);
+  detailsFrameLayout->addWidget(modelsWidgets_.detailsWidget);
 
   //----
 
   // Model Buttons
   QHBoxLayout *modelControlLayout = CQUtil::makeLayout<QHBoxLayout>(nullptr, 2, 2);
 
-  modelsFrameLayout->addLayout(modelControlLayout);
+  modelsModelsFrameLayout->addLayout(modelControlLayout);
 
   //--
 
-  QPushButton *loadModelButton = CQUtil::makeLabelWidget<QPushButton>("Load", "load");
+  auto createPushButton = [&](const QString &label, const QString &objName, const QString &tip,
+                              const char *slotName) {
+    QPushButton *button = CQUtil::makeLabelWidget<QPushButton>(label, objName);
 
-  connect(loadModelButton, SIGNAL(clicked()), this, SLOT(loadModelSlot()));
+    button->setToolTip(tip);
+
+    connect(button, SIGNAL(clicked()), this, slotName);
+
+    return button;
+  };
+
+  QPushButton *loadModelButton =
+    createPushButton("Load", "load", "Load Model", SLOT(loadModelSlot()));
+  modelsWidgets_.editButton =
+    createPushButton("Edit", "edit", "Edit Model", SLOT(editModelSlot()));
+  modelsWidgets_.plotButton =
+    createPushButton("Plot", "plot", "Create Plot", SLOT(plotModelSlot()));
 
   modelControlLayout->addWidget(loadModelButton);
-
-  //--
-
-  modelsWidgets_.editButton = CQUtil::makeLabelWidget<QPushButton>("Edit", "edit");
-
-  connect(modelsWidgets_.editButton, SIGNAL(clicked()), this, SLOT(editModelSlot()));
-
   modelControlLayout->addWidget(modelsWidgets_.editButton);
+  modelControlLayout->addWidget(modelsWidgets_.plotButton);
+
+  modelsWidgets_.editButton->setEnabled(false);
+  modelsWidgets_.plotButton->setEnabled(false);
 
   //--
 
@@ -753,7 +1053,7 @@ initModelsFrame(QFrame *modelsFrame)
 
   //--
 
-  splitter->setSizes(QList<int>({INT_MAX, INT_MAX}));
+  modelsSplit->setSizes(QList<int>({INT_MAX, INT_MAX}));
 }
 
 void
@@ -930,7 +1230,6 @@ initPlotsFrame(QFrame *plotsFrame)
 
   plotsWidgets_.raiseButton      = createPushButton("Raise" , "raise" , SLOT(raisePlotSlot()));
   plotsWidgets_.lowerButton      = createPushButton("Lower" , "lower" , SLOT(lowerPlotSlot()));
-  QPushButton*  createPlotButton = createPushButton("Create", "create", SLOT(createPlotSlot()));
   plotsWidgets_.removeButton     = createPushButton("Remove", "remove", SLOT(removePlotsSlot()));
 //QPushButton*  writePlotButton  = createPushButton("Write" , "write" , SLOT(writePlotSlot()));
 
@@ -940,7 +1239,6 @@ initPlotsFrame(QFrame *plotsFrame)
 
   controlPlotsGroupLayout->addWidget(plotsWidgets_.raiseButton);
   controlPlotsGroupLayout->addWidget(plotsWidgets_.lowerButton);
-  controlPlotsGroupLayout->addWidget(createPlotButton);
   controlPlotsGroupLayout->addWidget(plotsWidgets_.removeButton);
 //controlPlotsGroupLayout->addWidget(writePlotButton);
 
@@ -958,18 +1256,18 @@ initAnnotationsFrame(QFrame *annotationsFrame)
 
   //---
 
-  QSplitter *splitter = CQUtil::makeWidget<QSplitter>("splitter");
+  CQTabSplit *annotationsSplit = CQUtil::makeWidget<CQTabSplit>("annotationsSplit");
 
-  splitter->setOrientation(Qt::Vertical);
+  annotationsSplit->setOrientation(Qt::Vertical);
 
-  annotationsFrameLayout->addWidget(splitter);
+  annotationsFrameLayout->addWidget(annotationsSplit);
 
   //----
 
   // view annotations
-  CQGroupBox *viewGroup = CQUtil::makeLabelWidget<CQGroupBox>("View", "viewGroup");
+  QFrame *viewFrame = CQUtil::makeWidget<QFrame>("viewFrame");
 
-  QVBoxLayout *viewGroupLayout = CQUtil::makeLayout<QVBoxLayout>(viewGroup, 2, 2);
+  QVBoxLayout *viewFrameLayout = CQUtil::makeLayout<QVBoxLayout>(viewFrame, 2, 2);
 
   //--
 
@@ -978,18 +1276,18 @@ initAnnotationsFrame(QFrame *annotationsFrame)
   connect(annotationsWidgets_.viewTable, SIGNAL(itemSelectionChanged()),
           this, SLOT(viewAnnotationSelectionChangeSlot()));
 
-  viewGroupLayout->addWidget(annotationsWidgets_.viewTable);
+  viewFrameLayout->addWidget(annotationsWidgets_.viewTable);
 
   //--
 
-  splitter->addWidget(viewGroup);
+  annotationsSplit->addWidget(viewFrame, "View");
 
   //----
 
   // plot annotations
-  CQGroupBox *plotGroup = CQUtil::makeLabelWidget<CQGroupBox>("Plot", "plotGroup");
+  QFrame *plotFrame = CQUtil::makeWidget<QFrame>("plotFrame");
 
-  QVBoxLayout *plotGroupLayout = CQUtil::makeLayout<QVBoxLayout>(plotGroup, 2, 2);
+  QVBoxLayout *plotFrameLayout = CQUtil::makeLayout<QVBoxLayout>(plotFrame, 2, 2);
 
   //--
 
@@ -998,11 +1296,11 @@ initAnnotationsFrame(QFrame *annotationsFrame)
   connect(annotationsWidgets_.plotTable, SIGNAL(itemSelectionChanged()),
           this, SLOT(plotAnnotationSelectionChangeSlot()));
 
-  plotGroupLayout->addWidget(annotationsWidgets_.plotTable);
+  plotFrameLayout->addWidget(annotationsWidgets_.plotTable);
 
   //--
 
-  splitter->addWidget(plotGroup);
+  annotationsSplit->addWidget(plotFrame, "Plot");
 
   //----
 
@@ -1041,7 +1339,7 @@ initAnnotationsFrame(QFrame *annotationsFrame)
 
   //--
 
-  splitter->setSizes(QList<int>({INT_MAX, INT_MAX}));
+  annotationsSplit->setSizes(QList<int>({INT_MAX, INT_MAX}));
 }
 
 void
@@ -1052,9 +1350,16 @@ initThemeFrame(QFrame *themeFrame)
 
   //--
 
-  QTabWidget *themeSubTab = CQUtil::makeWidget<QTabWidget>("themeSubTab");
+  CQTabWidget *themeSubTab = CQUtil::makeWidget<CQTabWidget>("themeSubTab");
 
   themeFrameLayout->addWidget(themeSubTab);
+
+  // tab for theme
+  QFrame *themePalettesFrame = CQUtil::makeWidget<QFrame>("themePalettesFrame");
+
+  QVBoxLayout *themePalettesFrameLayout = CQUtil::makeLayout<QVBoxLayout>(themePalettesFrame, 2, 2);
+
+  themeSubTab->addTab(themePalettesFrame, "Theme");
 
   // tab for theme palettes
   QFrame *palettesFrame = CQUtil::makeWidget<QFrame>("palettesFrame");
@@ -1083,30 +1388,39 @@ initThemeFrame(QFrame *themeFrame)
   themeColorsLayout->addWidget(selColorLabel, 0, 0);
   themeColorsLayout->addWidget(selColorEdit , 0, 1);
 
+  QLabel*     insColorLabel = CQUtil::makeLabelWidget("Inside", "insColorLabel");
+  CQLineEdit* insColorEdit  = CQUtil::makeWidget<CQLineEdit>("insColorEdit");
+
+  themeColorsLayout->addWidget(insColorLabel, 1, 0);
+  themeColorsLayout->addWidget(insColorEdit , 1, 1);
+
   paletteLayout->addWidget(themeColorsFrame);
 #endif
 
   //--
 
+  CQChartsView *view = window_->view();
+
+  CQColorsTheme *theme = view->theme();
+
+  //--
+
+  // create palettes list
+  themeWidgets_.palettesList = new CQColorsEditList(this);
+
+  themePalettesFrameLayout->addWidget(themeWidgets_.palettesList);
+
+  //connect(themeWidgets_.palettesList, SIGNAL(palettesChanged()), this, SLOT(updateView()));
+
+  //--
+
+  // create palettes frame
   QFrame *palettesControlFrame = CQUtil::makeWidget<QFrame>("control");
 
   QHBoxLayout *palettesControlFrameLayout =
     CQUtil::makeLayout<QHBoxLayout>(palettesControlFrame, 2, 2);
 
-  QLabel *spinLabel = CQUtil::makeLabelWidget<QLabel>("Index", "indexLabel");
-
-  themeWidgets_.palettesSpin = CQUtil::makeWidget<QSpinBox>("indexSpin");
-
-  CQChartsView *view = window_->view();
-
-  int np = view->themeObj()->numPalettes();
-
-  themeWidgets_.palettesSpin->setRange(0, np);
-
-  connect(themeWidgets_.palettesSpin, SIGNAL(valueChanged(int)), this, SLOT(paletteIndexSlot(int)));
-
-  palettesControlFrameLayout->addWidget(spinLabel);
-  palettesControlFrameLayout->addWidget(themeWidgets_.palettesSpin);
+  //--
 
   QLabel *paletteNameLabel = CQUtil::makeLabelWidget<QLabel>("Name", "paletteNameLabel");
 
@@ -1114,18 +1428,25 @@ initThemeFrame(QFrame *themeFrame)
 
   QStringList paletteNames;
 
-  CQChartsThemeMgrInst->getPaletteNames(paletteNames);
+  CQColorsMgrInst->getPaletteNames(paletteNames);
 
   themeWidgets_.palettesCombo->addItems(paletteNames);
 
   palettesControlFrameLayout->addWidget(paletteNameLabel);
   palettesControlFrameLayout->addWidget(themeWidgets_.palettesCombo);
 
-  themeWidgets_.palettesLoadButton = CQUtil::makeLabelWidget<QPushButton>("Load", "load");
+  connect(themeWidgets_.palettesCombo, SIGNAL(currentIndexChanged(int)),
+          this, SLOT(palettesComboSlot(int)));
 
-  connect(themeWidgets_.palettesLoadButton, SIGNAL(clicked()), this, SLOT(loadPaletteNameSlot()));
+  //--
 
-  palettesControlFrameLayout->addWidget(themeWidgets_.palettesLoadButton);
+  QPushButton *resetButton = CQUtil::makeLabelWidget<QPushButton>("Reset", "resetButton");
+
+  palettesControlFrameLayout->addWidget(resetButton);
+
+  connect(resetButton, SIGNAL(clicked()), this, SLOT(palettesResetSlot()));
+
+  //--
 
   palettesControlFrameLayout->addStretch(1);
 
@@ -1133,39 +1454,48 @@ initThemeFrame(QFrame *themeFrame)
 
   //----
 
+  // create palettes splitter and add canvas and control
   QSplitter *palettesSplitter = CQUtil::makeWidget<QSplitter>("splitter");
 
   palettesSplitter->setOrientation(Qt::Vertical);
 
   palettesFrameLayout->addWidget(palettesSplitter);
 
-  themeWidgets_.palettesPlot    =
-    new CQChartsGradientPaletteCanvas(this, view->themeObj()->palette());
-  themeWidgets_.palettesControl =
-    new CQChartsGradientPaletteControl(themeWidgets_.palettesPlot);
+  themeWidgets_.palettesPlot    = new CQColorsEditCanvas(this, theme->palette());
+  themeWidgets_.palettesControl = new CQColorsEditControl(themeWidgets_.palettesPlot);
 
   palettesSplitter->addWidget(themeWidgets_.palettesPlot);
   palettesSplitter->addWidget(themeWidgets_.palettesControl);
 
   connect(themeWidgets_.palettesControl, SIGNAL(stateChanged()), view, SLOT(updatePlots()));
 
+  connect(themeWidgets_.palettesPlot, SIGNAL(colorsChanged()),
+          this, SLOT(paletteColorsChangedSlot()));
   //----
 
+  // create interface splitter and add canvas and control
   QSplitter *interfaceSplitter = CQUtil::makeWidget<QSplitter>("splitter");
 
   interfaceSplitter->setOrientation(Qt::Vertical);
 
   interfaceFrameLayout->addWidget(interfaceSplitter);
 
-  themeWidgets_.interfacePlot    =
-    new CQChartsGradientPaletteCanvas(this, view->interfacePalette());
-  themeWidgets_.interfaceControl =
-    new CQChartsGradientPaletteControl(themeWidgets_.interfacePlot);
+  themeWidgets_.interfacePlot    = new CQColorsEditCanvas(this, view->interfacePalette());
+  themeWidgets_.interfacePlot->setGray(true);
+  themeWidgets_.interfaceControl = new CQColorsEditControl(themeWidgets_.interfacePlot);
 
   interfaceSplitter->addWidget(themeWidgets_.interfacePlot);
   interfaceSplitter->addWidget(themeWidgets_.interfaceControl);
 
   connect(themeWidgets_.interfaceControl, SIGNAL(stateChanged()), view, SLOT(updatePlots()));
+
+  connect(themeWidgets_.interfacePlot, SIGNAL(colorsChanged()),
+          this, SLOT(paletteColorsChangedSlot()));
+
+  //---
+
+  updatePalettes();
+  //updatePaletteWidgets();
 }
 
 void
@@ -1174,16 +1504,31 @@ initLayersFrame(QFrame *layersFrame)
 {
   QVBoxLayout *layersFrameLayout = CQUtil::makeLayout<QVBoxLayout>(layersFrame, 2, 2);
 
-  layersWidgets_.layerTable = new CQChartsViewSettingsLayerTable;
+  //---
 
-  layersWidgets_.layerTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+  layersWidgets_.viewLayerTable = new CQChartsViewSettingsViewLayerTable;
 
-  layersFrameLayout->addWidget(layersWidgets_.layerTable);
+  layersWidgets_.viewLayerTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-  connect(layersWidgets_.layerTable, SIGNAL(itemSelectionChanged()),
-          this, SLOT(layersSelectionChangeSlot()));
-  connect(layersWidgets_.layerTable, SIGNAL(cellClicked(int, int)),
-          this, SLOT(layersClickedSlot(int, int)));
+  layersFrameLayout->addWidget(layersWidgets_.viewLayerTable);
+
+  connect(layersWidgets_.viewLayerTable, SIGNAL(itemSelectionChanged()),
+          this, SLOT(viewLayersSelectionChangeSlot()));
+  connect(layersWidgets_.viewLayerTable, SIGNAL(cellClicked(int, int)),
+          this, SLOT(viewLayersClickedSlot(int, int)));
+
+  //---
+
+  layersWidgets_.plotLayerTable = new CQChartsViewSettingsPlotLayerTable;
+
+  layersWidgets_.plotLayerTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+  layersFrameLayout->addWidget(layersWidgets_.plotLayerTable);
+
+  connect(layersWidgets_.plotLayerTable, SIGNAL(itemSelectionChanged()),
+          this, SLOT(plotLayersSelectionChangeSlot()));
+  connect(layersWidgets_.plotLayerTable, SIGNAL(cellClicked(int, int)),
+          this, SLOT(plotLayersClickedSlot(int, int)));
 
   //---
 
@@ -1195,12 +1540,19 @@ initLayersFrame(QFrame *layersFrame)
 
   //--
 
-  QPushButton *imageButton = CQUtil::makeLabelWidget<QPushButton>("Image", "image");
+  QPushButton *viewImageButton = CQUtil::makeLabelWidget<QPushButton>("View Image", "viewImage");
 
-  controlLayout->addWidget(imageButton);
+  controlLayout->addWidget(viewImageButton);
+
+  connect(viewImageButton, SIGNAL(clicked()), this, SLOT(viewLayerImageSlot()));
+
+  QPushButton *plotImageButton = CQUtil::makeLabelWidget<QPushButton>("Plot Image", "plotImage");
+
+  controlLayout->addWidget(plotImageButton);
+
+  connect(plotImageButton, SIGNAL(clicked()), this, SLOT(plotLayerImageSlot()));
+
   controlLayout->addStretch(1);
-
-  connect(imageButton, SIGNAL(clicked()), this, SLOT(layerImageSlot()));
 }
 
 //------
@@ -1208,6 +1560,7 @@ initLayersFrame(QFrame *layersFrame)
 class CQChartsViewSettingsLayerImage : public QDialog {
  public:
   CQChartsViewSettingsLayerImage() {
+    setWindowTitle("Layer Image");
   }
 
   void setImage(const QImage &image) {
@@ -1226,9 +1579,35 @@ class CQChartsViewSettingsLayerImage : public QDialog {
   QImage image_;
 };
 
+//------
+
 void
 CQChartsViewSettings::
-layerImageSlot()
+viewLayerImageSlot()
+{
+  static CQChartsViewSettingsLayerImage *layerImage;
+
+  //---
+
+  CQChartsView *view = window_->view();
+  if (! view) return;
+
+  QImage *image = layersWidgets_.viewLayerTable->selectedImage(view);
+  if (! image) return;
+
+  //---
+
+  if (! layerImage)
+    layerImage = new CQChartsViewSettingsLayerImage;
+
+  layerImage->setImage(*image);
+
+  layerImage->show();
+}
+
+void
+CQChartsViewSettings::
+plotLayerImageSlot()
 {
   static CQChartsViewSettingsLayerImage *layerImage;
 
@@ -1237,7 +1616,7 @@ layerImageSlot()
   CQChartsPlot *plot = window_->view()->currentPlot();
   if (! plot) return;
 
-  QImage *image = layersWidgets_.layerTable->selectedImage(plot);
+  QImage *image = layersWidgets_.plotLayerTable->selectedImage(plot);
   if (! image) return;
 
   //---
@@ -1257,6 +1636,23 @@ CQChartsViewSettings::
 viewPropertyTree() const
 {
   return propertiesWidgets_.viewPropertyTree->propertyTree();
+}
+
+CQChartsPropertyViewTree *
+CQChartsViewSettings::
+plotPropertyTree(CQChartsPlot *plot) const
+{
+  for (int i = 0; i < propertiesWidgets_.plotsTab->count(); ++i) {
+    CQChartsViewSettingsPlotPropertiesWidget *plotWidget =
+      qobject_cast<CQChartsViewSettingsPlotPropertiesWidget *>(
+        propertiesWidgets_.plotsTab->widget(i));
+    assert(plotWidget);
+
+    if (plotWidget->plot() == plot)
+      return plotWidget->propertyTree();
+  }
+
+  return nullptr;
 }
 
 //------
@@ -1298,6 +1694,9 @@ modelsSelectionChangeSlot()
 
   if (ind >= 0)
     charts->setCurrentModelInd(ind);
+
+  modelsWidgets_.editButton->setEnabled(ind >= 0);
+  modelsWidgets_.plotButton->setEnabled(ind >= 0);
 }
 
 void
@@ -1306,8 +1705,7 @@ loadModelSlot()
 {
   CQCharts *charts = window_->view()->charts();
 
-  if (loadModelDlg_)
-    delete loadModelDlg_;
+  delete loadModelDlg_;
 
   loadModelDlg_ = new CQChartsLoadModelDlg(charts);
 
@@ -1330,12 +1728,28 @@ editModelSlot()
   if (! modelData)
     return;
 
-  if (editModelDlg_)
-    delete editModelDlg_;
+  charts->editModelDlg(modelData);
+}
 
-  editModelDlg_ = new CQChartsEditModelDlg(charts, modelData);
+void
+CQChartsViewSettings::
+plotModelSlot()
+{
+  long ind = modelsWidgets_.modelTable->selectedModel();
 
-  editModelDlg_->show();
+  if (ind < 0)
+    return;
+
+  CQCharts *charts = window_->view()->charts();
+
+  CQChartsModelData *modelData = charts->getModelData(ind);
+
+  if (! modelData)
+    return;
+
+  CQChartsCreatePlotDlg *createPlotDlg = charts->createPlotDlg(modelData);
+
+  createPlotDlg->setViewName(window_->view()->id());
 }
 
 //------
@@ -1345,9 +1759,33 @@ CQChartsViewSettings::
 writeViewSlot()
 {
   CQChartsView *view = window_->view();
+  if (! view) return;
 
-  if (view)
-    view->write(std::cerr);
+  QString dir = QDir::current().dirName() + "/view.tcl";
+
+  QString fileName = QFileDialog::getSaveFileName(this, "Write View", dir, "Files (*.tcl)");
+
+  auto fs = std::ofstream(fileName.toStdString(), std::ofstream::out);
+
+  //---
+
+  view->writeAll(fs);
+}
+
+//------
+
+void
+CQChartsViewSettings::
+plotsTabChangedSlot()
+{
+  int ind = propertiesWidgets_.plotsTab->currentIndex();
+
+  CQChartsViewSettingsPlotPropertiesWidget *plotWidget =
+    qobject_cast<CQChartsViewSettingsPlotPropertiesWidget *>(
+      propertiesWidgets_.plotsTab->widget(ind));
+  assert(plotWidget);
+
+//propertiesWidgets_.plotTip->setPlot(plotWidget->plot());
 }
 
 //------
@@ -1406,7 +1844,9 @@ updatePlots()
       connect(plotWidget, SIGNAL(propertyItemSelected(QObject *, const QString &)),
               this, SIGNAL(propertyItemSelected(QObject *, const QString &)));
 
-      propertiesWidgets_.plotsTab->addTab(plotWidget, plot->id());
+      ind = propertiesWidgets_.plotsTab->addTab(plotWidget, plot->id());
+
+      //propertiesWidgets_.plotsTab->setTabToolTip(ind, plot->type()->description());
     }
   }
 
@@ -1433,6 +1873,10 @@ updatePlots()
 
     delete plotWidget;
   }
+
+  //---
+
+  plotsSelectionChangeSlot();
 }
 
 void
@@ -1551,7 +1995,7 @@ editViewKeySlot()
   if (editKeyDlg_)
     delete editKeyDlg_;
 
-  editKeyDlg_ = new CQChartsEditKeyDlg(view->key());
+  editKeyDlg_ = new CQChartsEditKeyDlg(this, view->key());
 
   editKeyDlg_->show();
 }
@@ -1569,7 +2013,7 @@ editPlotTitleSlot()
   if (editTitleDlg_)
     delete editTitleDlg_;
 
-  editTitleDlg_ = new CQChartsEditTitleDlg(plot->title());
+  editTitleDlg_ = new CQChartsEditTitleDlg(this, plot->title());
 
   editTitleDlg_->show();
 }
@@ -1587,7 +2031,7 @@ editPlotKeySlot()
   if (editKeyDlg_)
     delete editKeyDlg_;
 
-  editKeyDlg_ = new CQChartsEditKeyDlg(plot->key());
+  editKeyDlg_ = new CQChartsEditKeyDlg(this, plot->key());
 
   editKeyDlg_->show();
 }
@@ -1605,7 +2049,7 @@ editPlotXAxisSlot()
   if (editXAxisDlg_)
     delete editXAxisDlg_;
 
-  editXAxisDlg_ = new CQChartsEditAxisDlg(plot->xAxis());
+  editXAxisDlg_ = new CQChartsEditAxisDlg(this, plot->xAxis());
 
   editXAxisDlg_->show();
 }
@@ -1623,7 +2067,7 @@ editPlotYAxisSlot()
   if (editYAxisDlg_)
     delete editYAxisDlg_;
 
-  editYAxisDlg_ = new CQChartsEditAxisDlg(plot->yAxis());
+  editYAxisDlg_ = new CQChartsEditAxisDlg(this, plot->yAxis());
 
   editYAxisDlg_->show();
 }
@@ -1690,7 +2134,7 @@ placePlotsSlot()
   int  rows       = plotsWidgets_.placeRowsEdit       ->value();
   int  columns    = plotsWidgets_.placeColumnsEdit    ->value();
 
-  view->placePlots(plots, vertical, horizontal, rows, columns);
+  view->placePlots(plots, vertical, horizontal, rows, columns, /*reset*/true);
 }
 
 void
@@ -1728,28 +2172,7 @@ removePlotsSlot()
   for (auto &plot : plots)
     view->removePlot(plot);
 
-  view->updatePlots();
-}
-
-void
-CQChartsViewSettings::
-createPlotSlot()
-{
-  CQCharts *charts = window_->view()->charts();
-
-  CQChartsModelData *modelData = charts->currentModelData();
-
-  if (! modelData)
-    return;
-
-  if (createPlotDlg_)
-    delete createPlotDlg_;
-
-  createPlotDlg_ = new CQChartsCreatePlotDlg(charts, modelData);
-
-  createPlotDlg_->setViewName(window_->view()->id());
-
-  createPlotDlg_->show();
+  updateView();
 }
 
 void
@@ -1757,12 +2180,26 @@ CQChartsViewSettings::
 writePlotSlot()
 {
   CQChartsPlot *plot = getPropertiesPlot();
+  if (! plot) return;
 
-  //CQChartsView *view = window_->view();
-  //CQChartsPlot *plot = (view ? view->currentPlot() : nullptr();
+  QString dir = QDir::current().dirName() + "/plot.tcl";
 
-  if (plot)
-    plot->write(std::cerr);
+  QString fileName = QFileDialog::getSaveFileName(this, "Write View", dir, "Files (*.tcl)");
+
+  auto fs = std::ofstream(fileName.toStdString(), std::ofstream::out);
+
+  //---
+
+  CQChartsView *view = plot->view();
+
+  view->write(fs);
+
+  CQChartsModelData *modelData = plot->getModelData();
+
+  if (modelData)
+    modelData->write(fs);
+
+  plot->write(fs);
 }
 
 //------
@@ -1886,7 +2323,7 @@ createAnnotationSlot()
   if (createAnnotationDlg_)
     delete createAnnotationDlg_;
 
-  createAnnotationDlg_ = new CQChartsCreateAnnotationDlg(plot);
+  createAnnotationDlg_ = new CQChartsCreateAnnotationDlg(this, plot);
 
   createAnnotationDlg_->show();
 }
@@ -1912,7 +2349,7 @@ editAnnotationSlot()
   if (editAnnotationDlg_)
     delete editAnnotationDlg_;
 
-  editAnnotationDlg_ = new CQChartsEditAnnotationDlg(annotation);
+  editAnnotationDlg_ = new CQChartsEditAnnotationDlg(this, annotation);
 
   editAnnotationDlg_->show();
 }
@@ -1937,7 +2374,7 @@ removeAnnotationsSlot()
       plot->removeAnnotation(annotation);
   }
 
-  view->updatePlots();
+  updateView();
 }
 
 void
@@ -1945,11 +2382,20 @@ CQChartsViewSettings::
 writeAnnotationSlot()
 {
   CQChartsView *view = window_->view();
+  if (! view) return;
+
+  QString dir = QDir::current().dirName() + "/annotation.tcl";
+
+  QString fileName = QFileDialog::getSaveFileName(this, "Write View", dir, "Files (*.tcl)");
+
+  auto fs = std::ofstream(fileName.toStdString(), std::ofstream::out);
+
+  //---
 
   const CQChartsView::Annotations &viewAnnotations = view->annotations();
 
   for (const auto &annotation : viewAnnotations)
-    annotation->write(std::cerr);
+    annotation->write(fs);
 
   //---
 
@@ -1961,7 +2407,7 @@ writeAnnotationSlot()
     const CQChartsPlot::Annotations &plotAnnotations = plot->annotations();
 
     for (const auto &annotation : plotAnnotations)
-      annotation->write(std::cerr);
+      annotation->write(fs);
   }
 }
 
@@ -1978,52 +2424,67 @@ updateSelection()
 
 void
 CQChartsViewSettings::
-paletteIndexSlot(int)
+palettesComboSlot(int)
 {
+  QString name = themeWidgets_.palettesCombo->currentText();
+
+  CQColorsPalette *palette = CQColorsMgrInst->getNamedPalette(name);
+
+  themeWidgets_.palettesPlot->setPalette(palette);
+
+  themeWidgets_.palettesControl->updateState();
+}
+
+void
+CQChartsViewSettings::
+palettesResetSlot()
+{
+  QString name = themeWidgets_.palettesCombo->currentText();
+
+  CQColorsPalette *palette = CQColorsMgrInst->getNamedPalette(name);
+  if (! palette) return;
+
+  CQColorsMgrInst->resetPalette(name);
+
   updatePalettes();
 }
 
 void
 CQChartsViewSettings::
-loadPaletteNameSlot()
+paletteColorsChangedSlot()
 {
-  CQChartsView *view = window_->view();
-
-  QString name = themeWidgets_.palettesCombo->currentText();
-
-  CQChartsGradientPalette *palette = CQChartsThemeMgrInst->getNamedPalette(name);
-
-  if (! palette)
-    return;
-
-  int i = themeWidgets_.palettesSpin->value();
-
-  view->themeObj()->setPalette(i, palette->dup());
-
-  updatePalettes();
+  updateView();
 }
 
 void
 CQChartsViewSettings::
 updatePalettes()
 {
-  CQChartsView *view = window_->view();
+  updatePaletteWidgets();
 
-  themeWidgets_.palettesSpin      ->setEnabled(true);
-  themeWidgets_.palettesCombo     ->setEnabled(true);
-  themeWidgets_.palettesLoadButton->setEnabled(true);
+  QString name = themeWidgets_.palettesCombo->currentText();
 
-  int i = themeWidgets_.palettesSpin->value();
+  CQColorsPalette *palette = CQColorsMgrInst->getNamedPalette(name);
 
-  CQChartsGradientPalette *palette = view->themeObj()->palette(i);
-
-  themeWidgets_.palettesPlot->setGradientPalette(palette);
-
-  int ind = themeWidgets_.palettesCombo->findText(palette->name());
-
-  themeWidgets_.palettesCombo->setCurrentIndex(ind);
+  themeWidgets_.palettesPlot->setPalette(palette);
 
   themeWidgets_.palettesControl->updateState();
+
+  updateView();
+}
+
+void
+CQChartsViewSettings::
+updatePaletteWidgets()
+{
+  themeWidgets_.palettesCombo->setEnabled(true);
+}
+
+void
+CQChartsViewSettings::
+updateView()
+{
+  CQChartsView *view = window_->view();
 
   view->updatePlots();
 }
@@ -2034,9 +2495,9 @@ updateInterface()
 {
   CQChartsView *view = window_->view();
 
-  CQChartsGradientPalette *palette = view->interfacePalette();
+  CQColorsPalette *palette = view->interfacePalette();
 
-  themeWidgets_.interfacePlot->setGradientPalette(palette);
+  themeWidgets_.interfacePlot->setPalette(palette);
 
   themeWidgets_.interfaceControl->updateState();
 }
@@ -2047,26 +2508,52 @@ void
 CQChartsViewSettings::
 updateLayers()
 {
-  layersWidgets_.layerTable->initLayers();
+  layersWidgets_.viewLayerTable->initLayers();
+  layersWidgets_.plotLayerTable->initLayers();
 
   //---
 
   CQChartsView *view = window_->view();
-  CQChartsPlot *plot = (view ? view->currentPlot() : nullptr);
-  if (! plot) return;
 
-  layersWidgets_.layerTable->updateLayers(plot);
+  if (view)
+    layersWidgets_.viewLayerTable->updateLayers(view);
+
+  CQChartsPlot *plot = (view ? view->currentPlot() : nullptr);
+
+  if (plot)
+    layersWidgets_.plotLayerTable->updateLayers(plot);
 }
 
 void
 CQChartsViewSettings::
-layersSelectionChangeSlot()
+viewLayersSelectionChangeSlot()
 {
 }
 
 void
 CQChartsViewSettings::
-layersClickedSlot(int row, int column)
+viewLayersClickedSlot(int row, int column)
+{
+  if (column != 1)
+    return;
+
+  CQChartsView *view = window_->view();
+
+  if (row == 0)
+    view->invalidateObjects();
+  else
+    view->invalidateOverlay();
+}
+
+void
+CQChartsViewSettings::
+plotLayersSelectionChangeSlot()
+{
+}
+
+void
+CQChartsViewSettings::
+plotLayersClickedSlot(int row, int column)
 {
   if (column != 1)
     return;
@@ -2078,7 +2565,7 @@ layersClickedSlot(int row, int column)
   CQChartsLayer::Type type;
   bool                active;
 
-  if (! layersWidgets_.layerTable->getLayerState(plot, row, type, active))
+  if (! layersWidgets_.plotLayerTable->getLayerState(plot, row, type, active))
     return;
 
   CQChartsLayer *layer = plot->getLayer(type);
@@ -2091,7 +2578,7 @@ layersClickedSlot(int row, int column)
   if (buffer->type() != CQChartsBuffer::Type::MIDDLE)
     plot->invalidateLayer(buffer->type());
   else
-    plot->queueDrawObjs();
+    plot->drawObjs();
 }
 
 //------

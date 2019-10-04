@@ -8,11 +8,11 @@
 #include <CQCharts.h>
 #include <CQChartsValueSet.h>
 #include <CQChartsNamePair.h>
+#include <CQChartsPaintDevice.h>
+#include <CQChartsHtml.h>
 
 #include <CQPropertyViewItem.h>
 #include <CQPerfMonitor.h>
-
-#include <QPainter>
 
 //---
 
@@ -42,10 +42,31 @@ QString
 CQChartsChordPlotType::
 description() const
 {
-  return "<h2>Summary</h2>\n"
-         "<p>Draw connections using radial plot with sized path arcs.</p>\n"
-         "<p>The size of each arc is equivalent to the number of connections "
-         "from that section.</p>\n";
+  auto IMG = [](const QString &src) { return CQChartsHtml::Str::img(src); };
+
+  return CQChartsHtml().
+   h2("Chord Plot").
+    h3("Summary").
+     p("Draw connections using radial plot with sized path arcs.").
+     p("The size of each arc is equivalent to the number of connections from that section.").
+    h3("Columns").
+     p("The link column specifies the node name and index (row) and the group column "
+       "specifies the parent group. The remaining columns contain the connection value for "
+       "each connected node i.e. the should be N rows and N + 1 or N + 2 columns depending "
+       "on whether a group is specified").
+    h3("Options").
+     p("The inner radius (0-1) can be specified to adjust the with of the ring and connection "
+       "area. The radius for the label can be specified ((0-1) inside, >1 outside) and the "
+       "nodes can be sorted by value or use the original model order").
+    h3("Customization").
+     p("The stroke style, segment fill alpha, and arc fill alpha can be specified. The start angle "
+       "and gap between nodes (in degress) can be specified. The label text style can be "
+       "specified.").
+    h3("Limitations").
+     p("A user defined range cannot be specified, no axes or key is supported, logarithmic "
+       "values are not allowed and probing is not available.").
+    h3("Example").
+     p(IMG("images/chord_plot.png"));
 }
 
 bool
@@ -81,7 +102,7 @@ CQChartsChordPlot(CQChartsView *view, const ModelP &model) :
 
   textBox_ = new CQChartsRotatedTextBoxObj(this);
 
-  setBorderAlpha(0.3);
+  setStrokeAlpha(0.3);
 
   setLayerActive(CQChartsLayer::Type::FG_PLOT, true);
 
@@ -100,21 +121,21 @@ void
 CQChartsChordPlot::
 setLinkColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(linkColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(linkColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsChordPlot::
 setValueColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(valueColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(valueColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsChordPlot::
 setGroupColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(groupColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(groupColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 //---
@@ -123,21 +144,21 @@ void
 CQChartsChordPlot::
 setSorted(bool b)
 {
-  CQChartsUtil::testAndSet(sorted_, b, [&]() { queueUpdateObjs(); } );
+  CQChartsUtil::testAndSet(sorted_, b, [&]() { updateObjs(); } );
 }
 
 void
 CQChartsChordPlot::
 setInnerRadius(double r)
 {
-  CQChartsUtil::testAndSet(innerRadius_, r, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(innerRadius_, r, [&]() { drawObjs(); } );
 }
 
 void
 CQChartsChordPlot::
 setLabelRadius(double r)
 {
-  CQChartsUtil::testAndSet(labelRadius_, r, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(labelRadius_, r, [&]() { drawObjs(); } );
 }
 
 //---
@@ -146,28 +167,28 @@ void
 CQChartsChordPlot::
 setSegmentAlpha(double r)
 {
-  CQChartsUtil::testAndSet(segmentAlpha_, r, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(segmentAlpha_, r, [&]() { drawObjs(); } );
 }
 
 void
 CQChartsChordPlot::
 setArcAlpha(double r)
 {
-  CQChartsUtil::testAndSet(arcAlpha_, r, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(arcAlpha_, r, [&]() { drawObjs(); } );
 }
 
 void
 CQChartsChordPlot::
 setGapAngle(double r)
 {
-  CQChartsUtil::testAndSet(gapAngle_, r, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(gapAngle_, r, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsChordPlot::
 setStartAngle(double r)
 {
-  CQChartsUtil::testAndSet(startAngle_, r, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(startAngle_, r, [&]() { updateRangeAndObjs(); } );
 }
 
 //---
@@ -176,38 +197,51 @@ void
 CQChartsChordPlot::
 addProperties()
 {
+  auto addProp = [&](const QString &path, const QString &name, const QString &alias,
+                     const QString &desc) {
+    return &(this->addProperty(path, this, name, alias)->setDesc(desc));
+  };
+
+  auto addStyleProp = [&](const QString &path, const QString &name, const QString &alias,
+                          const QString &desc) {
+    CQPropertyViewItem *item = addProp(path, name, alias, desc);
+    CQCharts::setItemIsStyle(item);
+    return item;
+  };
+
+  //---
+
   CQChartsPlot::addProperties();
 
   // columns
-  addProperty("columns", this, "linkColumn" , "link" )->setDesc("Link column");
-  addProperty("columns", this, "valueColumn", "value")->setDesc("Value column");
-  addProperty("columns", this, "groupColumn", "group")->setDesc("Grouping column");
+  addProp("columns", "linkColumn" , "link" , "Link column");
+  addProp("columns", "valueColumn", "value", "Value column");
+  addProp("columns", "groupColumn", "group", "Grouping column");
 
   // options
-  addProperty("options", this, "sorted"     )->setDesc("Sort values by size");
-  addProperty("options", this, "innerRadius")->setDesc("Radius of inside of outer strip");
+  addProp("options", "sorted"     , "", "Sort values by size");
+  addProp("options", "innerRadius", "", "Radius of inside of outer strip");
 
   // stroke
-  addLineProperties("stroke", "border");
+  addLineProperties("stroke", "stroke", "");
 
   // segment
-  addProperty("segment", this, "segmentAlpha", "alpha")->setDesc("Alpha of segments");
+  addStyleProp("segment/fill", "segmentAlpha", "alpha", "Alpha of segment fill");
 
   // arc
-  addProperty("arc", this, "arcAlpha"  , "alpha"     )->setDesc("Alpha for arcs");
-  addProperty("arc", this, "gapAngle"  , "gapAngle"  )->
-    setDesc("Angle for gap between strip segements");
-  addProperty("arc", this, "startAngle", "startAngle")->
-    setDesc("Angle for first strip segment");
+  addProp("arc", "gapAngle"  , "gapAngle"  , "Angle for gap between strip segements");
+  addProp("arc", "startAngle", "startAngle", "Angle for first strip segment");
 
-  // label
-  textBox_->addTextDataProperties(propertyModel(), "label");
+  addStyleProp("arc/fill", "arcAlpha"  , "alpha"     , "Alpha for arc fill");
 
-  addProperty("label", this, "labelRadius", "radius")->setDesc("Radius for segment label");
+  // labels
+  textBox_->addTextDataProperties(propertyModel(), "labels", "Labels");
 
-  QString labelBoxPath = "label/box";
+  addProp("labels", "labelRadius", "radius", "Radius for segment label");
 
-  textBox_->CQChartsBoxObj::addProperties(propertyModel(), labelBoxPath);
+  QString labelBoxPath = "labels/box";
+
+  textBox_->CQChartsBoxObj::addProperties(propertyModel(), labelBoxPath, "Labels");
 }
 
 CQChartsGeom::Range
@@ -258,7 +292,7 @@ createObjs(PlotObjs &objs) const
 {
   CQPerfTrace trace("CQChartsChordPlot::createObjs");
 
-  NoUpdate noUpdate(const_cast<CQChartsChordPlot *>(this));
+  NoUpdate noUpdate(this);
 
   //---
 
@@ -394,16 +428,21 @@ initTableObjs(PlotObjs &objs) const
 
     // set group
     if (groupColumn().isValid() && groupColumn().column() < nv) {
+      int igroup = groupColumn().column();
+
       QModelIndex groupInd  = modelIndex(ind.row(), groupColumn(), ind.parent());
       QModelIndex groupInd1 = normalizeIndex(groupInd);
 
-      QVariant var = indRowDatas[row].rowData[groupColumn().column()];
+      QVariant groupVar = indRowDatas[row].rowData[igroup];
 
-      QString group;
+      QString groupStr;
 
-      CQChartsVariant::toString(var, group);
+      CQChartsVariant::toString(groupVar, groupStr);
 
-      data.setGroup(CQChartsChordData::Group(group, groupValues.imap(row)));
+      int ig = groupValues.iset(groupVar);
+      int ng = groupValues.numUnique();
+
+      data.setGroup(CQChartsChordData::Group(groupStr, ig, ng));
 
       data.setInd(groupInd1);
     }
@@ -503,7 +542,10 @@ initTableObjs(PlotObjs &objs) const
 
     CQChartsGeom::BBox rect(-1, -1, 1, 1);
 
-    CQChartsChordObj *obj = new CQChartsChordObj(this, rect, data, row, nv);
+    ColorInd ig(data.group().i, data.group().n);
+    ColorInd iv(row, nv);
+
+    CQChartsChordObj *obj = new CQChartsChordObj(this, rect, data, ig, iv);
 
     objs.push_back(obj);
   }
@@ -586,11 +628,20 @@ initHierObjs(PlotObjs &objs) const
 
       // set group if specified
       if (plot_->groupColumn().isValid()) {
+        //int igroup = plot_->groupColumn().column();
+
         bool ok;
 
-        QString groupStr = plot_->modelString(data.row, plot_->groupColumn(), data.parent, ok);
+        QVariant groupVar = plot_->modelValue(data.row, plot_->groupColumn(), data.parent, ok);
 
-        (*ps).second.setGroup(CQChartsChordData::Group(groupStr, groupValues_.imap(data.row)));
+        QString groupStr;
+
+        CQChartsVariant::toString(groupVar, groupStr);
+
+        int ig = groupValues_.iset(groupVar);
+        int ng = groupValues_.numUnique();
+
+        (*ps).second.setGroup(CQChartsChordData::Group(groupStr, ig, ng));
       }
 
       return State::OK;
@@ -633,8 +684,8 @@ initHierObjs(PlotObjs &objs) const
   if (isSorted()) {
     std::sort(datas.begin(), datas.end(),
       [](const CQChartsChordData &lhs, const CQChartsChordData &rhs) {
-        if (lhs.group().value != rhs.group().value)
-          return lhs.group().value < rhs.group().value;
+        if (lhs.group().value() != rhs.group().value())
+          return lhs.group().value() < rhs.group().value();
 
         return lhs.total() < rhs.total();
       });
@@ -645,8 +696,8 @@ initHierObjs(PlotObjs &objs) const
   else {
     std::sort(datas.begin(), datas.end(),
       [](const CQChartsChordData &lhs, const CQChartsChordData &rhs) {
-        if (lhs.group().value != rhs.group().value)
-          return lhs.group().value < rhs.group().value;
+        if (lhs.group().value() != rhs.group().value())
+          return lhs.group().value() < rhs.group().value();
 
         return lhs.from() < rhs.from();
       });
@@ -698,7 +749,10 @@ initHierObjs(PlotObjs &objs) const
 
     CQChartsGeom::BBox rect(-1, -1, 1, 1);
 
-    CQChartsChordObj *obj = new CQChartsChordObj(this, rect, data, row, nv);
+    ColorInd ig(data.group().i, data.group().n);
+    ColorInd iv(row, nv);
+
+    CQChartsChordObj *obj = new CQChartsChordObj(this, rect, data, ig, iv);
 
     objs.push_back(obj);
   }
@@ -717,14 +771,28 @@ postResize()
   resetDataRange(/*updateRange*/true, /*updateObjs*/false);
 }
 
+//---
+
+void
+CQChartsChordPlot::
+write(std::ostream &os, const QString &varName, const QString &modelName) const
+{
+  CQChartsPlot::write(os, varName, modelName);
+
+  textBox_->write(os, varName);
+}
+
 //------
 
 CQChartsChordObj::
 CQChartsChordObj(const CQChartsChordPlot *plot, const CQChartsGeom::BBox &rect,
-                 const CQChartsChordData &data, int i, int n) :
- CQChartsPlotObj(const_cast<CQChartsChordPlot *>(plot), rect), plot_(plot),
- data_(data), i_(i), n_(n)
+                 const CQChartsChordData &data, const ColorInd &ig, const ColorInd &iv) :
+ CQChartsPlotObj(const_cast<CQChartsChordPlot *>(plot), rect, ColorInd(), ig, iv),
+ plot_(plot), data_(data)
 {
+  setDetailHint(DetailHint::MAJOR);
+
+  setModelInd(data.ind());
 }
 
 QString
@@ -732,9 +800,10 @@ CQChartsChordObj::
 calcId() const
 {
   if (data_.group().str != "")
-    return QString("chord:%1:%2:%3").arg(data_.name()).arg(data_.group().str).arg(data_.total());
+    return QString("%1:%2:%3:%4").arg(typeName()).arg(data_.name()).
+             arg(data_.group().str).arg(iv_.i);
   else
-    return QString("chord:%1:%2").arg(data_.name()).arg(data_.total());
+    return QString("%1:%2:%3").arg(typeName()).arg(data_.name()).arg(iv_.i);
 }
 
 QString
@@ -749,6 +818,12 @@ calcTipId() const
     tableTip.addTableRow("Group", data_.group().str);
 
   tableTip.addTableRow("Total", data_.total());
+
+  //---
+
+  plot()->addTipColumns(tableTip, modelInd());
+
+  //---
 
   return tableTip.str();
 }
@@ -800,18 +875,7 @@ getSelectIndices(Indices &inds) const
 
 void
 CQChartsChordObj::
-addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const
-{
-  if (column.isValid()) {
-    const QModelIndex &ind = data_.ind();
-
-    addSelectIndex(inds, ind.row(), column, ind.parent());
-  }
-}
-
-void
-CQChartsChordObj::
-draw(QPainter *painter)
+draw(CQChartsPaintDevice *device)
 {
   // calc inner outer arc rectangles
   double ro = 1.0;
@@ -822,10 +886,14 @@ draw(QPainter *painter)
   CQChartsGeom::Point pi1 = plot_->windowToPixel(CQChartsGeom::Point(-ri, -ri));
   CQChartsGeom::Point pi2 = plot_->windowToPixel(CQChartsGeom::Point( ri,  ri));
 
-  CQChartsGeom::Point pc = plot_->windowToPixel(CQChartsGeom::Point(0, 0));
+  CQChartsGeom::Point c  = CQChartsGeom::Point(0, 0);
+//CQChartsGeom::Point pc = plot_->windowToPixel(c);
 
-  QRectF orect(CQChartsUtil::toQPoint(po1), CQChartsUtil::toQPoint(po2));
-  QRectF irect(CQChartsUtil::toQPoint(pi1), CQChartsUtil::toQPoint(pi2));
+  QRectF porect = QRectF(po1.qpoint(), po2.qpoint()).normalized();
+  QRectF pirect = QRectF(pi1.qpoint(), pi2.qpoint()).normalized();
+
+  QRectF irect = device->pixelToWindow(pirect);
+  QRectF orect = device->pixelToWindow(porect);
 
   //---
 
@@ -836,7 +904,7 @@ draw(QPainter *painter)
   // create value set segment arc path
   QPainterPath path;
 
-  path.arcMoveTo(orect, -angle1);
+  path.arcMoveTo(device->pixelToWindow(porect), -angle1);
 
   path.arcTo(orect, -angle1, -dangle);
   path.arcTo(irect, -angle2,  dangle);
@@ -849,22 +917,25 @@ draw(QPainter *painter)
   // TODO: separate segment stroke/fill control
   QPen pen;
 
-  QColor segmentBorderColor = plot_->interpBorderColor(0, 1);
+  QColor segmentStrokeColor = plot_->interpStrokeColor(ColorInd());
 
-  plot_->setPen(pen, true, segmentBorderColor, plot_->borderAlpha(),
-                plot_->borderWidth(), plot_->borderDash());
+  plot_->setPen(pen, true, segmentStrokeColor, plot_->strokeAlpha(),
+                plot_->strokeWidth(), plot_->strokeDash());
 
-  double gval = data_.group().value;
+  double gval = data_.group().value();
+
+  ColorInd colorInd = calcColorInd();
 
   QColor fromColor;
 
-  if (gval >= 0.0) {
-    double r = CMathUtil::norm(i(), 0, n());
-
-    fromColor = plot_->interpGroupPaletteColor(gval, r, 0.1);
+  if (plot_->colorType() == CQChartsPlot::ColorType::AUTO) {
+    if (gval >= 0.0)
+      fromColor = plot_->blendGroupPaletteColor(gval, iv_.value(), 0.1);
+    else
+      fromColor = plot_->interpPaletteColor(colorInd);
   }
   else
-    fromColor = plot_->interpPaletteColor(i(), n());
+    fromColor = plot_->interpPaletteColor(colorInd);
 
   double fromAlpha = 1.0;
 
@@ -877,19 +948,19 @@ draw(QPainter *painter)
 
   plot_->updateObjPenBrushState(this, pen, brush);
 
-  painter->setPen  (pen);
-  painter->setBrush(brush);
+  device->setPen  (pen);
+  device->setBrush(brush);
 
   //---
 
   // draw path
-  painter->drawPath(path);
+  device->drawPath(path);
 
   //---
 
   // draw arcs between value sets
 
-  QColor arcBorderColor = plot_->interpBorderColor(0, 1);
+  QColor arcStrokeColor = plot_->interpStrokeColor(ColorInd());
 
   int from = data_.from();
 
@@ -919,25 +990,25 @@ draw(QPainter *painter)
     // create path
     QPainterPath path;
 
-    path.arcMoveTo(irect, -a1 ); QPointF p1 = path.currentPosition();
-    path.arcMoveTo(irect, -a11); QPointF p2 = path.currentPosition();
+    path.arcMoveTo(irect, -a1 );   QPointF p1 = path.currentPosition();
+    path.arcMoveTo(irect, -a11);   QPointF p2 = path.currentPosition();
     path.arcMoveTo(irect, -a2 ); //QPointF p3 = path.currentPosition();
-    path.arcMoveTo(irect, -a21); QPointF p4 = path.currentPosition();
+    path.arcMoveTo(irect, -a21);   QPointF p4 = path.currentPosition();
 
     //--
 
     if (from != value.to) {
       path.moveTo(p1);
-      path.quadTo(CQChartsUtil::toQPoint(pc), p4);
+      path.quadTo(c.qpoint(), p4);
       path.arcTo (irect, -a21, da2);
-      path.quadTo(CQChartsUtil::toQPoint(pc), p2);
+      path.quadTo(c.qpoint(), p2);
       path.arcTo (irect, -a11, da1);
 
       path.closeSubpath();
     }
     else {
       path.moveTo(p1);
-      path.quadTo(CQChartsUtil::toQPoint(pc), p2);
+      path.quadTo(c.qpoint(), p2);
       path.arcTo (irect, -a11, da1);
 
       path.closeSubpath();
@@ -949,10 +1020,12 @@ draw(QPainter *painter)
     // TODO: separate arc stroke/fill control
     QPen pen;
 
-    plot_->setPen(pen, true, arcBorderColor, plot_->borderAlpha(),
-                  plot_->borderWidth(), plot_->borderDash());
+    plot_->setPen(pen, true, arcStrokeColor, plot_->strokeAlpha(),
+                  plot_->strokeWidth(), plot_->strokeDash());
 
-    QColor toColor = plot_->interpPaletteColor(toObj->i(), toObj->n());
+    ColorInd toColorInd = toObj->calcColorInd();
+
+    QColor toColor = plot_->interpPaletteColor(toColorInd);
 
     QColor c = CQChartsUtil::blendColors(fromColor, toColor, 0.5);
 
@@ -965,19 +1038,19 @@ draw(QPainter *painter)
 
     plot_->setBrush(brush, true, c, alpha, CQChartsFillPattern());
 
-    painter->setPen  (pen);
-    painter->setBrush(brush);
+    device->setPen  (pen);
+    device->setBrush(brush);
 
     //---
 
     // draw path
-    painter->drawPath(path);
+    device->drawPath(path);
   }
 }
 
 void
 CQChartsChordObj::
-drawFg(QPainter *painter) const
+drawFg(CQChartsPaintDevice *device) const
 {
   if (data_.name() == "")
     return;
@@ -1012,9 +1085,11 @@ drawFg(QPainter *painter) const
 
   // set connection line pen
   // TODO: separate text and line pen control
+  ColorInd colorInd = calcColorInd();
+
   QPen lpen;
 
-  QColor bg = plot_->interpPaletteColor(i_, n_);
+  QColor bg = plot_->interpPaletteColor(colorInd);
 
   plot_->setPen(lpen, true, bg, 1.0);
 
@@ -1023,7 +1098,7 @@ drawFg(QPainter *painter) const
   // draw text using line pen
   QPointF center(0, 0);
 
-  plot_->textBox()->drawConnectedRadialText(painter, center, ro, lr1, ta, data_.name(),
+  plot_->textBox()->drawConnectedRadialText(device, center, ro, lr1, ta, data_.name(),
                                             lpen, /*isRotated*/false);
 }
 

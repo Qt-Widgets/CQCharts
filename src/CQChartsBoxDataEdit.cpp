@@ -2,11 +2,12 @@
 
 #include <CQChartsShapeDataEdit.h>
 #include <CQChartsSidesEdit.h>
-#include <CQChartsRoundedPolygon.h>
+#include <CQChartsDrawUtil.h>
 #include <CQChartsView.h>
 #include <CQChartsPlot.h>
 #include <CQCharts.h>
 #include <CQChartsWidgetUtil.h>
+#include <CQChartsPaintDevice.h>
 
 #include <CQPropertyView.h>
 #include <CQWidgetMenu.h>
@@ -16,7 +17,6 @@
 
 #include <QLabel>
 #include <QVBoxLayout>
-#include <QPainter>
 
 CQChartsBoxDataLineEdit::
 CQChartsBoxDataLineEdit(QWidget *parent) :
@@ -30,9 +30,9 @@ CQChartsBoxDataLineEdit(QWidget *parent) :
 
   menu_->setWidget(dataEdit_);
 
-  connect(dataEdit_, SIGNAL(boxDataChanged()), this, SLOT(menuEditChanged()));
-
   //---
+
+  connectSlots(true);
 
   boxDataToWidgets();
 }
@@ -59,10 +59,10 @@ updateBoxData(const CQChartsBoxData &boxData, bool updateText)
 
   dataEdit_->setData(boxData);
 
+  connectSlots(true);
+
   if (updateText)
     boxDataToWidgets();
-
-  connectSlots(true);
 
   emit boxDataChanged();
 }
@@ -202,8 +202,7 @@ CQChartsBoxDataEdit(QWidget *parent) :
 {
   setObjectName("boxDataEdit");
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setMargin(0); layout->setSpacing(2);
+  QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 0, 2);
 
   //---
 
@@ -214,13 +213,11 @@ CQChartsBoxDataEdit(QWidget *parent) :
   groupBox_->setChecked(false);
   groupBox_->setTitle("Visible");
 
-  connect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
-
   layout->addWidget(groupBox_);
 
   //---
 
-  QGridLayout *groupLayout = new QGridLayout(groupBox_);
+  QGridLayout *groupLayout = CQUtil::makeLayout<QGridLayout>(groupBox_, 2, 2);
 
   int row = 0;
 
@@ -231,14 +228,10 @@ CQChartsBoxDataEdit(QWidget *parent) :
 
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Margin", marginEdit_, row);
 
-  connect(marginEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-
   //--
 
   // padding
   paddingEdit_ = CQUtil::makeWidget<CQRealSpin>("paddingEdit");
-
-  connect(paddingEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
 
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Padding", paddingEdit_, row);
 
@@ -250,16 +243,12 @@ CQChartsBoxDataEdit(QWidget *parent) :
   shapeEdit_->setTitle("Shape");
   shapeEdit_->setPreview(false);
 
-  connect(shapeEdit_, SIGNAL(shapeDataChanged()), this, SLOT(widgetsToData()));
-
   groupLayout->addWidget(shapeEdit_, row, 0, 1, 2); ++row;
 
   //---
 
   // sides
   sidesEdit_ = new CQChartsSidesEdit;
-
-  connect(sidesEdit_, SIGNAL(sidesChanged()), this, SLOT(widgetsToData()));
 
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Sides", sidesEdit_, row);
 
@@ -274,6 +263,8 @@ CQChartsBoxDataEdit(QWidget *parent) :
   groupLayout->setRowStretch(row, 1);
 
   //---
+
+  connectSlots(true);
 
   dataToWidgets();
 }
@@ -323,13 +314,33 @@ setPreview(bool b)
 
 void
 CQChartsBoxDataEdit::
+connectSlots(bool b)
+{
+  assert(b != connected_);
+
+  connected_ = b;
+
+  //---
+
+  auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
+    if (b)
+      connect(w, from, this, to);
+    else
+      disconnect(w, from, this, to);
+  };
+
+  connectDisconnect(b, groupBox_, SIGNAL(clicked(bool)), SLOT(widgetsToData()));
+  connectDisconnect(b, marginEdit_, SIGNAL(valueChanged(double)), SLOT(widgetsToData()));
+  connectDisconnect(b, paddingEdit_, SIGNAL(valueChanged(double)), SLOT(widgetsToData()));
+  connectDisconnect(b, shapeEdit_, SIGNAL(shapeDataChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, sidesEdit_, SIGNAL(sidesChanged()), SLOT(widgetsToData()));
+}
+
+void
+CQChartsBoxDataEdit::
 dataToWidgets()
 {
-  disconnect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
-  disconnect(marginEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-  disconnect(paddingEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-  disconnect(shapeEdit_, SIGNAL(shapeDataChanged()), this, SLOT(widgetsToData()));
-  disconnect(sidesEdit_, SIGNAL(sidesChanged()), this, SLOT(widgetsToData()));
+  connectSlots(false);
 
   groupBox_   ->setChecked(data_.isVisible());
   marginEdit_ ->setValue  (data_.margin());
@@ -339,11 +350,7 @@ dataToWidgets()
 
   preview_->update();
 
-  connect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
-  connect(marginEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-  connect(paddingEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-  connect(shapeEdit_, SIGNAL(shapeDataChanged()), this, SLOT(widgetsToData()));
-  connect(sidesEdit_, SIGNAL(sidesChanged()), this, SLOT(widgetsToData()));
+  connectSlots(true);
 }
 
 void
@@ -384,35 +391,34 @@ draw(QPainter *painter, const CQChartsBoxData &data, const QRect &rect,
      CQChartsPlot *plot, CQChartsView *view)
 {
   // set pen
-  QColor pc = interpColor(plot, view, data.shape().border().color());
+  QColor pc = interpColor(plot, view, data.shape().stroke().color());
 
   QPen pen;
 
-  double width = CQChartsUtil::limitLineWidth(data.shape().border().width().value());
+  double width = CQChartsUtil::limitLineWidth(data.shape().stroke().width().value());
 
-  CQChartsUtil::setPen(pen, data.shape().border().isVisible(), pc,
-                       data.shape().border().alpha(), width, data.shape().border().dash());
+  CQChartsUtil::setPen(pen, data.shape().stroke().isVisible(), pc,
+                       data.shape().stroke().alpha(), width, data.shape().stroke().dash());
 
   painter->setPen(pen);
 
   //---
 
   // set brush
-  QColor fc = interpColor(plot, view, data.shape().background().color());
+  QColor fc = interpColor(plot, view, data.shape().fill().color());
 
   QBrush brush;
 
-  CQChartsUtil::setBrush(brush, data.shape().background().isVisible(), fc,
-                         data.shape().background().alpha(),
-                         data.shape().background().pattern());
+  CQChartsUtil::setBrush(brush, data.shape().fill().isVisible(), fc,
+                         data.shape().fill().alpha(), data.shape().fill().pattern());
 
   painter->setBrush(brush);
 
   //---
 
   // draw box
-  double cxs = data.shape().border().cornerSize().value();
-  double cys = data.shape().border().cornerSize().value();
+  CQChartsPixelPainter device(painter);
 
-  CQChartsRoundedPolygon::draw(painter, rect, cxs, cys);
+  CQChartsDrawUtil::drawRoundedPolygon(&device, rect, data.shape().stroke().cornerSize(),
+                                       data.shape().stroke().cornerSize(), data.borderSides());
 }

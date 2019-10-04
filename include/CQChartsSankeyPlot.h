@@ -8,6 +8,10 @@
 
 //---
 
+/*!
+ * \brief Sankey plot type
+ * \ingroup Charts
+ */
 class CQChartsSankeyPlotType : public CQChartsPlotType {
  public:
   CQChartsSankeyPlotType();
@@ -23,10 +27,14 @@ class CQChartsSankeyPlotType : public CQChartsPlotType {
 
   bool hasAxes() const override { return false; }
 
+  bool allowXLog() const override { return false; }
+
+  bool canProbe() const override { return false; }
+
   QString description() const override;
 
   bool isColumnForParameter(CQChartsModelColumnDetails *columnDetails,
-                            CQChartsPlotParameter *parameter) const;
+                            CQChartsPlotParameter *parameter) const override;
 
   CQChartsPlot *create(CQChartsView *view, const ModelP &model) const override;
 };
@@ -39,6 +47,10 @@ class CQChartsSankeyPlotEdge;
 class CQChartsSankeyNodeObj;
 class CQChartsSankeyEdgeObj;
 
+/*!
+ * \brief Sankey plot node
+ * \ingroup Charts
+ */
 class CQChartsSankeyPlotNode {
  public:
   using Edges   = std::vector<CQChartsSankeyPlotEdge *>;
@@ -98,6 +110,10 @@ class CQChartsSankeyPlotNode {
 
 //---
 
+/*!
+ * \brief Sankey plot edge
+ * \ingroup Charts
+ */
 class CQChartsSankeyPlotEdge {
  public:
   CQChartsSankeyPlotEdge(const CQChartsSankeyPlot *plot, double value,
@@ -126,12 +142,16 @@ class CQChartsSankeyPlotEdge {
 
 //---
 
+/*!
+ * \brief Sankey Plot Node object
+ * \ingroup Charts
+ */
 class CQChartsSankeyNodeObj : public CQChartsPlotObj {
   Q_OBJECT
 
  public:
   CQChartsSankeyNodeObj(const CQChartsSankeyPlot *plot, const CQChartsGeom::BBox &rect,
-                        CQChartsSankeyPlotNode *node);
+                        CQChartsSankeyPlotNode *node, const ColorInd &ind);
 
   const CQChartsGeom::BBox &srcEdgeRect(CQChartsSankeyPlotEdge *edge) const {
     auto p = srcEdgeRect_.find(edge);
@@ -147,35 +167,41 @@ class CQChartsSankeyNodeObj : public CQChartsPlotObj {
     return (*p).second;
   }
 
+  QString typeName() const override { return "node"; }
+
   QString calcId() const override;
 
   void moveBy(const CQChartsGeom::Point &delta);
 
   void getSelectIndices(Indices &) const override { }
 
-  void addColumnSelectIndex(Indices &, const CQChartsColumn &) const override { }
+  void draw(CQChartsPaintDevice *device) override;
 
-  void draw(QPainter *painter) override;
-
-  void drawFg(QPainter *painter) const override;
+  void drawFg(CQChartsPaintDevice *device) const override;
 
  private:
   using EdgeRect = std::map<CQChartsSankeyPlotEdge *,CQChartsGeom::BBox>;
 
-  const CQChartsSankeyPlot* plot_ { nullptr }; //! parent plot
-  CQChartsSankeyPlotNode*   node_ { nullptr }; //! node
-  EdgeRect                  srcEdgeRect_;      //! edge to src
-  EdgeRect                  destEdgeRect_;     //! edge to dest
+  const CQChartsSankeyPlot* plot_ { nullptr }; //!< parent plot
+  CQChartsSankeyPlotNode*   node_ { nullptr }; //!< node
+  EdgeRect                  srcEdgeRect_;      //!< edge to src
+  EdgeRect                  destEdgeRect_;     //!< edge to dest
 };
 
 //---
 
+/*!
+ * \brief Sankey Plot Edge object
+ * \ingroup Charts
+ */
 class CQChartsSankeyEdgeObj : public CQChartsPlotObj {
   Q_OBJECT
 
  public:
   CQChartsSankeyEdgeObj(const CQChartsSankeyPlot *plot, const CQChartsGeom::BBox &rect,
                         CQChartsSankeyPlotEdge *edge);
+
+  QString typeName() const override { return "edge"; }
 
   QString calcId() const override;
 
@@ -186,22 +212,24 @@ class CQChartsSankeyEdgeObj : public CQChartsPlotObj {
 
   void getSelectIndices(Indices &) const override { }
 
-  void addColumnSelectIndex(Indices &, const CQChartsColumn &) const override { }
-
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
  private:
-  const CQChartsSankeyPlot* plot_     { nullptr }; //! parent plot
-  CQChartsSankeyPlotEdge*   edge_     { nullptr }; //! edge
-  CQChartsGeom::BBox        srcRect_;              //! src rect
-  CQChartsGeom::BBox        destRect_;             //! dest rect
-  QPainterPath              path_;                 //! painter path
+  const CQChartsSankeyPlot* plot_     { nullptr }; //!< parent plot
+  CQChartsSankeyPlotEdge*   edge_     { nullptr }; //!< edge
+  CQChartsGeom::BBox        srcRect_;              //!< src rect
+  CQChartsGeom::BBox        destRect_;             //!< dest rect
+  QPainterPath              path_;                 //!< painter path
 };
 
 //---
 
 CQCHARTS_NAMED_SHAPE_DATA(Edge,edge)
 
+/*!
+ * \brief Sankey Plot
+ * \ingroup Charts
+ */
 class CQChartsSankeyPlot : public CQChartsPlot,
  public CQChartsObjTextData<CQChartsSankeyPlot>,
  public CQChartsObjNodeShapeData<CQChartsSankeyPlot>,
@@ -306,19 +334,19 @@ class CQChartsSankeyPlot : public CQChartsPlot,
  private:
   using PosNodesMap = std::map<int,IndNodeMap>;
 
-  CQChartsColumn     linkColumn_;                     //! link column
-  CQChartsColumn     valueColumn_;                    //! value column
-  Align              align_       { Align::JUSTIFY }; //! align
-  NameNodeMap        nameNodeMap_;                    //! name node map
-  IndNodeMap         indNodeMap_;                     //! ind node map
-  PosNodesMap        posNodesMap_;                    //! pos node map
-  Edges              edges_;                          //! edges
-  CQChartsGeom::BBox bbox_;                           //! bbox
-  int                maxHeight_   { 0 };              //! max height
-  int                maxDepth_    { 0 };              //! max depth
-  double             valueScale_  { 1.0 };            //! value scale
-  double             margin_      { 0.0 };            //! margin
-  bool               pressed_     { false };          //! mouse pressed
+  CQChartsColumn     linkColumn_;                     //!< link column
+  CQChartsColumn     valueColumn_;                    //!< value column
+  Align              align_       { Align::JUSTIFY }; //!< align
+  NameNodeMap        nameNodeMap_;                    //!< name node map
+  IndNodeMap         indNodeMap_;                     //!< ind node map
+  PosNodesMap        posNodesMap_;                    //!< pos node map
+  Edges              edges_;                          //!< edges
+  CQChartsGeom::BBox bbox_;                           //!< bbox
+  int                maxHeight_   { 0 };              //!< max height
+  int                maxDepth_    { 0 };              //!< max depth
+  double             valueScale_  { 1.0 };            //!< value scale
+  double             margin_      { 0.0 };            //!< margin
+  bool               pressed_     { false };          //!< mouse pressed
 };
 
 #endif

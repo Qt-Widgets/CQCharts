@@ -14,6 +14,10 @@ class CQTcl;
 
 class QAbstractItemModel;
 
+/*!
+ * \brief model loader class
+ * \ingroup Charts
+ */
 class CQChartsLoader {
  public:
   CQChartsLoader(CQCharts *charts);

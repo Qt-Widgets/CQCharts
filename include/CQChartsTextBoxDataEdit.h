@@ -8,6 +8,10 @@ class CQChartsTextBoxDataEdit;
 class CQChartsPlot;
 class CQChartsView;
 
+/*!
+ * \brief Text Box Data line edit
+ * \ingroup Charts
+ */
 class CQChartsTextBoxDataLineEdit : public CQChartsLineEditBase {
   Q_OBJECT
 
@@ -48,6 +52,10 @@ class CQChartsTextDataEdit;
 class CQChartsBoxDataEdit;
 class CQChartsTextBoxDataEditPreview;
 
+/*!
+ * \brief Text Box data edit
+ * \ingroup Charts
+ */
 class CQChartsTextBoxDataEdit : public CQChartsEditBase {
   Q_OBJECT
 
@@ -70,6 +78,8 @@ class CQChartsTextBoxDataEdit : public CQChartsEditBase {
  private:
   void dataToWidgets();
 
+  void connectSlots(bool b);
+
  private slots:
   void widgetsToData();
 
@@ -85,6 +95,10 @@ class CQChartsTextBoxDataEdit : public CQChartsEditBase {
 
 //---
 
+/*!
+ * \brief Text Box data edit preview
+ * \ingroup Charts
+ */
 class CQChartsTextBoxDataEditPreview : public CQChartsEditPreview {
   Q_OBJECT
 
@@ -104,7 +118,10 @@ class CQChartsTextBoxDataEditPreview : public CQChartsEditPreview {
 
 #include <CQChartsPropertyViewEditor.h>
 
-// type for CQChartsTextBoxData
+/*!
+ * \brief type for CQChartsTextBoxData
+ * \ingroup Charts
+ */
 class CQChartsTextBoxDataPropertyViewType : public CQChartsPropertyViewType {
  public:
   CQPropertyViewEditorFactory *getEditor() const override;
@@ -113,11 +130,16 @@ class CQChartsTextBoxDataPropertyViewType : public CQChartsPropertyViewType {
                    CQChartsPlot *plot, CQChartsView *view) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "text_box_data"; }
 };
 
 //---
 
-// editor factory for CQChartsTextBoxData
+/*!
+ * \brief editor factory for CQChartsTextBoxData
+ * \ingroup Charts
+ */
 class CQChartsTextBoxDataPropertyViewEditor : public CQChartsPropertyViewEditorFactory {
  public:
   CQChartsLineEditBase *createPropertyEdit(QWidget *parent);

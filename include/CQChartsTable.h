@@ -7,10 +7,15 @@
 
 class CQCharts;
 class CQChartsTableDelegate;
-class CQChartsTableSelectionModel;
+class CQChartsSelectionModel;
 class CQChartsModelExprMatch;
+class CQChartsModelData;
 class CQChartsModelDetails;
 
+/*!
+ * \brief Charts Table View class
+ * \ingroup Charts
+ */
 class CQChartsTable : public CQTableView {
   Q_OBJECT
 
@@ -43,7 +48,7 @@ class CQChartsTable : public CQTableView {
 
   CQChartsModelDetails *getDetails();
 
-  void scrollTo(const QModelIndex &index, ScrollHint hint=EnsureVisible);
+  void scrollTo(const QModelIndex &index, ScrollHint hint=EnsureVisible) override;
 
   QSize sizeHint() const override;
 
@@ -53,12 +58,14 @@ class CQChartsTable : public CQTableView {
 
   void addMenuActions(QMenu *menu) override;
 
+  CQChartsModelData *getModelData();
+
  signals:
   void columnClicked(int);
 
   void filterChanged();
 
-  void selectionChanged();
+  void selectionHasChanged();
 
  private slots:
   void modelTypeChangedSlot(int);
@@ -72,16 +79,21 @@ class CQChartsTable : public CQTableView {
 
   void exportSlot(QAction *action);
 
+  void editSlot();
+
+  void resetModelData();
+
  private:
   using Matches = std::vector<QString>;
 
-  CQCharts*                    charts_       { nullptr };
-  ModelP                       model_;
-  CQChartsTableSelectionModel* sm_           { nullptr };
-  CQChartsTableDelegate*       delegate_     { nullptr };
-  bool                         isExprFilter_ { true };
-  CQChartsModelExprMatch*      match_        { nullptr };
-  Matches                      matches_;
+  CQCharts*               charts_       { nullptr };
+  ModelP                  model_;
+  CQChartsSelectionModel* sm_           { nullptr };
+  CQChartsTableDelegate*  delegate_     { nullptr };
+  CQChartsModelData*      modelData_    { nullptr };
+  bool                    isExprFilter_ { true };
+  CQChartsModelExprMatch* match_        { nullptr };
+  Matches                 matches_;
 };
 
 #endif

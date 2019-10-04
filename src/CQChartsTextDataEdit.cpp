@@ -1,16 +1,18 @@
 #include <CQChartsTextDataEdit.h>
 
+#include <CQChartsFontEdit.h>
 #include <CQChartsColorEdit.h>
 #include <CQChartsAlphaEdit.h>
 #include <CQChartsView.h>
 #include <CQChartsPlot.h>
 #include <CQCharts.h>
 #include <CQChartsDrawUtil.h>
+#include <CQChartsPaintDevice.h>
 
 #include <CQPropertyView.h>
 #include <CQWidgetMenu.h>
+#include <CQUtil.h>
 
-#include <CQFontEdit.h>
 #include <CQAngleSpinBox.h>
 #include <CQAlignEdit.h>
 #include <CQGroupBox.h>
@@ -18,7 +20,6 @@
 
 #include <QLabel>
 #include <QVBoxLayout>
-#include <QPainter>
 
 CQChartsTextDataLineEdit::
 CQChartsTextDataLineEdit(QWidget *parent) :
@@ -32,9 +33,9 @@ CQChartsTextDataLineEdit(QWidget *parent) :
 
   menu_->setWidget(dataEdit_);
 
-  connect(dataEdit_, SIGNAL(textDataChanged()), this, SLOT(menuEditChanged()));
-
   //---
+
+  connectSlots(true);
 
   textDataToWidgets();
 }
@@ -68,10 +69,10 @@ updateTextData(const CQChartsTextData &textData, bool updateText)
 
   dataEdit_->setData(textData);
 
+  connectSlots(true);
+
   if (updateText)
     textDataToWidgets();
-
-  connectSlots(true);
 
   emit textDataChanged();
 }
@@ -215,141 +216,94 @@ CQChartsTextDataEdit(QWidget *parent, bool optional) :
 {
   setObjectName("textDataEdit");
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setMargin(0); layout->setSpacing(2);
+  QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 0, 2);
 
   //---
 
   if (optional) {
-    groupBox_ = new CQGroupBox;
+    groupBox_ = CQUtil::makeLabelWidget<CQGroupBox>("Visible", "groupBox");
 
-    groupBox_->setObjectName("groupBox");
     groupBox_->setCheckable(true);
     groupBox_->setChecked(false);
-    groupBox_->setTitle("Visible");
-
-    connect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
 
     layout->addWidget(groupBox_);
   }
 
   //---
 
-  QGridLayout *groupLayout = new QGridLayout(groupBox_);
+  QGridLayout *groupLayout = CQUtil::makeLayout<QGridLayout>(groupBox_, 2, 2);
 
   if (! optional)
     layout->addLayout(groupLayout);
 
   // font
-  QLabel *fontLabel = new QLabel("Font");
-  fontLabel->setObjectName("fontLabel");
+  QLabel *fontLabel = CQUtil::makeLabelWidget<QLabel>("Font", "fontLabel");
 
-  fontEdit_ = new CQFontEdit;
-
-  connect(fontEdit_, SIGNAL(fontChanged(const QFont &)), this, SLOT(widgetsToData()));
+  fontEdit_ = new CQChartsFontLineEdit;
 
   groupLayout->addWidget(fontLabel, 0, 0);
   groupLayout->addWidget(fontEdit_, 0, 1);
 
   // color
-  QLabel *colorLabel = new QLabel("Color");
-  colorLabel->setObjectName("colorLabel");
+  QLabel *colorLabel = CQUtil::makeLabelWidget<QLabel>("Color", "colorLabel");
 
   colorEdit_ = new CQChartsColorLineEdit;
-
-  connect(colorEdit_, SIGNAL(colorChanged()), this, SLOT(widgetsToData()));
 
   groupLayout->addWidget(colorLabel, 1, 0);
   groupLayout->addWidget(colorEdit_, 1, 1);
 
   // alpha
-  QLabel *alphaLabel = new QLabel("Alpha");
+  QLabel *alphaLabel = CQUtil::makeLabelWidget<QLabel>("Alpha", "alphaLabel");
 
   alphaEdit_ = new CQChartsAlphaEdit;
-
-  connect(alphaEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
 
   groupLayout->addWidget(alphaLabel, 2, 0);
   groupLayout->addWidget(alphaEdit_, 2, 1);
 
   // angle
-  QLabel *angleLabel = new QLabel("Angle");
+  QLabel *angleLabel = CQUtil::makeLabelWidget<QLabel>("Angle", "angleLabel");
 
-  angleLabel->setObjectName("angleLabel");
-
-  angleEdit_ = new CQAngleSpinBox;
-
-  connect(angleEdit_, SIGNAL(angleChanged(const CAngle &)), this, SLOT(widgetsToData()));
+  angleEdit_ = CQUtil::makeWidget<CQAngleSpinBox>("angleEdit");
 
   groupLayout->addWidget(angleLabel, 3, 0);
   groupLayout->addWidget(angleEdit_, 3, 1);
 
   // contrast
-  QLabel *contrastLabel = new QLabel("Contrast");
+  QLabel *contrastLabel = CQUtil::makeLabelWidget<QLabel>("Contrast", "contrastLabel");
 
-  contrastLabel->setObjectName("contrastLabel");
-
-  contrastEdit_ = new CQCheckBox;
-
-  contrastEdit_->setObjectName("contrastEdit");
-
-  connect(contrastEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
+  contrastEdit_ = CQUtil::makeWidget<CQCheckBox>("contrastEdit");
 
   groupLayout->addWidget(contrastLabel, 4, 0);
   groupLayout->addWidget(contrastEdit_, 4, 1);
 
   // align
-  QLabel *alignLabel = new QLabel("Align");
+  QLabel *alignLabel = CQUtil::makeLabelWidget<QLabel>("Align", "alignLabel");
 
-  alignLabel->setObjectName("alignLabel");
-
-  alignEdit_ = new CQAlignEdit;
-
-  alignEdit_->setObjectName("alignEdit");
-
-  connect(alignEdit_, SIGNAL(valueChanged(Qt::Alignment)), this, SLOT(widgetsToData()));
+  alignEdit_ = CQUtil::makeWidget<CQAlignEdit>("alignEdit");
 
   groupLayout->addWidget(alignLabel, 5, 0);
   groupLayout->addWidget(alignEdit_, 5, 1);
 
   // formatted
-  QLabel *formattedLabel = new QLabel("Formatted");
+  QLabel *formattedLabel = CQUtil::makeLabelWidget<QLabel>("Formatted", "formattedLabel");
 
-  formattedLabel->setObjectName("formattedLabel");
-
-  formattedEdit_ = new CQCheckBox;
-
-  formattedEdit_->setObjectName("formattedEdit");
-
-  connect(formattedEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
+  formattedEdit_ = CQUtil::makeWidget<CQCheckBox>("formattedEdit");
 
   groupLayout->addWidget(formattedLabel, 6, 0);
   groupLayout->addWidget(formattedEdit_, 6, 1);
 
   // scaled
-  QLabel *scaledLabel = new QLabel("Scaled");
+  QLabel *scaledLabel = CQUtil::makeLabelWidget<QLabel>("Scaled", "scaledLabel");
 
-  scaledLabel->setObjectName("scaledLabel");
-
-  scaledEdit_ = new CQCheckBox;
-
-  scaledEdit_->setObjectName("scaledEdit");
-
-  connect(scaledEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
+  scaledEdit_ = CQUtil::makeWidget<CQCheckBox>("scaledEdit");
 
   groupLayout->addWidget(scaledLabel, 7, 0);
   groupLayout->addWidget(scaledEdit_, 7, 1);
 
   // html
-  QLabel *htmlLabel = new QLabel("Html");
+  QLabel *htmlLabel = CQUtil::makeLabelWidget<QLabel>("Html", "htmlLabel");
 
-  htmlLabel->setObjectName("htmlLabel");
-
-  htmlEdit_ = new CQCheckBox;
-
-  htmlEdit_->setObjectName("htmlEdit");
-
-  connect(htmlEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
+  htmlEdit_ = CQUtil::makeWidget<CQCheckBox>("htmlEdit");
 
   groupLayout->addWidget(htmlLabel, 8, 0);
   groupLayout->addWidget(htmlEdit_, 8, 1);
@@ -367,6 +321,10 @@ CQChartsTextDataEdit(QWidget *parent, bool optional) :
   //---
 
   layout->addStretch(1);
+
+  //---
+
+  connectSlots(true);
 
   dataToWidgets();
 }
@@ -416,20 +374,40 @@ setNoFocus()
 
 void
 CQChartsTextDataEdit::
+connectSlots(bool b)
+{
+  assert(b != connected_);
+
+  connected_ = b;
+
+  //---
+
+  auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
+    if (b)
+      connect(w, from, this, to);
+    else
+      disconnect(w, from, this, to);
+  };
+
+  if (groupBox_)
+    connectDisconnect(b, groupBox_, SIGNAL(clicked(bool)), SLOT(widgetsToData()));
+
+  connectDisconnect(b, fontEdit_, SIGNAL(fontChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, colorEdit_, SIGNAL(colorChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, alphaEdit_, SIGNAL(valueChanged(double)), SLOT(widgetsToData()));
+  connectDisconnect(b, angleEdit_, SIGNAL(angleChanged(const CAngle &)), SLOT(widgetsToData()));
+  connectDisconnect(b, contrastEdit_, SIGNAL(stateChanged(int)), SLOT(widgetsToData()));
+  connectDisconnect(b, alignEdit_, SIGNAL(valueChanged(Qt::Alignment)), SLOT(widgetsToData()));
+  connectDisconnect(b, formattedEdit_, SIGNAL(stateChanged(int)), SLOT(widgetsToData()));
+  connectDisconnect(b, scaledEdit_, SIGNAL(stateChanged(int)), SLOT(widgetsToData()));
+  connectDisconnect(b, htmlEdit_, SIGNAL(stateChanged(int)), SLOT(widgetsToData()));
+}
+
+void
+CQChartsTextDataEdit::
 dataToWidgets()
 {
-  if (groupBox_)
-    disconnect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
-
-  disconnect(fontEdit_, SIGNAL(fontChanged(const QFont &)), this, SLOT(widgetsToData()));
-  disconnect(colorEdit_, SIGNAL(colorChanged()), this, SLOT(widgetsToData()));
-  disconnect(alphaEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-  disconnect(angleEdit_, SIGNAL(angleChanged(const CAngle &)), this, SLOT(widgetsToData()));
-  disconnect(contrastEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  disconnect(alignEdit_, SIGNAL(valueChanged(Qt::Alignment)), this, SLOT(widgetsToData()));
-  disconnect(formattedEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  disconnect(scaledEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  disconnect(htmlEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
+  connectSlots(false);
 
   if (groupBox_)
     groupBox_->setChecked(data_.isVisible());
@@ -446,18 +424,7 @@ dataToWidgets()
 
   preview_->update();
 
-  if (groupBox_)
-    connect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
-
-  connect(fontEdit_, SIGNAL(fontChanged(const QFont &)), this, SLOT(widgetsToData()));
-  connect(colorEdit_, SIGNAL(colorChanged()), this, SLOT(widgetsToData()));
-  connect(alphaEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-  connect(angleEdit_, SIGNAL(angleChanged(const CAngle &)), this, SLOT(widgetsToData()));
-  connect(contrastEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  connect(alignEdit_, SIGNAL(valueChanged(Qt::Alignment)), this, SLOT(widgetsToData()));
-  connect(formattedEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  connect(scaledEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
-  connect(htmlEdit_, SIGNAL(stateChanged(int)), this, SLOT(widgetsToData()));
+  connectSlots(true);
 }
 
 void
@@ -516,22 +483,24 @@ draw(QPainter *painter, const CQChartsTextData &data, const QRect &rect,
   //---
 
   // set font
-  painter->setFont(data.font());
+  painter->setFont(data.font().calcFont());
 
   //---
 
   // draw text
   // TODO: angle, align, formatted, scaled, html
 
-  QFontMetrics fm(data.font());
+  QFontMetrics fm(painter->font());
 
   int tx = rect.left() + 2;
   int ty = rect.center().y() + (fm.ascent() - fm.descent())/2;
 
   QString text("ABC abc");
 
+  CQChartsPixelPainter device(painter);
+
   if (data.isContrast())
-    CQChartsDrawUtil::drawContrastText(painter, tx, ty, text);
+    CQChartsDrawUtil::drawContrastText(&device, QPointF(tx, ty), text);
   else
-    CQChartsDrawUtil::drawSimpleText(painter, tx, ty, text);
+    CQChartsDrawUtil::drawSimpleText(&device, QPointF(tx, ty), text);
 }

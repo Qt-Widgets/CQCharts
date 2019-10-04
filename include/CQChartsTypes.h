@@ -27,6 +27,7 @@ namespace CQChartsLineWidth {
   inline double maxPixelValue() { return 64.0; }
 }
 
+//! value units
 enum class CQChartsUnits {
   NONE,
   VIEW,
@@ -35,6 +36,7 @@ enum class CQChartsUnits {
   PERCENT
 };
 
+//! resize side
 enum class CQChartsResizeSide {
   NONE,
   MOVE,
@@ -42,6 +44,23 @@ enum class CQChartsResizeSide {
   LR,
   UL,
   UR
+};
+
+//! object draw type
+enum class CQChartsObjDrawType {
+  LINE,
+  BOX,
+  SYMBOL
+};
+
+//! color value type
+enum class CQChartsColorType {
+  AUTO,
+  SET,
+  GROUP,
+  INDEX,
+  X_VALUE,
+  Y_VALUE
 };
 
 #endif

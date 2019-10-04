@@ -5,15 +5,14 @@
 #include <CQChartsVariant.h>
 #include <CQCharts.h>
 #include <CQChartsRotatedText.h>
-#include <CQChartsRoundedPolygon.h>
 #include <CQChartsNamePair.h>
 #include <CQChartsTip.h>
 #include <CQChartsDrawUtil.h>
+#include <CQChartsPaintDevice.h>
+#include <CQChartsHtml.h>
 
 #include <CQPropertyViewItem.h>
 #include <CQPerfMonitor.h>
-
-#include <QPainter>
 
 CQChartsAdjacencyPlotType::
 CQChartsAdjacencyPlotType()
@@ -48,11 +47,17 @@ addParameters()
 
   endParameterGroup();
 
+  //---
+
+  startParameterGroup("General");
+
   addColumnParameter("name", "Name", "nameColumn").
-   setString().setTip("Name For Id");
+   setString().setTip("Name For Node Id");
 
   addColumnParameter("groupId", "Group Id", "groupIdColumn").
    setNumeric().setTip("Group Id for Color");
+
+  endParameterGroup();
 
   //---
 
@@ -63,20 +68,38 @@ QString
 CQChartsAdjacencyPlotType::
 description() const
 {
-  return "<h2>Summary</h2>\n"
-         "<p>Draws connectivity information between two different sets of data as a "
-         "matrix where the color of the cells represents the group and connectivity.</p>\n"
-         "<h2>Columns</h2>\n"
-         "<p>Connection information can be supplied using:</p>\n"
-         "<ul>\n"
-         "<li>A list of connections in the <b>Connections</b> column of the form "
-         "{{&lt;id&gt; &lt;count&gt;} ...}.</li>\n"
-         "<li>A name pair using <b>NamePair</b> column in the form &lt;id1&gt;/&lt;id2&gt; "
-         "and a count using the <b>Count</b> column.</li>\n"
-         "</ul>\n"
-         "<p>The column id is taken from the <b>Id</b> column and an optional "
-         "name for the id can be supplied in the <b>Name</b> column.</p>\n"
-         "<p>The group is specified using the <b>Group</b> column.</p>";
+  auto B    = [](const QString &str) { return CQChartsHtml::Str::bold(str); };
+  auto PARM = [](const QString &str) { return CQChartsHtml::Str::angled(str); };
+  auto LI   = [](const QString &str) { return CQChartsHtml::Str(str); };
+//auto BR   = []() { return CQChartsHtml::Str(CQChartsHtml::Str::Type::BR); };
+  auto IMG  = [](const QString &src) { return CQChartsHtml::Str::img(src); };
+
+  return CQChartsHtml().
+   h2("Adjacency Plot").
+    h3("Summary").
+     p("Draws connectivity information between two different sets of data as a "
+       "matrix where the color of the cells represents the group and connectivity.").
+    h3("Columns").
+     p("Connection information can be supplied using:").
+     ul({ LI("A list of connections in the " + B("Connections") + " column with the "
+             "associated node numbers in the " + B("Node") + " column."),
+          LI("A name pair using " + B("NamePair") + " column and a count using the " +
+             B("Count") + " column.") }).
+     p("The connections column is in the form {{" + PARM("id") + " " + PARM("count") + "} ...}.").
+     p("The name pair column is in the form " + PARM("id1") + "/" + PARM("id2")).
+     p("The column id is taken from the " + B("Id") + " column and an optional "
+       "name for the id can be supplied in the " + B("Name") + " column.").
+     p("The group is specified using the " + B("Group") + " column.").
+    h3("Options").
+     p("The nodes can be sorted by group, name or count using the " + B("sortType") + " option").
+     p("The maring around the plot can be specified using the " + B("bgMargin") + " option").
+    h3("Styling").
+     p("The styling (fill, stroke) of the connection cells, empty (no connection) cell "
+       "and background can be set").
+    h3("Limitations").
+     p("The plot does not support axes, key or logarithmic scales").
+    h3("Example").
+     p(IMG("images/adjacency.png"));
 }
 
 bool
@@ -121,11 +144,13 @@ CQChartsAdjacencyPlot(CQChartsView *view, const ModelP &model) :
 
   setBackgroundFillColor(CQChartsColor(CQChartsColor::Type::INTERFACE_VALUE, 0.2));
 
-  setBorderColor(CQChartsColor(CQChartsColor::Type::INTERFACE_VALUE, 1.0));
-  setBorderAlpha(0.5);
+  setStrokeColor(CQChartsColor(CQChartsColor::Type::INTERFACE_VALUE, 1.0));
+  setStrokeAlpha(0.5);
 
   setEmptyCellFillColor  (CQChartsColor(CQChartsColor::Type::INTERFACE_VALUE, 0.1));
-  setEmptyCellBorderColor(CQChartsColor(CQChartsColor::Type::INTERFACE_VALUE, 0.2));
+  setEmptyCellStrokeColor(CQChartsColor(CQChartsColor::Type::INTERFACE_VALUE, 0.2));
+
+  setFillColor(CQChartsColor(CQChartsColor::Type::PALETTE));
 
   setOuterMargin(0, 0, 0, 0);
 
@@ -158,42 +183,42 @@ void
 CQChartsAdjacencyPlot::
 setNodeColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(nodeColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(nodeColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsAdjacencyPlot::
 setConnectionsColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(connectionsColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(connectionsColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsAdjacencyPlot::
 setNameColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(nameColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(nameColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsAdjacencyPlot::
 setNamePairColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(namePairColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(namePairColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsAdjacencyPlot::
 setCountColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(countColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(countColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsAdjacencyPlot::
 setGroupIdColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(groupIdColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(groupIdColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 //---
@@ -202,7 +227,7 @@ void
 CQChartsAdjacencyPlot::
 setSortType(const SortType &t)
 {
-  CQChartsUtil::testAndSet(sortType_, t, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(sortType_, t, [&]() { updateRangeAndObjs(); } );
 }
 
 //---
@@ -213,7 +238,7 @@ setBgMargin(const CQChartsLength &l)
 {
   bgMargin_ = l;
 
-  queueUpdateObjs();
+  updateObjs();
 }
 
 //---
@@ -224,32 +249,45 @@ addProperties()
 {
   CQChartsPlot::addProperties();
 
-  addProperty("columns", this, "nodeColumn"       , "node"       )->setDesc("Node column");
-  addProperty("columns", this, "connectionsColumn", "connections")->setDesc("Connections column");
-  addProperty("columns", this, "nameColumn"       , "name"       )->setDesc("Name column");
+  auto addProp = [&](const QString &path, const QString &name, const QString &alias,
+                     const QString &desc) {
+    return &(this->addProperty(path, this, name, alias)->setDesc(desc));
+  };
 
-  addProperty("columns", this, "namePairColumn", "namePair")->setDesc("Name/Value column");
-  addProperty("columns", this, "countColumn"   , "count"   )->setDesc("Count column");
+  //---
 
-  addProperty("columns", this, "groupIdColumn", "groupId")->setDesc("Grouping column");
+  // columns
+  addProp("columns", "nodeColumn"       , "node"       , "Node column");
+  addProp("columns", "connectionsColumn", "connections", "Connections column");
+  addProp("columns", "nameColumn"       , "name"       , "Node name column");
 
-  addProperty("options", this, "sortType", "sort"  )->setDesc("Sort type");
-  addProperty("options", this, "bgMargin", "margin")->setDesc("Background margin");
+  addProp("columns", "namePairColumn", "namePair", "Name/Value column");
+  addProp("columns", "countColumn"   , "count"   , "Count column");
 
-  addFillProperties("background/fill", "backgroundFill");
+  addProp("columns", "groupIdColumn", "groupId", "Grouping column");
 
-  addFillProperties("cell/fill"  , "fill"  );
-  addLineProperties("cell/stroke", "border");
+  // options
+  addProp("options", "sortType", "sort"  , "Sort type");
+  addProp("options", "bgMargin", "margin", "Background margin");
 
-  addProperty("cell/stroke", this, "cornerSize", "cornerSize")->setDesc("Cell box corner size");
+  // background
+  addFillProperties("background/fill", "backgroundFill", "Background");
 
-  addFillProperties("emptyCell/fill"  , "emptyCellFill"  );
-  addLineProperties("emptyCell/stroke", "emptyCellBorder");
+  // cell style
+  addFillProperties("cell/fill"  , "fill"  , "Cell");
+  addLineProperties("cell/stroke", "stroke", "Cell");
 
-  addProperty("emptyCell/stroke", this, "cornerSize", "cornerSize")->
-    setDesc("Empty cell box corner size");
+  addProp("cell/stroke", "cornerSize", "cornerSize", "Cell box corner size");
 
-  addTextProperties("text", "text");
+  // empty cell style
+  addFillProperties("emptyCell/fill"  , "emptyCellFill"  , "Empty cell");
+  addLineProperties("emptyCell/stroke", "emptyCellStroke", "Empty cell");
+
+  addProp("emptyCell/stroke", "cornerSize", "cornerSize", "Empty cell box corner size");
+
+  //---
+
+  addTextProperties("text", "text", "");
 }
 
 CQChartsGeom::Range
@@ -282,7 +320,7 @@ createObjs(PlotObjs &objs) const
 {
   CQPerfTrace trace("CQChartsAdjacencyPlot::createObjs");
 
-  NoUpdate noUpdate(const_cast<CQChartsAdjacencyPlot *>(this));
+  NoUpdate noUpdate(this);
 
   //---
 
@@ -445,7 +483,10 @@ initHierObjs(PlotObjs &objs) const
       if (node1 == node2 || ! CMathUtil::isZero(value)) {
         CQChartsGeom::BBox bbox(x, y - scale(), x + scale(), y);
 
-        CQChartsAdjacencyObj *obj = new CQChartsAdjacencyObj(this, node1, node2, value, bbox);
+        ColorInd ig(node1->group(), maxGroup() + 1);
+
+        CQChartsAdjacencyObj *obj =
+          new CQChartsAdjacencyObj(this, node1, node2, value, bbox, ig);
 
         objs.push_back(obj);
       }
@@ -540,9 +581,14 @@ initConnectionObjs(PlotObjs &objs) const
     th->nodeData_.maxLen = std::max(th->nodeData_.maxLen, int(node1->name().size()));
   }
 
+  //---
+
   int nn = numNodes();
 
-  th->nodeData_.scale = (1.0 - 2*std::max(xb, yb))/(nn + maxLen()*factor_);
+  if (nn + maxLen()*factor_ > 0)
+    th->nodeData_.scale = (1.0 - 2*std::max(xb, yb))/(nn + maxLen()*factor_);
+  else
+    th->nodeData_.scale = 1.0;
 
   double tsize = maxLen()*factor_*scale();
 
@@ -560,7 +606,10 @@ initConnectionObjs(PlotObjs &objs) const
       if (node1 == node2 || ! CMathUtil::isZero(value)) {
         CQChartsGeom::BBox bbox(x, y - scale(), x + scale(), y);
 
-        CQChartsAdjacencyObj *obj = new CQChartsAdjacencyObj(this, node1, node2, value, bbox);
+        ColorInd ig(node1->group(), maxGroup() + 1);
+
+        CQChartsAdjacencyObj *obj =
+          new CQChartsAdjacencyObj(this, node1, node2, value, bbox, ig);
 
         objs.push_back(obj);
       }
@@ -647,6 +696,7 @@ sortNodes(const NodeMap &nodes, NodeArray &sortedNodes, NodeData &nodeData) cons
 
   nodeData.maxValue = 0;
   nodeData.maxGroup = 0;
+  nodeData.maxNode  = 0;
 
   for (auto &pnode : nodes) {
     CQChartsAdjacencyNode *node = const_cast<CQChartsAdjacencyNode *>(pnode.second);
@@ -655,6 +705,7 @@ sortNodes(const NodeMap &nodes, NodeArray &sortedNodes, NodeData &nodeData) cons
 
     nodeData.maxValue = std::max(nodeData.maxValue, node->maxCount());
     nodeData.maxGroup = std::max(nodeData.maxGroup, node->group());
+    nodeData.maxNode  = std::max(nodeData.maxNode , node->id());
   }
 
   if      (sortType() == SortType::NAME) {
@@ -723,7 +774,7 @@ autoFit()
   for (int i = 0; i < tries; ++i) {
     factor_ = drawFactor();
 
-    queueUpdateObjs();
+    updateObjs();
   }
 }
 
@@ -747,7 +798,7 @@ hasBackground() const
 
 void
 CQChartsAdjacencyPlot::
-drawBackground(QPainter *painter) const
+execDrawBackground(CQChartsPaintDevice *device) const
 {
   // calc text size
   CQChartsGeom::Point po = windowToPixel(CQChartsGeom::Point(0.0, 1.0));
@@ -763,24 +814,24 @@ drawBackground(QPainter *painter) const
   // set font
   double ts = std::min(pxs, pys);
 
-  QFont font = this->textFont();
+  QFont font = this->textFont().calcFont();
 
   font.setPixelSize(ts >= 1 ? ts : 1.0);
 
-  painter->setFont(font);
+  device->setFont(font);
 
-  QFontMetricsF fm(painter->font());
+  QFontMetricsF fm(device->font());
 
   //---
 
   // draw text
   QPen tpen;
 
-  QColor tc = interpTextColor(0, 1);
+  QColor tc = interpTextColor(ColorInd());
 
   setPen(tpen, true, tc, textAlpha());
 
-  painter->setPen(tpen);
+  device->setPen(tpen);
 
   //---
 
@@ -797,7 +848,9 @@ drawBackground(QPainter *painter) const
 
     twMax = std::max(twMax, tw);
 
-    CQChartsDrawUtil::drawSimpleText(painter, px + xts - tw - 2, py + pys - fm.descent(), str);
+    QPointF pt(px + xts - tw - 2, py + pys - fm.descent());
+
+    CQChartsDrawUtil::drawSimpleText(device, device->pixelToWindow(pt), str);
 
     py += pys;
   }
@@ -812,7 +865,9 @@ drawBackground(QPainter *painter) const
   py = po.y + lengthPixelHeight(bgMargin()) + yts;
 
   for (auto &node : sortedNodes_) {
-    CQChartsRotatedText::draw(painter, px + pxs/2, py - 2, node->name(), 90,
+    QPointF p1(px + pxs/2, py - 2);
+
+    CQChartsRotatedText::draw(device, device->pixelToWindow(p1), node->name(), 90,
                               Qt::AlignHCenter | Qt::AlignBottom, /*alignBox*/true,
                               isTextContrast());
 
@@ -830,30 +885,28 @@ drawBackground(QPainter *painter) const
 
   QBrush fillBrush;
 
-  QColor fc = interpBackgroundFillColor(0, 1);
+  QColor fc = interpBackgroundFillColor(ColorInd());
 
   setBrush(fillBrush, true, fc, backgroundFillAlpha(), backgroundFillPattern());
 
   QRectF cellRect(px, py, nn*pxs, nn*pys);
 
-  painter->fillRect(cellRect, fillBrush);
+  device->fillRect(device->pixelToWindow(cellRect), fillBrush);
 
   //---
 
   // draw empty cells
-  QPen   emptyPen;
-  QBrush emptyBrush;
+  CQChartsPenBrush emptyPenBrush;
 
-  QColor pc = interpEmptyCellBorderColor(0, 1);
-  QColor bc = interpEmptyCellFillColor  (0, 1);
+  QColor pc = interpEmptyCellStrokeColor(ColorInd());
+  QColor bc = interpEmptyCellFillColor  (ColorInd());
 
-  setPen(emptyPen, true, pc, emptyCellBorderAlpha(),
-         emptyCellBorderWidth(), emptyCellBorderDash());
+  setPen(emptyPenBrush.pen, true, pc, emptyCellStrokeAlpha(),
+         emptyCellStrokeWidth(), emptyCellStrokeDash());
 
-  setBrush(emptyBrush, true, bc, emptyCellFillAlpha(), emptyCellFillPattern());
+  setBrush(emptyPenBrush.brush, true, bc, emptyCellFillAlpha(), emptyCellFillPattern());
 
-  double cxs = lengthPixelWidth (emptyCellCornerSize());
-  double cys = lengthPixelHeight(emptyCellCornerSize());
+  CQChartsLength cornerSize = emptyCellCornerSize();
 
   py = po.y + lengthPixelHeight(bgMargin()) + yts;
 
@@ -866,12 +919,11 @@ drawBackground(QPainter *painter) const
       bool empty = (node1 != node2 && CMathUtil::isZero(value));
 
       if (empty) {
-        painter->setPen  (emptyPen);
-        painter->setBrush(emptyBrush);
+        QRectF cellRect = device->pixelToWindow(QRectF(px, py, pxs, pys));
 
-        QRectF cellRect(px, py, pxs, pys);
+        CQChartsDrawUtil::setPenBrush(device, emptyPenBrush);
 
-        CQChartsRoundedPolygon::draw(painter, cellRect, cxs, cys);
+        CQChartsDrawUtil::drawRoundedPolygon(device, cellRect, cornerSize, cornerSize);
       }
 
       px += pxs;
@@ -885,7 +937,7 @@ drawBackground(QPainter *painter) const
 
     th->setInsideObj(nullptr);
 
-    th->queueDrawForeground();
+    th->drawForeground();
   }
 }
 
@@ -904,27 +956,34 @@ hasForeground() const
 
 void
 CQChartsAdjacencyPlot::
-drawForeground(QPainter *painter) const
+execDrawForeground(CQChartsPaintDevice *device) const
 {
   if (insideObj())
-    insideObj()->draw(painter);
+    insideObj()->draw(device);
 }
 
 QColor
 CQChartsAdjacencyPlot::
 interpGroupColor(int group) const
 {
-  return interpPaletteColor((1.0*group)/maxGroup());
+  ColorInd ig(group, maxGroup() + 1);
+
+  return interpPaletteColor(ig);
 }
 
 //------
 
 CQChartsAdjacencyObj::
 CQChartsAdjacencyObj(const CQChartsAdjacencyPlot *plot, CQChartsAdjacencyNode *node1,
-                     CQChartsAdjacencyNode *node2, double value, const CQChartsGeom::BBox &rect) :
- CQChartsPlotObj(const_cast<CQChartsAdjacencyPlot *>(plot), rect), plot_(plot),
- node1_(node1), node2_(node2), value_(value)
+                     CQChartsAdjacencyNode *node2, double value, const CQChartsGeom::BBox &rect,
+                     const ColorInd &ig) :
+ CQChartsPlotObj(const_cast<CQChartsAdjacencyPlot *>(plot), rect, ColorInd(), ig, ColorInd()),
+ plot_(plot), node1_(node1), node2_(node2), value_(value)
 {
+  setDetailHint(DetailHint::MAJOR);
+
+  addModelInd(node1->ind());
+  addModelInd(node2->ind());
 }
 
 QString
@@ -934,8 +993,8 @@ calcId() const
   QString groupStr1 = QString("(%1)").arg(node1_->group());
   QString groupStr2 = QString("(%1)").arg(node2_->group());
 
-  return QString("%1%2:%3%4:%5").arg(node1_->name()).arg(groupStr1).
-                                 arg(node2_->name()).arg(groupStr2).arg(value_);
+  return QString("%1:%2%3:%4%5:%6").arg(typeName()).
+           arg(node1_->name()).arg(groupStr1).arg(node2_->name()).arg(groupStr2).arg(value_);
 }
 
 QString
@@ -951,6 +1010,12 @@ calcTipId() const
   tableTip.addTableRow("To"   , node2_->name(), groupStr2);
   tableTip.addTableRow("Value", value_);
 
+  //---
+
+  //plot()->addTipColumns(tableTip, node1_->ind());
+
+  //---
+
   return tableTip.str();
 }
 
@@ -958,40 +1023,53 @@ void
 CQChartsAdjacencyObj::
 getSelectIndices(Indices &inds) const
 {
-  inds.insert(node1_->ind());
-  inds.insert(node2_->ind());
+  for (auto &ind : modelInds())
+    inds.insert(ind);
 }
 
 void
 CQChartsAdjacencyObj::
-draw(QPainter *painter)
+draw(CQChartsPaintDevice *device)
 {
   if (isInside()) {
     if (plot_->insideObj() != this) {
       CQChartsAdjacencyPlot *plot = const_cast<CQChartsAdjacencyPlot *>(plot_);
 
-      plot->setInsideObj(this);
+      plot->setInsideObj(const_cast<CQChartsAdjacencyObj *>(this));
 
-      plot->queueDrawForeground();
+      plot->drawForeground();
     }
   }
 
   //---
 
-  //int nn = plot_->numNodes();
+  ColorInd colorInd = calcColorInd();
 
-  QColor bc = plot_->interpEmptyCellFillColor(0, 1);
+  //---
+
+  auto interpGroupColor = [&](CQChartsAdjacencyNode *node) {
+    if (plot_->colorType() == CQChartsPlot::ColorType::AUTO)
+      return plot_->interpGroupColor(node->group());
+    else {
+      return plot_->interpFillColor(colorInd);
+    }
+  };
+
+  //---
+
+  // calc fill color
+  QColor bc = plot_->interpEmptyCellFillColor(ColorInd());
 
   // node to self (diagonal)
   if (node1_ == node2_) {
-    bc = plot_->interpGroupColor(node1_->group());
+    bc = interpGroupColor(node1_);
   }
   // node to other node (scale to connections)
   else {
-    QColor c1 = plot_->interpGroupColor(node1_->group());
-    QColor c2 = plot_->interpGroupColor(node2_->group());
+    QColor c1 = interpGroupColor(node1_);
+    QColor c2 = interpGroupColor(node2_);
 
-    double s = (1.0*plot_->maxValue() - value_)/plot_->maxValue();
+    double s = CMathUtil::map(value_, 0.0, plot_->maxValue(), 0.0, 1.0);
 
     double r = (c1.redF  () + c2.redF  () + s*bc.redF  ())/3;
     double g = (c1.greenF() + c2.greenF() + s*bc.greenF())/3;
@@ -1002,31 +1080,21 @@ draw(QPainter *painter)
 
   //---
 
-  // set pen and brush
-  QPen   pen;
-  QBrush brush;
+  // calc pen and brush
+  CQChartsPenBrush penBrush;
 
-  QColor pc = plot_->interpBorderColor(0, 1);
+  QColor pc = plot_->interpStrokeColor(colorInd);
 
-  plot_->setPen(pen, true, pc, plot_->borderAlpha(),
-                plot_->borderWidth(), plot_->borderDash());
+  plot_->setPenBrush(penBrush.pen, penBrush.brush,
+    true, pc, plot_->strokeAlpha(), plot_->strokeWidth(), plot_->strokeDash(),
+    true, bc, plot_->fillAlpha(), plot_->fillPattern());
 
-  plot_->setBrush(brush, true, bc, plot_->fillAlpha(), plot_->fillPattern());
-
-  plot_->updateObjPenBrushState(this, pen, brush);
-
-  painter->setPen  (pen);
-  painter->setBrush(brush);
+  plot_->updateObjPenBrushState(this, penBrush.pen, penBrush.brush);
 
   //---
 
   // draw box
-  CQChartsGeom::BBox prect = plot_->windowToPixel(rect());
-
-  double cxs = plot_->lengthPixelWidth (plot_->cornerSize());
-  double cys = plot_->lengthPixelHeight(plot_->cornerSize());
-
-  CQChartsRoundedPolygon::draw(painter, CQChartsUtil::toQRect(prect), cxs, cys);
+  drawRoundedPolygon(device, penBrush, rect(), plot_->cornerSize());
 }
 
 bool
@@ -1034,4 +1102,24 @@ CQChartsAdjacencyObj::
 inside(const CQChartsGeom::Point &p) const
 {
   return rect().inside(p);
+}
+
+double
+CQChartsAdjacencyObj::
+xColorValue(bool relative) const
+{
+  if (! relative)
+    return node1_->id();
+  else
+    return CMathUtil::map(node1_->id(), 0.0, plot_->maxNode(), 0.0, 1.0);
+}
+
+double
+CQChartsAdjacencyObj::
+yColorValue(bool relative) const
+{
+  if (! relative)
+    return node2_->id();
+  else
+    return CMathUtil::map(node2_->id(), 0.0, plot_->maxNode(), 0.0, 1.0);
 }

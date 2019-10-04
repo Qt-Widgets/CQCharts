@@ -9,6 +9,10 @@ class CQChartsDataLabel;
 
 //---
 
+/*!
+ * \brief Hierarchical Scatter plot type
+ * \ingroup Charts
+ */
 class CQChartsHierScatterPlotType : public CQChartsPlotType {
  public:
   CQChartsHierScatterPlotType();
@@ -21,6 +25,8 @@ class CQChartsHierScatterPlotType : public CQChartsPlotType {
   Dimension dimension() const override { return Dimension::TWO_D; }
 
   void addParameters() override;
+
+  bool canProbe() const override { return true; }
 
   QString description() const override;
 
@@ -50,6 +56,10 @@ struct CQChartsHierScatterPoint {
 
 using CQChartsHierScatterPoints = std::vector<CQChartsHierScatterPoint>;
 
+/*!
+ * \brief Hierarchical Scatter plot point group
+ * \ingroup Charts
+ */
 class CQChartsHierScatterPointGroup {
  public:
   CQChartsHierScatterPointGroup(CQChartsHierScatterPointGroup *parent, int ind) :
@@ -154,18 +164,21 @@ class CQChartsHierScatterPointGroup {
 
 //---
 
+/*!
+ * \brief Hierarchical Scatter Plot Point object
+ * \ingroup Charts
+ */
 class CQChartsHierScatterPointObj : public CQChartsPlotObj {
   Q_OBJECT
 
  public:
   CQChartsHierScatterPointObj(const CQChartsHierScatterPlot *plot, const CQChartsGeom::BBox &rect,
-                              const QPointF &p, int i, int n);
+                              const QPointF &p, const ColorInd &iv);
+
+  QString typeName() const override { return "point"; }
 
   const QString &name() const { return name_; }
   void setName(const QString &s) { name_ = s; }
-
-  const QModelIndex &ind() const { return ind_; }
-  void setInd(const QModelIndex &i) { ind_ = i; }
 
   CQChartsHierScatterPointGroup *group() const { return group_; }
   void setGroup(CQChartsHierScatterPointGroup *p) { group_ = p; }
@@ -178,17 +191,12 @@ class CQChartsHierScatterPointObj : public CQChartsPlotObj {
 
   void getSelectIndices(Indices &inds) const override;
 
-  void addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const override;
-
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
  private:
   const CQChartsHierScatterPlot* plot_ { nullptr };
   QPointF                        p_;
-  int                            i_    { -1 };
-  int                            n_    { -1 };
   QString                        name_;
-  QModelIndex                    ind_;
   CQChartsHierScatterPointGroup* group_ { nullptr };
 };
 
@@ -196,12 +204,16 @@ class CQChartsHierScatterPointObj : public CQChartsPlotObj {
 
 #include <CQChartsKey.h>
 
+/*!
+ * \brief Hierarchical Scatter Plot Key Color Box
+ * \ingroup Charts
+ */
 class CQChartsHierScatterKeyColor : public CQChartsKeyColorBox {
   Q_OBJECT
 
  public:
   CQChartsHierScatterKeyColor(CQChartsHierScatterPlot *plot, CQChartsHierScatterPointGroup *group,
-                              int i, int n);
+                              const ColorInd &ic);
 
   bool selectPress(const CQChartsGeom::Point &p, CQChartsSelMod selMod) override;
 
@@ -213,6 +225,10 @@ class CQChartsHierScatterKeyColor : public CQChartsKeyColorBox {
 
 //---
 
+/*!
+ * \brief Hierarchical Scatter Plot
+ * \ingroup Charts
+ */
 class CQChartsHierScatterPlot : public CQChartsPlot,
  public CQChartsObjPointData<CQChartsHierScatterPlot> {
   Q_OBJECT
@@ -278,6 +294,10 @@ class CQChartsHierScatterPlot : public CQChartsPlot,
 
   void addProperties() override;
 
+  void getPropertyNames(QStringList &names, bool hidden) const override;
+
+  //---
+
   CQChartsGeom::Range calcRange() const override;
 
   void initGroupValueSets();
@@ -304,6 +324,20 @@ class CQChartsHierScatterPlot : public CQChartsPlot,
 
   bool addMenuItems(QMenu *menu) override;
 
+  //---
+
+  void write(std::ostream &os, const QString &varName="",
+             const QString &modelName="") const override;
+
+ private:
+  void resetAxes();
+
+  void initAxes();
+
+  //---
+
+  bool probe(ProbeData &probeData) const override;
+
  public slots:
   void popCurrentGroup();
 
@@ -312,19 +346,19 @@ class CQChartsHierScatterPlot : public CQChartsPlot,
  private:
   using PointGroup = CQChartsHierScatterPointGroup;
 
-  CQChartsColumn     xColumn_;                     //! x column
-  CQChartsColumn     yColumn_;                     //! y column
-  CQChartsColumn     nameColumn_;                  //! name column
-  CQChartsColumns    groupColumns_;                //! group columns
-  double             fontSize_        { 8 };       //! font size
-  CQChartsDataLabel* dataLabel_       { nullptr }; //! data label style
-  QStringList        filterNames_;                 //! filter names
-  CQChartsColumns    groupValues_;                 //! group values
-  PointGroup*        rootGroup_       { nullptr }; //! root group
-  PointGroup*        currentGroup_    { nullptr }; //! current group
-  QString            xname_;                       //! x name
-  QString            yname_;                       //! y name
-  GroupValueSets     groupValueSets_;              //! group value sets
+  CQChartsColumn     xColumn_;                     //!< x column
+  CQChartsColumn     yColumn_;                     //!< y column
+  CQChartsColumn     nameColumn_;                  //!< name column
+  CQChartsColumns    groupColumns_;                //!< group columns
+  double             fontSize_        { 8 };       //!< font size
+  CQChartsDataLabel* dataLabel_       { nullptr }; //!< data label style
+  QStringList        filterNames_;                 //!< filter names
+  CQChartsColumns    groupValues_;                 //!< group values
+  PointGroup*        rootGroup_       { nullptr }; //!< root group
+  PointGroup*        currentGroup_    { nullptr }; //!< current group
+  QString            xname_;                       //!< x name
+  QString            yname_;                       //!< y name
+  GroupValueSets     groupValueSets_;              //!< group value sets
 };
 
 #endif

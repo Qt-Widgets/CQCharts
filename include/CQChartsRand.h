@@ -5,6 +5,10 @@
 
 namespace CQChartsRand {
 
+/*!
+ * \brief Integer in range
+ * \ingroup Charts
+ */
 class IntInRange {
  public:
   IntInRange(int min, int max) :
@@ -21,6 +25,10 @@ class IntInRange {
   std::uniform_int_distribution<int> idis_;
 };
 
+/*!
+ * \brief Real in range
+ * \ingroup Charts
+ */
 class RealInRange {
  public:
   RealInRange(double min, double max) :
@@ -32,12 +40,16 @@ class RealInRange {
   }
 
  private:
-  std::random_device                     rd_;   //! random device
-  std::default_random_engine             eng_;  //! random engine
-//std::mt19937                           mt_;   //! mersine twister
-  std::uniform_real_distribution<double> rdis_; //! uniform distribution
+  std::random_device                     rd_;   //!< random device
+  std::default_random_engine             eng_;  //!< random engine
+//std::mt19937                           mt_;   //!< mersine twister
+  std::uniform_real_distribution<double> rdis_; //!< uniform distribution
 };
 
+/*!
+ * \brief Normalized Real
+ * \ingroup Charts
+ */
 class NormalRealInRange {
  public:
   NormalRealInRange(double mean, double stddev) :

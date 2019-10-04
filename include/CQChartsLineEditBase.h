@@ -11,10 +11,14 @@ class CQChartsPropertyViewTree;
 class CQWidgetMenu;
 
 class QHBoxLayout;
-class QLineEdit;
+class CQLineEdit;
 class QPushButton;
 class QStyleOptionComboBox;
 
+/*!
+ * \brief model line edit base class
+ * \ingroup Charts
+ */
 class CQChartsLineEditBase : public QFrame {
   Q_OBJECT
 
@@ -81,17 +85,22 @@ class CQChartsLineEditBase : public QFrame {
   CQChartsPropertyViewTree* propertyViewTree_ { nullptr };
   CQChartsEditBase*         menuEdit_         { nullptr };
   QHBoxLayout*              layout_           { nullptr };
-  QLineEdit*                edit_             { nullptr };
+  CQLineEdit*               edit_             { nullptr };
   QPushButton*              button_           { nullptr };
   CQWidgetMenu*             menu_             { nullptr };
+  bool                      connected_        { false };
   mutable QColor            tc_;
 };
 
 //---
 
-#include <QLineEdit>
+#include <CQLineEdit.h>
 
-class CQChartsLineEditEdit : public QLineEdit {
+/*!
+ * \brief model edit line edit
+ * \ingroup Charts
+ */
+class CQChartsLineEditEdit : public CQLineEdit {
   Q_OBJECT
 
  public:
@@ -107,6 +116,10 @@ class CQChartsLineEditEdit : public QLineEdit {
 
 #include <QPushButton>
 
+/*!
+ * \brief model edit menu button
+ * \ingroup Charts
+ */
 class CQChartsLineEditMenuButton : public QPushButton {
   Q_OBJECT
 

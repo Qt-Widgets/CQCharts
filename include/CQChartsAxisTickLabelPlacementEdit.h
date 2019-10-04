@@ -4,9 +4,15 @@
 #include <CQChartsAxisTickLabelPlacement.h>
 #include <CQChartsEnumEdit.h>
 
-// editor for CQChartsAxisTickLabelPlacement
+/*!
+ * \brief editor for CQChartsAxisTickLabelPlacement
+ * \ingroup Charts
+ */
 class CQChartsAxisTickLabelPlacementEdit : public CQChartsEnumEdit {
   Q_OBJECT
+
+  Q_PROPERTY(CQChartsAxisTickLabelPlacement axisTickLabelPlacement
+               READ axisTickLabelPlacement WRITE setAxisTickLabelPlacement)
 
  public:
   CQChartsAxisTickLabelPlacementEdit(QWidget *parent=nullptr);
@@ -37,7 +43,10 @@ class CQChartsAxisTickLabelPlacementEdit : public CQChartsEnumEdit {
 
 //------
 
-// type for CQChartsAxisTickLabelPlacement
+/*!
+ * \brief type for CQChartsAxisTickLabelPlacement
+ * \ingroup Charts
+ */
 class CQChartsAxisTickLabelPlacementPropertyViewType : public CQChartsEnumPropertyViewType {
  public:
   CQPropertyViewEditorFactory *getEditor() const override;
@@ -47,7 +56,10 @@ class CQChartsAxisTickLabelPlacementPropertyViewType : public CQChartsEnumProper
 
 //---
 
-// editor factory for CQChartsAxisTickLabelPlacement
+/*!
+ * \brief editor factory for CQChartsAxisTickLabelPlacement
+ * \ingroup Charts
+ */
 class CQChartsAxisTickLabelPlacementPropertyViewEditorFactory :
   public CQChartsEnumPropertyViewEditorFactory {
  public:

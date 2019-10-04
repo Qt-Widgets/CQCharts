@@ -6,11 +6,12 @@
 #include <CQCharts.h>
 #include <CQChartsDrawUtil.h>
 #include <CQChartsTip.h>
+#include <CQChartsPaintDevice.h>
+#include <CQChartsHtml.h>
 
+#include <CQPropertyViewModel.h>
 #include <CQPropertyViewItem.h>
 #include <CQPerfMonitor.h>
-
-#include <QPainter>
 
 CQChartsRadarPlotType::
 CQChartsRadarPlotType()
@@ -40,11 +41,20 @@ QString
 CQChartsRadarPlotType::
 description() const
 {
-  return "<h2>Summary</h2>\n"
-         "<p>Draws polygon for each row with a point for each value column.<p>\n"
-         "<h2>Columns</h2>\n"
-         "<p>The <b>Name</b> column specifies the name for the value set.</p>\n"
-         "<p>The column headers specify the name of the indiviidual values.</p>\n";
+  auto B   = [](const QString &str) { return CQChartsHtml::Str::bold(str); };
+  auto IMG = [](const QString &src) { return CQChartsHtml::Str::img(src); };
+
+  return CQChartsHtml().
+   h2("Radar Plot").
+    h3("Summary").
+     p("Draws polygon for each row with a point for each value column.").
+    h3("Columns").
+    p("The " + B("Name") + " column specifies the name for the value set.").
+    p("The column headers specify the name of the indiviidual values.").
+    h3("Limitations").
+     p("None.").
+    h3("Example").
+     p(IMG("images/radar.png"));
 }
 
 CQChartsPlot *
@@ -70,8 +80,8 @@ CQChartsRadarPlot(CQChartsView *view, const ModelP &model) :
   setFillColor(CQChartsColor(CQChartsColor::Type::PALETTE));
   setFillAlpha(0.5);
 
-  setBorder(true);
-  setFilled(true);
+  setFilled (true);
+  setStroked(true);
 
   setTextColor(CQChartsColor(CQChartsColor::Type::INTERFACE_VALUE, 1));
 
@@ -91,14 +101,14 @@ void
 CQChartsRadarPlot::
 setNameColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(nameColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(nameColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsRadarPlot::
 setValueColumns(const CQChartsColumns &c)
 {
-  CQChartsUtil::testAndSet(valueColumns_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(valueColumns_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 //------
@@ -107,14 +117,14 @@ void
 CQChartsRadarPlot::
 setAngleStart(double r)
 {
-  CQChartsUtil::testAndSet(angleStart_, r, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(angleStart_, r, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsRadarPlot::
 setAngleExtent(double r)
 {
-  CQChartsUtil::testAndSet(angleExtent_, r, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(angleExtent_, r, [&]() { updateRangeAndObjs(); } );
 }
 
 //----
@@ -123,33 +133,40 @@ void
 CQChartsRadarPlot::
 addProperties()
 {
+  auto addProp = [&](const QString &path, const QString &name, const QString &alias,
+                     const QString &desc) {
+    return &(this->addProperty(path, this, name, alias)->setDesc(desc));
+  };
+
+  //---
+
   CQChartsPlot::addProperties();
 
   // columns
-  addProperty("columns", this, "nameColumn"  , "name"  )->setDesc("Name column");
-  addProperty("columns", this, "valueColumns", "values")->setDesc("Value columns");
+  addProp("columns", "nameColumn"  , "name"  , "Name column");
+  addProp("columns", "valueColumns", "values", "Value columns");
 
   // options
-  addProperty("options", this, "angleStart" )->setDesc("Angle start");
-  addProperty("options", this, "angleExtent")->setDesc("Angle extent");
+  addProp("options", "angleStart" , "", "Angle start");
+  addProp("options", "angleExtent", "", "Angle extent");
 
   // grid
-  addProperty("grid", this, "gridLines", "visible")->setDesc("Grid lines visible");
+  addProp("grid", "gridLines", "visible", "Grid lines visible");
 
-  addLineProperties("grid", "gridLines");
+  addLineProperties("grid/stroke", "gridLines", "Grid");
 
   // fill
-  addProperty("fill", this, "filled", "visible")->setDesc("Fill visible");
+  addProp("fill", "filled", "visible", "Fill visible");
 
-  addFillProperties("fill", "fill");
+  addFillProperties("fill", "fill", "");
 
   // stroke
-  addProperty("stroke", this, "border", "visible")->setDesc("Stroke visible");
+  addProp("stroke", "stroked", "visible", "Stroke visible");
 
-  addLineProperties("stroke", "border");
+  addLineProperties("stroke", "stroke", "");
 
   // text
-  addTextProperties("text", "text");
+  addTextProperties("text", "text", "");
 }
 
 CQChartsGeom::Range
@@ -292,9 +309,9 @@ annotationBBox() const
           else if (y < 0)                align |= Qt::AlignTop;
 
           QRectF trect =
-            CQChartsDrawUtil::calcAlignedTextRect(font, p1.x, p1.y, name, align, 2, 2);
+            CQChartsDrawUtil::calcAlignedTextRect(font, p1.qpoint(), name, align, 2, 2);
 
-          bbox += pixelToWindow(CQChartsUtil::fromQRect(trect));
+          bbox += pixelToWindow(CQChartsGeom::BBox(trect));
         }
 
         //---
@@ -325,7 +342,7 @@ createObjs(PlotObjs &objs) const
 {
   CQPerfTrace trace("CQChartsRadarPlot::createObjs");
 
-  NoUpdate noUpdate(const_cast<CQChartsRadarPlot *>(this));
+  NoUpdate noUpdate(this);
 
   //---
 
@@ -443,8 +460,10 @@ addRow(const ModelVisitor::VisitData &data, int nr, PlotObjs &objs) const
 
   CQChartsGeom::BBox bbox(-1, -1, 1, 1);
 
+  ColorInd is(data.row, nr);
+
   CQChartsRadarObj *radarObj =
-    new CQChartsRadarObj(this, bbox, name, poly, nameValues, nameInd1, data.row, nr);
+    new CQChartsRadarObj(this, bbox, name, poly, nameValues, nameInd1, is);
 
   objs.push_back(radarObj);
 }
@@ -502,8 +521,10 @@ addKeyItems(CQChartsPlotKey *key)
 
       CQChartsRadarPlot *plot = const_cast<CQChartsRadarPlot *>(plot_);
 
-      CQChartsKeyColorBox *color = new CQChartsKeyColorBox(plot, data.row, numRows());
-      CQChartsKeyText     *text  = new CQChartsKeyText(plot, name, data.row, numRows());
+      ColorInd ic(data.row, numRows());
+
+      CQChartsKeyColorBox *color = new CQChartsKeyColorBox(plot, ColorInd(), ColorInd(), ic);
+      CQChartsKeyText     *text  = new CQChartsKeyText(plot, name, ic);
 
       color->setClickable(true);
 
@@ -545,7 +566,7 @@ hasBackground() const
 
 void
 CQChartsRadarPlot::
-drawBackground(QPainter *painter) const
+execDrawBackground(CQChartsPaintDevice *device) const
 {
   int nv = valueColumns().count();
 
@@ -573,7 +594,7 @@ drawBackground(QPainter *painter) const
 
       setGridLineDataPen(gpen1, 0, 1);
 
-      painter->setPen(gpen1);
+      device->setPen(gpen1);
 
       //---
 
@@ -589,7 +610,8 @@ drawBackground(QPainter *painter) const
 
         CQChartsGeom::Point p2 = windowToPixel(CQChartsGeom::Point(x, y));
 
-        painter->drawLine(QPointF(p1.x, p1.y), QPointF(p2.x, p2.y));
+        device->drawLine(device->pixelToWindow(p1.qpoint()),
+                         device->pixelToWindow(p2.qpoint()));
 
         a -= da;
       }
@@ -605,13 +627,13 @@ drawBackground(QPainter *painter) const
 
     QPen tpen;
 
-    QColor tc = interpTextColor(0, 1);
+    QColor tc = interpTextColor(ColorInd());
 
     setPen(tpen, true, tc, textAlpha());
 
     //---
 
-    view()->setPlotPainterFont(this, painter, textFont());
+    view()->setPlotPainterFont(this, device, textFont());
 
     int    nl = 5;
     double dr = valueRadius_/nl;
@@ -629,14 +651,14 @@ drawBackground(QPainter *painter) const
         double x = r*cos(ra);
         double y = r*sin(ra);
 
-        CQChartsGeom::Point p1 = windowToPixel(CQChartsGeom::Point(x, y));
+        CQChartsGeom::Point p1(x, y);
 
-        poly << QPointF(p1.x, p1.y);
+        poly << p1.qpoint();
 
         //---
 
         if (i == nl) {
-          painter->setPen(tpen);
+          device->setPen(tpen);
 
           //---
 
@@ -656,7 +678,7 @@ drawBackground(QPainter *painter) const
           else if (y > 0)                align |= Qt::AlignBottom;
           else if (y < 0)                align |= Qt::AlignTop;
 
-          CQChartsDrawUtil::drawAlignedText(painter, p1.x, p1.y, name, align, 2, 2);
+          CQChartsDrawUtil::drawAlignedText(device, p1.qpoint(), name, align, 2, 2);
         }
 
         //---
@@ -670,9 +692,9 @@ drawBackground(QPainter *painter) const
 
       // draw grid polygon
       if (isGridLines()) {
-        painter->setPen(gpen2);
+        device->setPen(gpen2);
 
-        painter->drawPolygon(poly);
+        device->drawPolygon(poly);
       }
     }
   }
@@ -683,18 +705,20 @@ drawBackground(QPainter *painter) const
 CQChartsRadarObj::
 CQChartsRadarObj(const CQChartsRadarPlot *plot, const CQChartsGeom::BBox &rect, const QString &name,
                  const QPolygonF &poly, const NameValues &nameValues, const QModelIndex &ind,
-                 int i, int n) :
- CQChartsPlotObj(const_cast<CQChartsRadarPlot *>(plot), rect), plot_(plot),
- name_(name), poly_(poly), nameValues_(nameValues), ind_(ind), i_(i), n_(n)
+                 const ColorInd &is) :
+ CQChartsPlotObj(const_cast<CQChartsRadarPlot *>(plot), rect, is, ColorInd(), ColorInd()),
+ plot_(plot), name_(name), poly_(poly), nameValues_(nameValues)
 {
-  assert(i_ >= 0 && i < n_);
+  setDetailHint(DetailHint::MAJOR);
+
+  setModelInd(ind);
 }
 
 QString
 CQChartsRadarObj::
 calcId() const
 {
-  return QString("poly:%1").arg(i_);
+  return QString("%1:%2").arg(typeName()).arg(is_.i);
 }
 
 QString
@@ -708,8 +732,34 @@ calcTipId() const
   for (const auto &nameValue : nameValues_)
     tableTip.addTableRow(nameValue.first, nameValue.second);
 
+  //---
+
+  plot()->addTipColumns(tableTip, modelInd());
+
+  //---
+
   return tableTip.str();
 }
+
+//---
+
+void
+CQChartsRadarObj::
+addProperties(CQPropertyViewModel *model, const QString &path)
+{
+  QString path1 = path + "/" + propertyId();
+
+  model->setObjectRoot(path1, this);
+
+  CQChartsPlotObj::addProperties(model, path1);
+
+  model->addProperty(path1, this, "rect"    )->setDesc("Bounding box");
+//model->addProperty(path1, this, "selected")->setDesc("Is selected");
+
+  model->addProperty(path1, this, "name")->setDesc("Name");
+}
+
+//---
 
 bool
 CQChartsRadarObj::
@@ -718,6 +768,7 @@ inside(const CQChartsGeom::Point &p) const
   if (! visible())
     return false;
 
+  // point
   if      (poly_.size() == 1) {
     const QPointF &p1 = poly_[0]; // circle radius p1.x()
 
@@ -726,6 +777,7 @@ inside(const CQChartsGeom::Point &p) const
 
     return (r < r1);
   }
+  // line
   else if (poly_.size() == 2) {
     const QPointF &p1 = poly_[0]; // circle radius p1.x() and p2.y()
     const QPointF &p2 = poly_[1];
@@ -735,8 +787,10 @@ inside(const CQChartsGeom::Point &p) const
 
     return (r < r1);
   }
-  else if (poly_.size() >= 3)
-    return poly_.containsPoint(CQChartsUtil::toQPoint(p), Qt::OddEvenFill);
+  // polygon
+  else if (poly_.size() >= 3) {
+    return poly_.containsPoint(p.qpoint(), Qt::OddEvenFill);
+  }
   else
     return false;
 }
@@ -760,20 +814,12 @@ getSelectIndices(Indices &inds) const
   for (const auto &valueColumn : plot_->valueColumns())
     addColumnSelectIndex(inds, valueColumn);
 
-  addColumnSelectIndex(inds, ind_.column());
+  addColumnSelectIndex(inds, modelInd().column());
 }
 
 void
 CQChartsRadarObj::
-addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const
-{
-  if (column.isValid())
-    addSelectIndex(inds, ind_.row(), column, ind_.parent());
-}
-
-void
-CQChartsRadarObj::
-draw(QPainter *painter)
+draw(CQChartsPaintDevice *device)
 {
   if (! poly_.size())
     return;
@@ -788,44 +834,45 @@ draw(QPainter *painter)
   // create pixel polygon
   QPolygonF ppoly;
 
-  for (int i = 0; i < poly_.size(); ++i) {
-    double x = poly_[i].x();
-    double y = poly_[i].y();
-
-    CQChartsGeom::Point p1 = plot_->windowToPixel(CQChartsGeom::Point(x, y));
-
-    ppoly << QPointF(p1.x, p1.y);
-  }
+  for (int i = 0; i < poly_.size(); ++i)
+    ppoly << plot_->windowToPixel(poly_[i]);
 
   ppoly << ppoly[0];
 
   //---
 
   // calc stroke and brush
+  ColorInd colorInd = calcColorInd();
+
   QPen   pen;
   QBrush brush;
 
+  QColor strokeColor = plot_->interpStrokeColor(colorInd);
+  QColor fillColor   = plot_->interpFillColor  (colorInd);
+
   plot_->setPenBrush(pen, brush,
-    plot_->isBorder(), plot_->interpBorderColor(i_, n_), plot_->borderAlpha(),
-    plot_->borderWidth(), plot_->borderDash(),
-    plot_->isFilled(), plot_->interpFillColor(i_, n_), plot_->fillAlpha(),
-    plot_->fillPattern());
+    plot_->isStroked(), strokeColor, plot_->strokeAlpha(),
+    plot_->strokeWidth(), plot_->strokeDash(),
+    plot_->isFilled(), fillColor, plot_->fillAlpha(), plot_->fillPattern());
 
   plot_->updateObjPenBrushState(this, pen, brush);
 
-  painter->setPen  (pen);
-  painter->setBrush(brush);
+  device->setPen  (pen);
+  device->setBrush(brush);
 
   //---
 
-  // draw polygon
+  // draw point
   if      (poly_.size() == 1) {
     const QPointF &p1 = ppoly[0]; // circle radius p1.x()
 
     double r = p1.x() - po.x;
 
-    painter->drawEllipse(QRectF(po.x - r, po.y - r, 2*r, 2*r));
+    QRectF pr(po.x - r, po.y - r, 2*r, 2*r);
+
+    device->drawEllipse(device->pixelToWindow(pr));
   }
+  // draw line
   else if (poly_.size() == 2) {
     const QPointF &p1 = ppoly[0]; // circle radius p1.x() and p2.y()
     const QPointF &p2 = ppoly[1];
@@ -833,9 +880,12 @@ draw(QPainter *painter)
     double xr = p1.x() - po.x;
     double yr = p2.y() - po.y;
 
-    painter->drawEllipse(QRectF(po.x - xr, po.y - yr, 2*xr, 2*yr));
+    QRectF pr(po.x - xr, po.y - yr, 2*xr, 2*yr);
+
+    device->drawEllipse(device->pixelToWindow(pr));
   }
+  // draw polygon
   else if (poly_.size() >= 3) {
-    painter->drawPolygon(ppoly);
+    device->drawPolygon(poly_);
   }
 }

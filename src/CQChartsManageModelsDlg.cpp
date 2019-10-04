@@ -3,7 +3,6 @@
 #include <CQChartsModelList.h>
 #include <CQChartsModelData.h>
 #include <CQChartsModelUtil.h>
-#include <CQChartsCreatePlotDlg.h>
 #include <CQChartsColumnType.h>
 #include <CQChartsVariant.h>
 #include <CQCharts.h>
@@ -32,22 +31,15 @@ CQChartsManageModelsDlg(CQCharts *charts) :
   //---
 
   // Bottom Buttons
-  QHBoxLayout *buttonLayout = new QHBoxLayout;
+  QHBoxLayout *buttonLayout = CQUtil::makeLayout<QHBoxLayout>(2, 2);
 
-  QPushButton *writeButton = new QPushButton("Write");
-  writeButton->setObjectName("write");
+  QPushButton *writeButton = CQUtil::makeLabelWidget<QPushButton>("Write", "write");
+  QPushButton *plotButton  = CQUtil::makeLabelWidget<QPushButton>("Plot" , "plot" );
+  QPushButton *doneButton  = CQUtil::makeLabelWidget<QPushButton>("Done" , "done" );
 
   connect(writeButton, SIGNAL(clicked()), this, SLOT(writeSlot()));
-
-  QPushButton *plotButton = new QPushButton("Plot");
-  plotButton->setObjectName("plot");
-
-  connect(plotButton, SIGNAL(clicked()), this, SLOT(plotSlot()));
-
-  QPushButton *doneButton = new QPushButton("Done");
-  doneButton->setObjectName("done");
-
-  connect(doneButton, SIGNAL(clicked()), this, SLOT(cancelSlot()));
+  connect(plotButton , SIGNAL(clicked()), this, SLOT(plotSlot()));
+  connect(doneButton , SIGNAL(clicked()), this, SLOT(cancelSlot()));
 
   buttonLayout->addWidget(writeButton);
   buttonLayout->addWidget(plotButton);
@@ -101,36 +93,36 @@ writeSlot()
     for (const auto &param : typeData->params()) {
       QVariant var;
 
-      if (! nameValues.nameValue(param.name(), var))
+      if (! nameValues.nameValue(param->name(), var))
         continue;
 
       if (! var.isValid())
         continue;
 
-      if      (param.type() == CQBaseModelType::BOOLEAN) {
-        if (var.toBool() == param.def().toBool())
+      if      (param->type() == CQBaseModelType::BOOLEAN) {
+        if (var.toBool() == param->def().toBool())
           continue;
       }
-      else if (param.type() == CQBaseModelType::REAL) {
+      else if (param->type() == CQBaseModelType::REAL) {
         bool ok1, ok2;
 
-        double r1 = CQChartsVariant::toReal(var        , ok1);
-        double r2 = CQChartsVariant::toReal(param.def(), ok2);
+        double r1 = CQChartsVariant::toReal(var         , ok1);
+        double r2 = CQChartsVariant::toReal(param->def(), ok2);
 
         if (ok1 && ok2 && r1 == r2)
           continue;
       }
-      else if (param.type() == CQBaseModelType::INTEGER) {
+      else if (param->type() == CQBaseModelType::INTEGER) {
         bool ok1, ok2;
 
-        int i1 = CQChartsVariant::toInt(var        , ok1);
-        int i2 = CQChartsVariant::toInt(param.def(), ok2);
+        int i1 = CQChartsVariant::toInt(var         , ok1);
+        int i2 = CQChartsVariant::toInt(param->def(), ok2);
 
         if (ok1 && ok2 && i1 == i2)
           continue;
       }
-      else if (param.type() == CQBaseModelType::STRING) {
-        if (var.toString() == param.def().toString())
+      else if (param->type() == CQBaseModelType::STRING) {
+        if (var.toString() == param->def().toString())
           continue;
       }
 
@@ -139,7 +131,7 @@ writeSlot()
       if (first)
         value += ":";
 
-      value += param.name() + "=" + str;
+      value += param->name() + "=" + str;
     }
 
     std::cerr << "set_charts_data -model " << modelData->ind() <<
@@ -150,7 +142,7 @@ writeSlot()
   //---
 
   // TODO: write what ?
-  modelData->write();
+  modelData->write(std::cerr);
 }
 
 void
@@ -159,11 +151,7 @@ plotSlot()
 {
   CQChartsModelData *modelData = modelWidgets_->modelList()->currentModelData();
 
-  delete createPlotDlg_;
-
-  createPlotDlg_ = new CQChartsCreatePlotDlg(charts_, modelData);
-
-  createPlotDlg_->show();
+  charts_->createPlotDlg(modelData);
 }
 
 void
@@ -171,4 +159,13 @@ CQChartsManageModelsDlg::
 cancelSlot()
 {
   hide();
+}
+
+QSize
+CQChartsManageModelsDlg::
+sizeHint() const
+{
+  QFontMetrics fm(font());
+
+  return QSize(fm.width("X")*60, fm.height()*40);
 }

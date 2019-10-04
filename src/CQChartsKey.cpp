@@ -4,15 +4,14 @@
 #include <CQChartsView.h>
 #include <CQChartsEditHandles.h>
 #include <CQChartsUtil.h>
-#include <CQCharts.h>
-#include <CQChartsRoundedPolygon.h>
 #include <CQChartsDrawUtil.h>
+#include <CQChartsPaintDevice.h>
+#include <CQCharts.h>
 
 #include <CQPropertyViewModel.h>
 #include <CQPropertyViewItem.h>
 
 #include <QScrollBar>
-#include <QPainter>
 #include <QStylePainter>
 #include <QStyleOptionSlider>
 
@@ -22,11 +21,11 @@ CQChartsKey(CQChartsView *view) :
  CQChartsObjTextData      <CQChartsKey>(this),
  CQChartsObjHeaderTextData<CQChartsKey>(this)
 {
-  setObjectName("key");
+  init();
 
   setStateColoring(false);
 
-  setHeaderTextAlign(Qt::AlignHCenter | Qt::AlignVCenter);
+  editHandles_ = new CQChartsEditHandles(view, CQChartsEditHandles::Mode::MOVE);
 }
 
 CQChartsKey::
@@ -35,21 +34,45 @@ CQChartsKey(CQChartsPlot *plot) :
  CQChartsObjTextData      <CQChartsKey>(this),
  CQChartsObjHeaderTextData<CQChartsKey>(this)
 {
+  init();
+
+  setFilled(true);
+  setFillAlpha(0.5);
+
+  editHandles_ = new CQChartsEditHandles(plot, CQChartsEditHandles::Mode::MOVE);
+}
+
+void
+CQChartsKey::
+init()
+{
   setObjectName("key");
 
-  setFilled(false);
-
   setHeaderTextAlign(Qt::AlignHCenter | Qt::AlignVCenter);
+
+  //---
+
+  CQChartsFont font;
+
+  font.decFontSize(4);
+
+  setTextFont(font);
+}
+
+CQChartsKey::
+~CQChartsKey()
+{
+  delete editHandles_;
 }
 
 QString
 CQChartsKey::
 calcId() const
 {
-  if      (view_)
-    return view_->id() + "/key";
-  else if (plot_)
-    return plot_->id() + "/key";
+  if      (view())
+    return view()->id() + "/key";
+  else if (plot())
+    return plot()->id() + "/key";
   else
     return "key";
 }
@@ -59,16 +82,16 @@ CQChartsKey::
 setSelected(bool b)
 {
   CQChartsUtil::testAndSet(selected_, b, [&]() {
-    if      (view_)
-      view_->update();
-    else if (plot_)
-      plot_->queueDrawObjs();
-  } );
-}
+    if      (view()) {
+      view()->invalidateObjects();
+      view()->invalidateOverlay();
 
-CQChartsKey::
-~CQChartsKey()
-{
+      view()->update();
+    }
+    else if (plot()) {
+      plot()->drawObjs();
+    }
+  } );
 }
 
 void
@@ -82,7 +105,7 @@ setLocation(const CQChartsKeyLocation &l)
 
 void
 CQChartsKey::
-draw(QPainter *) const
+draw(CQChartsPaintDevice *) const
 {
 }
 
@@ -117,6 +140,11 @@ void
 CQChartsViewKey::
 doLayout()
 {
+  if (location() == CQChartsKeyLocation::Type::ABS_POSITION)
+    return;
+
+  //----
+
   QFont font = view()->viewFont(textFont());
 
   QFontMetricsF fm(font);
@@ -138,7 +166,7 @@ doLayout()
 
   //----
 
-  CQChartsGeom::Point p = view_->windowToPixel(CQChartsGeom::Point(x, y));
+  CQChartsGeom::Point p = view()->windowToPixel(CQChartsGeom::Point(x, y));
 
   //p.x += dx*bs;
   //p.y += dy*bs;
@@ -148,10 +176,10 @@ doLayout()
   double pw = 0.0;
   double ph = 0.0;
 
-  int n = view_->numPlots();
+  int n = view()->numPlots();
 
   for (int i = 0; i < n; ++i) {
-    CQChartsPlot *plot = view_->plot(i);
+    CQChartsPlot *plot = view()->plot(i);
 
     QString name = plot->keyText();
 
@@ -174,71 +202,107 @@ doLayout()
   else if (location().onVCenter()) pyr = p.y - size_.height()/2;
   else if (location().onBottom ()) pyr = p.y - size_.height()   - margin();
 
-  position_ = QPointF(pxr, pyr);
+  pposition_ = QPointF(pxr, pyr);
+  wposition_ = view()->pixelToWindow(pposition_);
 }
 
 void
 CQChartsViewKey::
-addProperties(CQPropertyViewModel *model, const QString &path)
+addProperties(CQPropertyViewModel *model, const QString &path, const QString &/*desc*/)
 {
-  model->addProperty(path, this, "visible"   )->setDesc("Is visible");
-  model->addProperty(path, this, "selected"  )->setDesc("Is selected");
-  model->addProperty(path, this, "horizontal")->setDesc("Draw items horizontally");
-  model->addProperty(path, this, "autoHide"  )->setDesc("Auto hide key when too large");
-  model->addProperty(path, this, "clipped"   )->setDesc("Clip key to view");
+  auto addProp = [&](const QString &name, const QString &desc, bool hidden=false) {
+    model->addProperty(path, this, name)->setDesc(desc).setHidden(hidden);
+  };
 
-  model->addProperty(path, this, "location")->setDesc("Key placement location");
+  //---
 
-  model->addProperty(path, this, "interactive"  )->setDesc("Key supports click");
-  model->addProperty(path, this, "pressBehavior")->setDesc("Key click behavior");
+  addProp("visible"   , "Is visible");
+  addProp("selected"  , "Is selected");
+  addProp("horizontal", "Draw items horizontally");
+  addProp("autoHide"  , "Auto hide key when too large");
+  addProp("clipped"   , "Clip key to view");
 
-  model->addProperty(path, this, "hiddenAlpha")->setDesc("Alpha for hidden items");
+  addProp("location", "Key placement location");
+
+  addProp("interactive"  , "Key supports click", true);
+  addProp("pressBehavior", "Key click behavior", true);
+
+  addProp("hiddenAlpha", "Alpha for hidden items");
 
   //---
 
   // header text
-  QString headerPath = path + "/header";
+  QString headerPath     = path + "/header";
+  QString headerTextPath = headerPath + "/text";
 
-  model->addProperty(headerPath, this, "header"             , "text"     )->
-                      setDesc("Header text");
-  model->addProperty(headerPath, this, "headerTextColor"    , "color"    )->
-                      setDesc("Header text color");
-  model->addProperty(headerPath, this, "headerTextAlpha"    , "alpha"    )->
-                      setDesc("Header text alpha");
-  model->addProperty(headerPath, this, "headerTextFont"     , "font"     )->
-                      setDesc("Header text font");
-  model->addProperty(headerPath, this, "headerTextAngle"    , "angle"    )->
-                      setDesc("Header text angle");
-  model->addProperty(headerPath, this, "headerTextContrast" , "contrast" )->
-                      setDesc("Header text contrast");
-  model->addProperty(headerPath, this, "headerTextAlign"    , "align"    )->
-                      setDesc("Header text align");
-  model->addProperty(headerPath, this, "headerTextFormatted", "formatted")->
-                      setDesc("Header text formatted to box");
-  model->addProperty(headerPath, this, "headerTextScaled"   , "scaled"   )->
-                      setDesc("Header text scaled to box");
-  model->addProperty(headerPath, this, "headerTextHtml"     , "html"     )->
-                      setDesc("Header text is html");
+  auto addHeaderProp = [&](const QString &name, const QString &alias, const QString &desc) {
+    return &(model->addProperty(headerTextPath, this, name, alias)->
+              setDesc("Key header text " + desc));
+  };
+
+  auto addHeaderStyleProp = [&](const QString &name, const QString &alias, const QString &desc) {
+    CQPropertyViewItem *item = addHeaderProp(name, alias, desc);
+    CQCharts::setItemIsStyle(item);
+    return item;
+  };
 
   //---
 
-  // border, fill
-  CQChartsBoxObj::addProperties(model, path);
+  addHeaderProp("header", "string", "string");
+
+  addHeaderStyleProp("headerTextColor"    , "color"    , "color");
+  addHeaderStyleProp("headerTextAlpha"    , "alpha"    , "alpha");
+  addHeaderStyleProp("headerTextFont"     , "font"     , "font");
+//addHeaderStyleProp("headerTextAngle"    , "angle"    , "angle");
+  addHeaderStyleProp("headerTextContrast" , "contrast" , "contrast");
+  addHeaderStyleProp("headerTextAlign"    , "align"    , "align");
+  addHeaderStyleProp("headerTextFormatted", "formatted", "formatted to fit box");
+  addHeaderStyleProp("headerTextScaled"   , "scaled"   , "scaled to box");
+  addHeaderStyleProp("headerTextHtml"     , "html"     , "is html");
+
+  //---
+
+  // stroke, fill
+  CQChartsBoxObj::addProperties(model, path, "");
 
   //---
 
   // key text
   QString textPath = path + "/text";
 
-  model->addProperty(textPath, this, "textColor", "color")->setDesc("Text color");
-  model->addProperty(textPath, this, "textAlpha", "alpha")->setDesc("Text alpha");
-  model->addProperty(textPath, this, "textFont" , "font" )->setDesc("Text font");
-  model->addProperty(textPath, this, "textAlign", "align")->setDesc("Text align");
+  auto addTextProp = [&](const QString &name, const QString &alias, const QString &desc) {
+    return &(model->addProperty(textPath, this, name, alias)->setDesc("Key text " + desc));
+  };
+
+  auto addTextStyleProp = [&](const QString &name, const QString &alias, const QString &desc) {
+    CQPropertyViewItem *item = addTextProp(name, alias, desc);
+    CQCharts::setItemIsStyle(item);
+    return item;
+  };
+
+  //---
+
+  addTextStyleProp("textColor"    , "color"    , "color");
+  addTextStyleProp("textAlpha"    , "alpha"    , "alpha");
+  addTextStyleProp("textFont"     , "font"     , "font");
+//addTextStyleProp("textAngle"    , "angle"    , "angle");
+  addTextStyleProp("textContrast" , "contrast" , "contrast");
+  addTextStyleProp("textAlign"    , "align"    , "align");
+  addTextStyleProp("textFormatted", "formatted", "formatted to fit box");
+  addTextStyleProp("textScaled"   , "scaled"   , "scaled to box");
+  addTextStyleProp("textHtml"     , "html"     , "is html");
+}
+
+bool
+CQChartsViewKey::
+contains(const CQChartsGeom::Point &p) const
+{
+  return pbbox_.inside(p);
 }
 
 void
 CQChartsViewKey::
-draw(QPainter *painter) const
+draw(CQChartsPaintDevice *device) const
 {
   if (! isVisible())
     return;
@@ -252,18 +316,18 @@ draw(QPainter *painter) const
   //---
 
   // pixel position & size (TODO: using view/units)
-  double px = position_.x(); // left
-  double py = position_.y(); // top
+  double px = pposition_.x(); // left
+  double py = pposition_.y(); // top
 
   double pw = size_.width ();
   double ph = size_.height();
 
-  //vbbox_ = CQChartsGeom::BBox(px, py - ph, px + pw, py);
+  wbbox_ = CQChartsGeom::BBox(px, py - ph, px + pw, py);
 
   //---
 
-  CQChartsGeom::Point p1 = view_->pixelToWindow(CQChartsGeom::Point(px     , py     ));
-  CQChartsGeom::Point p2 = view_->pixelToWindow(CQChartsGeom::Point(px + pw, py + ph));
+  CQChartsGeom::Point p1 = view()->pixelToWindow(CQChartsGeom::Point(px     , py     ));
+  CQChartsGeom::Point p2 = view()->pixelToWindow(CQChartsGeom::Point(px + pw, py + ph));
 
   pbbox_ = CQChartsGeom::BBox(p1.x, p2.y, p2.x, p1.y);
 
@@ -273,37 +337,39 @@ draw(QPainter *painter) const
 
   //---
 
-  CQChartsBoxObj::draw(painter, rect);
+  CQChartsBoxObj::draw(device, rect);
 
   //---
 
-  view()->setPainterFont(painter, textFont());
+  view()->setPainterFont(device, textFont());
 
-  QFontMetricsF fm(painter->font());
+  QFontMetricsF fm(device->font());
 
   double px1 = px + margin();
   double py1 = py + margin();
 
-  int n = view_->numPlots();
+  int n = view()->numPlots();
 
   double bs = fm.height() + 4.0;
 
-  double dth = (bs - fm.height())/2;
+  //double dth = (bs - fm.height())/2;
+
+  prects_.clear();
 
   for (int i = 0; i < n; ++i) {
     double py2 = py1 + bs + 2;
 
-    CQChartsPlot *plot = view_->plot(i);
+    CQChartsPlot *plot = view()->plot(i);
 
     bool checked = plot->isVisible();
 
     //---
 
-    drawCheckBox(painter, px1, (py1 + py2)/2.0 - bs/2.0, bs, checked);
+    drawCheckBox(device, px1, (py1 + py2)/2.0 - bs/2.0, bs, checked);
 
     //---
 
-    painter->setPen(interpTextColor(0, 1));
+    device->setPen(interpTextColor(ColorInd()));
 
     QString name = plot->keyText();
 
@@ -311,13 +377,25 @@ draw(QPainter *painter) const
 
     //double tw = fm.width(name);
 
-    CQChartsDrawUtil::drawSimpleText(painter, px2, py1 + fm.ascent() + dth, name);
+    QRectF rect1(px2, py1, pw - bs - 2*margin(), py2 - py1);
+
+    CQChartsTextOptions textOptions;
+
+    textOptions.contrast  = isTextContrast();
+    textOptions.formatted = isTextFormatted();
+    textOptions.scaled    = isTextScaled();
+    textOptions.html      = isTextHtml();
+    textOptions.align     = textAlign();
+
+    CQChartsDrawUtil::drawTextInBox(device, device->pixelToWindow(rect1), name, textOptions);
+
+    //CQChartsDrawUtil::drawSimpleText(device, QPointF(px2, py1 + fm.ascent() + dth), name);
 
     //---
 
     // save view key item (plot) rect
-    CQChartsGeom::Point p1 = view_->pixelToWindow(CQChartsGeom::Point(px     , py1));
-    CQChartsGeom::Point p2 = view_->pixelToWindow(CQChartsGeom::Point(px + pw, py2));
+    CQChartsGeom::Point p1 = view()->pixelToWindow(CQChartsGeom::Point(px     , py1));
+    CQChartsGeom::Point p2 = view()->pixelToWindow(CQChartsGeom::Point(px + pw, py2));
 
     CQChartsGeom::BBox prect(p1.x, p2.y, p2.x, p1.y);
 
@@ -331,22 +409,37 @@ draw(QPainter *painter) const
 
 void
 CQChartsViewKey::
-drawCheckBox(QPainter *painter, double x, double y, int bs, bool checked) const
+drawEditHandles(QPainter *painter) const
 {
-  QImage cimage(QSize(bs, bs), QImage::Format_ARGB32);
+  assert(view()->mode() == CQChartsView::Mode::EDIT || isSelected());
+
+  CQChartsViewKey *th = const_cast<CQChartsViewKey *>(this);
+
+  th->editHandles_->setMode(CQChartsEditHandles::Mode::MOVE);
+
+  th->editHandles_->setBBox(pbbox_);
+
+  editHandles_->draw(painter);
+}
+
+void
+CQChartsViewKey::
+drawCheckBox(CQChartsPaintDevice *device, double x, double y, int bs, bool checked) const
+{
+  QImage cimage = CQChartsUtil::initImage(QSize(bs, bs));
 
   cimage.fill(QColor(0,0,0,0));
 
   //QRectF qrect(x, y, bs, bs);
   QRectF qrect(0, 0, bs, bs);
 
-  QStylePainter spainter(&cimage, view_);
+  QStylePainter spainter(&cimage, view());
 
-  spainter.setPen(interpTextColor(0, 1));
+  spainter.setPen(interpTextColor(ColorInd()));
 
   QStyleOptionButton opt;
 
-  opt.initFrom(view_);
+  opt.initFrom(view());
 
   opt.rect = qrect.toRect();
 
@@ -354,23 +447,18 @@ drawCheckBox(QPainter *painter, double x, double y, int bs, bool checked) const
 
   spainter.drawControl(QStyle::CE_CheckBox, opt);
 
-  painter->drawImage(x, y, cimage);
+  device->drawImage(QPointF(x, y), cimage);
 
-  //painter->drawRect(qrect);
+  //device->drawRect(qrect);
 }
+
+//------
 
 bool
 CQChartsViewKey::
-isInside(const CQChartsGeom::Point &w) const
-{
-  return pbbox_.inside(w);
-}
-
-void
-CQChartsViewKey::
 selectPress(const CQChartsGeom::Point &w, CQChartsSelMod selMod)
 {
-  int n = std::min(view_->numPlots(), int(prects_.size()));
+  int n = std::min(view()->numPlots(), int(prects_.size()));
 
   for (int i = 0; i < n; ++i) {
     if (! prects_[i].inside(w))
@@ -385,21 +473,85 @@ selectPress(const CQChartsGeom::Point &w, CQChartsSelMod selMod)
   }
 
   redraw();
+
+  return true;
 }
+
+bool
+CQChartsViewKey::
+selectMove(const CQChartsGeom::Point &)
+{
+  return false;
+}
+
+bool
+CQChartsViewKey::
+selectRelease(const CQChartsGeom::Point &)
+{
+  return false;
+}
+
+//------
+
+bool
+CQChartsViewKey::
+editPress(const CQChartsGeom::Point &w)
+{
+  editHandles_->setDragPos(w);
+
+  return true;
+}
+
+bool
+CQChartsViewKey::
+editMove(const CQChartsGeom::Point &w)
+{
+  const CQChartsGeom::Point &dragPos = editHandles_->dragPos();
+
+  double dx = w.x - dragPos.x;
+  double dy = w.y - dragPos.y;
+
+  location_ = CQChartsKeyLocation::Type::ABS_POSITION;
+
+  wposition_ = wposition_ + QPointF(dx, dy);
+  pposition_ = view()->windowToPixel(wposition_);
+
+  editHandles_->setDragPos(w);
+
+  updatePosition(/*queued*/false);
+
+  return true;
+}
+
+bool
+CQChartsViewKey::
+editMotion(const CQChartsGeom::Point &w)
+{
+  return editHandles_->selectInside(w);
+}
+
+bool
+CQChartsViewKey::
+editRelease(const CQChartsGeom::Point &)
+{
+  return true;
+}
+
+//------
 
 void
 CQChartsViewKey::
 doShow(int i, CQChartsSelMod selMod)
 {
-  CQChartsPlot *plot = view_->plot(i);
+  CQChartsPlot *plot = view()->plot(i);
 
   if      (selMod == CQChartsSelMod::REPLACE) {
     CQChartsView::Plots plots;
 
-    view_->getPlots(plots);
+    view()->getPlots(plots);
 
     for (auto &plot1 : plots)
-      plot->setVisible(plot1 == plot);
+      plot1->setVisible(plot1 == plot);
   }
   else if (selMod == CQChartsSelMod::ADD)
     plot->setVisible(true);
@@ -419,7 +571,10 @@ void
 CQChartsViewKey::
 redraw(bool /*queued*/)
 {
-  view_->update();
+  view()->invalidateObjects();
+  view()->invalidateOverlay();
+
+  view()->update();
 }
 
 //------
@@ -432,9 +587,7 @@ CQChartsPlotKey(CQChartsPlot *plot) :
 
   //---
 
-  editHandles_ = new CQChartsEditHandles(plot, CQChartsEditHandles::Mode::MOVE);
-
-  setBorder(true);
+  setStroked(true);
 
   clearItems();
 
@@ -456,10 +609,40 @@ CQChartsPlotKey(CQChartsPlot *plot) :
 CQChartsPlotKey::
 ~CQChartsPlotKey()
 {
-  delete editHandles_;
+  delete scrollData_.hbar;
+  delete scrollData_.vbar;
 
   for (auto &item : items_)
     delete item;
+}
+
+//---
+
+bool
+CQChartsPlotKey::
+isEmpty() const
+{
+  return items_.empty();
+}
+
+bool
+CQChartsPlotKey::
+isVisibleAndNonEmpty() const
+{
+  return isVisible() && ! isEmpty();
+}
+
+bool
+CQChartsPlotKey::
+isOverlayVisible() const
+{
+  if (plot()->isOverlay()) {
+    const CQChartsPlotKey *key = plot()->getFirstPlotKey();
+
+    return (key == this);
+  }
+
+  return isVisibleAndNonEmpty();
 }
 
 //---
@@ -487,12 +670,12 @@ CQChartsPlotKey::
 redraw(bool queued)
 {
   if (queued) {
-    plot_->queueDrawBackground();
-    plot_->queueDrawForeground();
+    plot()->drawBackground();
+    plot()->drawForeground();
   }
   else {
-    plot_->invalidateLayer(CQChartsBuffer::Type::BACKGROUND);
-    plot_->invalidateLayer(CQChartsBuffer::Type::FOREGROUND);
+    plot()->invalidateLayer(CQChartsBuffer::Type::BACKGROUND);
+    plot()->invalidateLayer(CQChartsBuffer::Type::FOREGROUND);
   }
 }
 
@@ -500,7 +683,7 @@ void
 CQChartsPlotKey::
 updateKeyItems()
 {
-  plot_->resetKeyItems();
+  plot()->resetKeyItems();
 
   redraw();
 }
@@ -518,7 +701,7 @@ void
 CQChartsPlotKey::
 updatePosition(bool queued)
 {
-  plot_->updateKeyPosition();
+  plot()->updateKeyPosition();
 
   redraw(queued);
 }
@@ -530,10 +713,25 @@ updateLocation(const CQChartsGeom::BBox &bbox)
   // calc key size
   QSizeF ks = calcSize();
 
-  double xm = plot_->pixelToWindowWidth (margin());
-  double ym = plot_->pixelToWindowHeight(margin());
+  double xm = plot()->pixelToWindowWidth (margin());
+  double ym = plot()->pixelToWindowHeight(margin());
 
   double kx { 0.0 }, ky { 0.0 };
+
+  if (location().isAuto()) {
+    CQChartsGeom::BBox fitBBox = plot()->findEmptyBBox(ks.width(), ks.height());
+
+    if (fitBBox.isSet()) {
+      kx = fitBBox.getXMid() - ks.width ()/2;
+      ky = fitBBox.getYMid() + ks.height()/2;
+
+      location_.setType(CQChartsKeyLocation::Type::ABS_POSITION);
+
+      setAbsolutePlotPosition(QPointF(kx, ky));
+    }
+    else
+      location_.setType(CQChartsKeyLocation::Type::TOP_RIGHT);
+  }
 
   if      (location().onLeft()) {
     if (isInsideX())
@@ -558,7 +756,7 @@ updateLocation(const CQChartsGeom::BBox &bbox)
       ky = bbox.getYMax() + ks.height() + ym;
   }
   else if (location().onVCenter()) {
-    ky = bbox.getYMid() - ks.height()/2;
+    ky = bbox.getYMid() + ks.height()/2;
   }
   else if (location().onBottom()) {
     if (isInsideY())
@@ -566,7 +764,7 @@ updateLocation(const CQChartsGeom::BBox &bbox)
     else {
       ky = bbox.getYMin() - ym;
 
-      CQChartsAxis *xAxis = plot_->xAxis();
+      CQChartsAxis *xAxis = plot()->xAxis();
 
       if (xAxis && xAxis->side() == CQChartsAxisSide::Type::BOTTOM_LEFT && xAxis->bbox().isSet())
         ky -= xAxis->bbox().getHeight();
@@ -578,10 +776,10 @@ updateLocation(const CQChartsGeom::BBox &bbox)
   CQChartsKeyLocation::Type locationType = this->location().type();
 
   if      (locationType == CQChartsKeyLocation::Type::ABS_POSITION) {
-    kp = absPlotPosition();
+    kp = absolutePlotPosition();
   }
   else if (locationType == CQChartsKeyLocation::Type::ABS_RECT) {
-    kp = absPlotRect().bottomLeft();
+    kp = absolutePlotRect().bottomLeft();
   }
 
   setPosition(kp);
@@ -589,71 +787,114 @@ updateLocation(const CQChartsGeom::BBox &bbox)
 
 void
 CQChartsPlotKey::
-addProperties(CQPropertyViewModel *model, const QString &path)
+addProperties(CQPropertyViewModel *model, const QString &path, const QString &/*desc*/)
 {
-  model->addProperty(path, this, "visible"   )->setDesc("Is visible");
-  model->addProperty(path, this, "selected"  )->setDesc("Is selected");
-  model->addProperty(path, this, "horizontal")->setDesc("Draw items horizontally");
-  model->addProperty(path, this, "flipped"   )->setDesc("Draw name value flipped");
-  model->addProperty(path, this, "autoHide"  )->setDesc("Auto hide key when too large");
-  model->addProperty(path, this, "clipped"   )->setDesc("Clip key to plot");
+  auto addProp = [&](const QString &name, const QString &desc) {
+    return &(model->addProperty(path, this, name)->setDesc(desc));
+  };
 
-  model->addProperty(path, this, "above"      )->setDesc("Draw key above plot");
-  model->addProperty(path, this, "insideX"    )->setDesc("Key placed inside plot in x direction");
-  model->addProperty(path, this, "insideY"    )->setDesc("Key placed inside plot in y direction");
-  model->addProperty(path, this, "location"   )->setDesc("Key placement location");
-  model->addProperty(path, this, "absPosition")->setDesc("Key placement absolute position");
-  model->addProperty(path, this, "absRect"    )->setDesc("Key placement absolute rectangle");
+  auto addStyleProp = [&](const QString &name, const QString &desc) {
+    CQPropertyViewItem *item = addProp(name, desc);
+    CQCharts::setItemIsStyle(item);
+    return item;
+  };
 
-  model->addProperty(path, this, "interactive"  )->setDesc("Key supports click");
-  model->addProperty(path, this, "pressBehavior")->setDesc("Key click behavior");
+  //---
 
-  model->addProperty(path, this, "hiddenAlpha" )->setDesc("Alpha for hidden items");
-  model->addProperty(path, this, "maxRows"     )->setDesc("Max rows for key");
-  model->addProperty(path, this, "spacing"     )->setDesc("Spacing between rows");
-  model->addProperty(path, this, "scrollWidth" )->setDesc("Scrolled fixed width");
-  model->addProperty(path, this, "scrollHeight")->setDesc("Scrolled fixed height");
+  addProp("visible"   , "Is visible");
+  addProp("selected"  , "Is selected");
+  addProp("horizontal", "Draw items horizontally");
+  addProp("flipped"   , "Draw name value flipped");
+  addProp("autoHide"  , "Auto hide key when too large");
+  addProp("clipped"   , "Clip key to plot");
+
+  addProp("above"   , "Draw key above plot");
+  addProp("insideX" , "Key placed inside plot in x direction");
+  addProp("insideY" , "Key placed inside plot in y direction");
+  addProp("location", "Key placement location");
+
+  addProp("absolutePosition" , "Key placement absolute position");
+  addProp("absoluteRectangle", "Key placement absolute rectangle");
+
+  addProp("interactive"  , "Key supports click");
+  addProp("pressBehavior", "Key click behavior");
+
+  addStyleProp("hiddenAlpha", "Alpha for hidden items");
+
+  addProp("maxRows", "Max rows for key");
+  addProp("spacing", "Spacing between rows");
+
+  //---
+
+  QString scrollPath = path + "/scroll";
+
+  auto addScrollProp = [&](const QString &name, const QString &alias, const QString &desc) {
+    model->addProperty(scrollPath, this, name, alias)->setDesc(desc);
+  };
+
+  addScrollProp("scrollWidth" , "width" , "Key has fixed width and will scroll when larger");
+  addScrollProp("scrollHeight", "height", "Key has fixed height and will scroll when larger");
 
   //---
 
   // header text
-  QString headerPath = path + "/header";
+  QString headerPath     = path + "/header";
+  QString headerTextPath = headerPath + "/text";
 
-  model->addProperty(headerPath, this, "header"             , "text"     )->
-                      setDesc("Header text");
-  model->addProperty(headerPath, this, "headerTextColor"    , "color"    )->
-                      setDesc("Header text color");
-  model->addProperty(headerPath, this, "headerTextAlpha"    , "alpha"    )->
-                      setDesc("Header text alpha");
-  model->addProperty(headerPath, this, "headerTextFont"     , "font"     )->
-                      setDesc("Header text font");
-  model->addProperty(headerPath, this, "headerTextAngle"    , "angle"    )->
-                      setDesc("Header text angle");
-  model->addProperty(headerPath, this, "headerTextContrast" , "contrast" )->
-                      setDesc("Header text contrast");
-  model->addProperty(headerPath, this, "headerTextAlign"    , "align"    )->
-                      setDesc("Header text align");
-  model->addProperty(headerPath, this, "headerTextFormatted", "formatted")->
-                      setDesc("Header text formatted to box");
-  model->addProperty(headerPath, this, "headerTextScaled"   , "scaled"   )->
-                      setDesc("Header text scaled to box");
-  model->addProperty(headerPath, this, "headerTextHtml"     , "html"     )->
-                      setDesc("eader text is html");
+  auto addHeaderProp = [&](const QString &name, const QString &alias, const QString &desc) {
+    return &(model->addProperty(headerTextPath, this, name, alias)->
+              setDesc("Key header text " + desc));
+  };
+
+  auto addHeaderStyleProp = [&](const QString &name, const QString &alias, const QString &desc) {
+    CQPropertyViewItem *item = addHeaderProp(name, alias, desc);
+    CQCharts::setItemIsStyle(item);
+    return item;
+  };
 
   //---
 
-  // border, fill
-  CQChartsBoxObj::addProperties(model, path);
+  addHeaderProp("header", "string", "string");
+
+  addHeaderStyleProp("headerTextColor"    , "color"    , "color");
+  addHeaderStyleProp("headerTextAlpha"    , "alpha"    , "alpha");
+  addHeaderStyleProp("headerTextFont"     , "font"     , "font");
+//addHeaderStyleProp("headerTextAngle"    , "angle"    , "angle");
+  addHeaderStyleProp("headerTextContrast" , "contrast" , "contrast");
+  addHeaderStyleProp("headerTextAlign"    , "align"    , "align");
+  addHeaderStyleProp("headerTextFormatted", "formatted", "formatted to fit box");
+  addHeaderStyleProp("headerTextScaled"   , "scaled"   , "scaled to box");
+  addHeaderStyleProp("headerTextHtml"     , "html"     , "is html");
+
+  //---
+
+  // stroke, fill
+  CQChartsBoxObj::addProperties(model, path, "");
 
   //---
 
   // key text
   QString textPath = path + "/text";
 
-  model->addProperty(textPath, this, "textColor", "color")->setDesc("Text color");
-  model->addProperty(textPath, this, "textAlpha", "alpha")->setDesc("Text alpha");
-  model->addProperty(textPath, this, "textFont" , "font" )->setDesc("Text font");
-  model->addProperty(textPath, this, "textAlign", "align")->setDesc("Text align");
+  auto addTextProp = [&](const QString &name, const QString &alias, const QString &desc) {
+    return &(model->addProperty(textPath, this, name, alias)->setDesc("Key text " + desc));
+  };
+
+  auto addTextStyleProp = [&](const QString &name, const QString &alias, const QString &desc) {
+    CQPropertyViewItem *item = addTextProp(name, alias, desc);
+    CQCharts::setItemIsStyle(item);
+    return item;
+  };
+
+  addTextStyleProp("textColor"    , "color"    , "color");
+  addTextStyleProp("textAlpha"    , "alpha"    , "alpha");
+  addTextStyleProp("textFont"     , "font"     , "font");
+//addTextStyleProp("textAngle"    , "angle"    , "angle");
+  addTextStyleProp("textContrast" , "contrast" , "contrast");
+  addTextStyleProp("textAlign"    , "align"    , "align");
+  addTextStyleProp("textFormatted", "formatted", "formatted to fit box");
+  addTextStyleProp("textScaled"   , "scaled"   , "scaled to box");
+  addTextStyleProp("textHtml"     , "html"     , "is html");
 }
 
 void
@@ -735,11 +976,7 @@ doLayout()
   //---
 
   // get max number of rows
-  int numRows = numRows_;
-
-  // limit rows if height (and this scrolled) not defined
-  if (! scrollData_.height.isSet())
-    numRows = std::min(numRows, maxRows());
+  int numRows = calcNumRows();
 
   //---
 
@@ -765,11 +1002,11 @@ doLayout()
   //---
 
   // get spacing and margin in plot coords
-  xs_ = plot_->pixelToWindowWidth (spacing());
-  ys_ = plot_->pixelToWindowHeight(spacing());
+  xs_ = plot()->pixelToWindowWidth (spacing());
+  ys_ = plot()->pixelToWindowHeight(spacing());
 
-  xm_ = plot_->pixelToWindowWidth (margin());
-  ym_ = plot_->pixelToWindowHeight(margin());
+  xm_ = plot()->pixelToWindowWidth (margin());
+  ym_ = plot()->pixelToWindowHeight(margin());
 
   //---
 
@@ -797,13 +1034,13 @@ doLayout()
     textOptions.html = isHeaderTextHtml();
 
     // get font
-    QFont font = view()->plotFont(plot_, headerTextFont());
+    QFont font = view()->plotFont(plot(), headerTextFont());
 
     // get text size
     QSizeF tsize = CQChartsDrawUtil::calcTextSize(headerStr(), font, textOptions);
 
-    layoutData_.headerWidth  = plot_->pixelToWindowWidth (tsize.width ()) + 2*xs_;
-    layoutData_.headerHeight = plot_->pixelToWindowHeight(tsize.height()) + 2*ys_;
+    layoutData_.headerWidth  = plot()->pixelToWindowWidth (tsize.width ()) + 2*xs_;
+    layoutData_.headerHeight = plot()->pixelToWindowHeight(tsize.height()) + 2*ys_;
   }
 
   //---
@@ -861,19 +1098,19 @@ doLayout()
 
   //---
 
-  double vbw = plot_->pixelToWindowWidth (scrollData_.pixelBarSize);
-  double hbh = plot_->pixelToWindowHeight(scrollData_.pixelBarSize);
+  double vbw = plot()->pixelToWindowWidth (scrollData_.pixelBarSize);
+  double hbh = plot()->pixelToWindowHeight(scrollData_.pixelBarSize);
 
   //---
 
   // check if key size exceeds plot pixel size (auto hide if needed)
-  CQChartsGeom::BBox plotPixelRect = plot_->calcPlotPixelRect();
+  CQChartsGeom::BBox plotPixelRect = plot()->calcPlotPixelRect();
 
   double maxPixelWidth  = plotPixelRect.getWidth ()*0.8;
   double maxPixelHeight = plotPixelRect.getHeight()*0.8;
 
-  double pixelWidth  = plot_->windowToPixelWidth (layoutData_.fullSize.width ());
-  double pixelHeight = plot_->windowToPixelHeight(layoutData_.fullSize.height());
+  double pixelWidth  = plot()->windowToPixelWidth (layoutData_.fullSize.width ());
+  double pixelHeight = plot()->windowToPixelHeight(layoutData_.fullSize.height());
 
   layoutData_.pixelWidthExceeded  = (pixelWidth  > maxPixelWidth );
   layoutData_.pixelHeightExceeded = (pixelHeight > maxPixelHeight);
@@ -885,28 +1122,28 @@ doLayout()
   layoutData_.scrollAreaWidth = w;
 
   if      (scrollData_.width.isSet()) {
-    double sw = plot_->lengthPlotWidth(scrollData_.width.length());
+    double sw = plot()->lengthPlotWidth(scrollData_.width.length());
 
     layoutData_.hscrolled       = (w > sw);
     layoutData_.scrollAreaWidth = sw;
   }
   else if (layoutData_.pixelWidthExceeded) {
     layoutData_.hscrolled       = true;
-    layoutData_.scrollAreaWidth = plot_->pixelToWindowWidth(maxPixelWidth);
+    layoutData_.scrollAreaWidth = plot()->pixelToWindowWidth(maxPixelWidth);
   }
 
   layoutData_.vscrolled        = false;
   layoutData_.scrollAreaHeight = h - layoutData_.headerHeight;
 
   if      (scrollData_.height.isSet()) {
-    double sh = plot_->lengthPlotHeight(scrollData_.height.length());
+    double sh = plot()->lengthPlotHeight(scrollData_.height.length());
 
     layoutData_.vscrolled        = (h > sh + layoutData_.headerHeight);
     layoutData_.scrollAreaHeight = sh;
   }
   else if (layoutData_.pixelHeightExceeded) {
     layoutData_.vscrolled        = true;
-    layoutData_.scrollAreaHeight = plot_->pixelToWindowHeight(maxPixelHeight) -
+    layoutData_.scrollAreaHeight = plot()->pixelToWindowHeight(maxPixelHeight) -
                                    layoutData_.headerHeight;
   }
 
@@ -934,30 +1171,46 @@ doLayout()
 
 QPointF
 CQChartsPlotKey::
-absPlotPosition() const
+absolutePlotPosition() const
 {
-  return plot_->viewToWindow(absPosition());
+  return plot()->viewToWindow(absolutePosition());
 }
 
 void
 CQChartsPlotKey::
-setAbsPlotPosition(const QPointF &p)
+setAbsolutePlotPosition(const QPointF &p)
 {
-  setAbsPosition(plot_->windowToView(p));
+  setAbsolutePosition(plot()->windowToView(p));
 }
 
 QRectF
 CQChartsPlotKey::
-absPlotRect() const
+absolutePlotRect() const
 {
-  return plot_->viewToWindow(absRect());
+  return plot()->viewToWindow(absoluteRectangle());
 }
 
 void
 CQChartsPlotKey::
-setAbsPlotRect(const QRectF &r)
+setAbsolutePlotRect(const QRectF &r)
 {
-  setAbsRect(plot_->windowToView(r));
+  setAbsoluteRectangle(plot()->windowToView(r));
+}
+
+int
+CQChartsPlotKey::
+calcNumRows() const
+{
+  // get max number of rows
+  int numRows = numRows_;
+
+#if 0
+  // limit rows if height (and this scrolled) not defined
+  if (! scrollData_.height.isSet())
+    numRows = std::min(numRows, maxRows());
+#endif
+
+  return numRows;
 }
 
 QSizeF
@@ -973,7 +1226,7 @@ bool
 CQChartsPlotKey::
 contains(const CQChartsGeom::Point &p) const
 {
-  if (! isVisible() || isEmpty())
+  if (! isOverlayVisible() || isEmpty())
     return false;
 
   return bbox().inside(p);
@@ -983,7 +1236,7 @@ CQChartsKeyItem *
 CQChartsPlotKey::
 getItemAt(const CQChartsGeom::Point &p) const
 {
-  if (! isVisible())
+  if (! isOverlayVisible())
     return nullptr;
 
   for (auto &item : items_) {
@@ -994,14 +1247,14 @@ getItemAt(const CQChartsGeom::Point &p) const
   return nullptr;
 }
 
+//------
+
 bool
 CQChartsPlotKey::
-isEmpty() const
+selectPress(const CQChartsGeom::Point &, CQChartsSelMod)
 {
-  return items_.empty();
+  return false;
 }
-
-//------
 
 bool
 CQChartsPlotKey::
@@ -1015,7 +1268,7 @@ selectMove(const CQChartsGeom::Point &w)
     bool handled = false;
 
     if (item) {
-      changed = setInside(item);
+      changed = setInsideItem(item);
 
       handled = item->selectMove(w);
     }
@@ -1027,11 +1280,18 @@ selectMove(const CQChartsGeom::Point &w)
       return true;
   }
 
-  changed = setInside(nullptr);
+  changed = setInsideItem(nullptr);
 
   if (changed)
     redraw();
 
+  return false;
+}
+
+bool
+CQChartsPlotKey::
+selectRelease(const CQChartsGeom::Point &)
+{
   return false;
 }
 
@@ -1049,7 +1309,7 @@ editPress(const CQChartsGeom::Point &p)
       locationType != CQChartsKeyLocation::Type::ABS_RECT) {
     location_ = CQChartsKeyLocation::Type::ABS_POSITION;
 
-    setAbsPlotPosition(position_);
+    setAbsolutePlotPosition(position_);
   }
 
   return true;
@@ -1068,7 +1328,7 @@ editMove(const CQChartsGeom::Point &p)
   if (dragSide == CQChartsResizeSide::MOVE) {
     location_ = CQChartsKeyLocation::Type::ABS_POSITION;
 
-    setAbsPlotPosition(absPlotPosition() + QPointF(dx, dy));
+    setAbsolutePlotPosition(absolutePlotPosition() + QPointF(dx, dy));
   }
   else {
     location_ = CQChartsKeyLocation::Type::ABS_RECT;
@@ -1077,7 +1337,7 @@ editMove(const CQChartsGeom::Point &p)
 
     wbbox_ = editHandles_->bbox();
 
-    setAbsPlotRect(wbbox_.qrect());
+    setAbsolutePlotRect(wbbox_.qrect());
 
     CQChartsLength width (wbbox_.getWidth ()                           , CQChartsUnits::PLOT);
     CQChartsLength height(wbbox_.getHeight() - layoutData_.headerHeight, CQChartsUnits::PLOT);
@@ -1119,7 +1379,7 @@ editMoveBy(const QPointF &f)
       locationType != CQChartsKeyLocation::Type::ABS_RECT) {
     location_ = CQChartsKeyLocation::Type::ABS_POSITION;
 
-    setAbsPlotPosition(position_ + f);
+    setAbsolutePlotPosition(position_ + f);
   }
 
   updatePosition();
@@ -1155,7 +1415,7 @@ tipText(const CQChartsGeom::Point &p, QString &tip) const
 
 bool
 CQChartsPlotKey::
-setInside(CQChartsKeyItem *item)
+setInsideItem(CQChartsKeyItem *item)
 {
   bool changed = false;
 
@@ -1197,13 +1457,16 @@ setFlipped(bool b)
 
 void
 CQChartsPlotKey::
-draw(QPainter *painter) const
+draw(CQChartsPaintDevice *device) const
 {
-  if (! isVisible() || isEmpty()) {
+  if (! plot()->isVisible() || ! isOverlayVisible() || isEmpty()) {
     scrollData_.hbar->hide();
     scrollData_.vbar->hide();
     return;
   }
+
+  if (location().isAuto())
+    return;
 
   //---
 
@@ -1246,8 +1509,8 @@ draw(QPainter *painter) const
   //---
 
   // calc pixel bounding box
-  CQChartsGeom::Point p1 = plot_->windowToPixel(CQChartsGeom::Point(x    , y    ));
-  CQChartsGeom::Point p2 = plot_->windowToPixel(CQChartsGeom::Point(x + w, y - h));
+  CQChartsGeom::Point p1 = plot()->windowToPixel(CQChartsGeom::Point(x    , y    ));
+  CQChartsGeom::Point p2 = plot()->windowToPixel(CQChartsGeom::Point(x + w, y - h));
 
   QRectF pixelRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
 
@@ -1263,21 +1526,26 @@ draw(QPainter *painter) const
   }
 
   // set clip rect to plot pixel rect
-  CQChartsGeom::BBox plotPixelRect = plot_->calcPlotPixelRect();
+  CQChartsGeom::BBox plotPixelRect = plot()->calcPlotPixelRect();
 
   bool   clipped  = false;
-  QRectF clipRect = CQChartsUtil::toQRect(plotPixelRect);
+  QRectF clipRect = plotPixelRect.qrect();
 
   //---
 
   // get plot data rect
-  CQChartsGeom::BBox dataPixelRect = plot_->calcDataPixelRect();
+  CQChartsGeom::BBox dataPixelRect = plot()->calcDataPixelRect();
 
-  QRectF dataRect = CQChartsUtil::toQRect(dataPixelRect);
+  QRectF dataRect = dataPixelRect.qrect();
 
   //---
 
-  painter->save();
+  // get max number of rows
+  int numRows = calcNumRows();
+
+  //---
+
+  device->save();
 
   //---
 
@@ -1285,7 +1553,7 @@ draw(QPainter *painter) const
   sx_ = 0.0;
   sy_ = 0.0;
 
-  double phh = plot_->windowToPixelHeight(layoutData_.headerHeight);
+  double phh = plot()->windowToPixelHeight(layoutData_.headerHeight);
 
   double vspw = 0.0;
   double hsph = 0.0;
@@ -1308,7 +1576,7 @@ draw(QPainter *painter) const
     int    scrollRows   = 0;
     double scrollHeight = sh - 2*ym_ - layoutData_.hbarHeight;
 
-    for (int i = 0; i < numRows_; ++i) {
+    for (int i = 0; i < numRows; ++i) {
       if (scrollHeight <= 0)
         break;
 
@@ -1325,7 +1593,7 @@ draw(QPainter *painter) const
     if (scrollData_.vbar->pageStep() != scrollRows)
       scrollData_.vbar->setPageStep(scrollRows);
 
-    int smax = std::max(numRows_ - scrollRows, 1);
+    int smax = std::max(numRows - scrollRows, 1);
 
     if (scrollData_.vbar->maximum() != smax)
       scrollData_.vbar->setRange(0, smax);
@@ -1352,8 +1620,8 @@ draw(QPainter *painter) const
     //---
 
     // update scroll bar
-    int pageStep  = plot_->windowToPixelWidth(sw - layoutData_.vbarWidth);
-    int fullWidth = plot_->windowToPixelWidth(layoutData_.fullSize.width());
+    int pageStep  = plot()->windowToPixelWidth(sw - layoutData_.vbarWidth);
+    int fullWidth = plot()->windowToPixelWidth(layoutData_.fullSize.width());
 
     if (scrollData_.hbar->pageStep() != pageStep)
       scrollData_.hbar->setPageStep(pageStep);
@@ -1366,7 +1634,7 @@ draw(QPainter *painter) const
     if (scrollData_.hbar->value() != scrollData_.hpos)
       scrollData_.hbar->setValue(scrollData_.hpos);
 
-    sx_ = plot_->pixelToWindowWidth(scrollData_.hpos);
+    sx_ = plot()->pixelToWindowWidth(scrollData_.hpos);
   }
   else {
     if (scrollData_.hbar)
@@ -1399,7 +1667,7 @@ draw(QPainter *painter) const
   //---
 
   // draw box (background)
-  CQChartsBoxObj::draw(painter, pixelRect);
+  CQChartsBoxObj::draw(device, device->pixelToWindow(pixelRect));
 
   //---
 
@@ -1414,21 +1682,21 @@ draw(QPainter *painter) const
     textOptions.html      = isHeaderTextHtml();
     textOptions.align     = headerTextAlign();
 
-    textOptions = plot_->adjustTextOptions(textOptions);
+    textOptions = plot()->adjustTextOptions(textOptions);
 
     //---
 
     // get font
-    QFont font = view()->plotFont(plot_, headerTextFont());
+    QFont font = view()->plotFont(plot(), headerTextFont());
 
-    painter->setFont(font);
+    device->setFont(font);
 
     //---
 
     // get key top left, width (pixels), margins
-    QPointF p = plot_->windowToPixel(QPointF(x, y)); // top left
+    QPointF p = plot()->windowToPixel(QPointF(x, y)); // top left
 
-    double pw = plot_->windowToPixelWidth(sw);
+    double pw = plot()->windowToPixelWidth(sw);
 
   //double xm = margin();
     double ym = margin();
@@ -1449,24 +1717,31 @@ draw(QPainter *painter) const
     QPen   tpen;
     QBrush tbrush;
 
-    QColor tc = interpHeaderTextColor(0, 1);
+    QColor tc = interpHeaderTextColor(ColorInd());
 
-    plot_->setPen(tpen, true, tc, headerTextAlpha());
+    plot()->setPen(tpen, true, tc, headerTextAlpha());
 
-    plot_->updateObjPenBrushState(this, tpen, tbrush);
+    plot()->updateObjPenBrushState(this, tpen, tbrush);
 
     //---
 
     // draw text
-    painter->setPen(tpen);
+    device->setPen(tpen);
 
-    CQChartsDrawUtil::drawTextInBox(painter, trect, headerStr(), textOptions);
+    CQChartsDrawUtil::drawTextInBox(device, device->pixelToWindow(trect), headerStr(), textOptions);
   }
 
   //---
 
-  if (clipped)
-    painter->setClipRect(clipRect);
+  if (clipped) {
+    QRectF cr = device->pixelToWindow(clipRect);
+
+    //device->setPen(Qt::red);
+    //device->drawRect(cr);
+    //device->setPen(Qt::black);
+
+    device->setClipRect(cr);
+  }
 
   //---
 
@@ -1501,38 +1776,39 @@ draw(QPainter *painter) const
     item->setBBox(bbox);
 
     if (wbbox_.overlaps(bbox)) {
-      item->draw(painter, bbox);
+      item->draw(device, bbox);
 
-      if (plot_->showBoxes())
-        plot_->drawWindowColorBox(painter, bbox);
+      if (plot()->showBoxes())
+        plot()->drawWindowColorBox(device, bbox);
     }
   }
 
   //---
 
   // draw box
-  if (plot_->showBoxes()) {
-    plot_->drawWindowColorBox(painter, wbbox_);
+  if (plot()->showBoxes()) {
+    plot()->drawWindowColorBox(device, wbbox_);
 
     CQChartsGeom::BBox headerBox(x, y - layoutData_.headerHeight, x + sw, y);
 
-    plot_->drawWindowColorBox(painter, headerBox);
+    plot()->drawWindowColorBox(device, headerBox);
   }
 
   //---
 
-  painter->restore();
+  device->restore();
 }
 
 void
 CQChartsPlotKey::
 drawEditHandles(QPainter *painter) const
 {
-  assert(plot_->view()->mode() == CQChartsView::Mode::EDIT || isSelected());
+  assert(plot()->view()->mode() == CQChartsView::Mode::EDIT || isSelected());
 
   CQChartsPlotKey *th = const_cast<CQChartsPlotKey *>(this);
 
-  if (scrollData_.height.isSet())
+  if (scrollData_.height.isSet() || scrollData_.width.isSet() ||
+      layoutData_.vscrolled || layoutData_.hscrolled)
     th->editHandles_->setMode(CQChartsEditHandles::Mode::RESIZE);
   else
     th->editHandles_->setMode(CQChartsEditHandles::Mode::MOVE);
@@ -1547,45 +1823,45 @@ CQChartsPlotKey::
 interpBgColor() const
 {
   if (isFilled())
-    return interpFillColor(0, 1);
+    return interpFillColor(ColorInd());
 
   CQChartsKeyLocation::Type locationType = this->location().type();
 
   if (locationType != CQChartsKeyLocation::Type::ABS_POSITION &&
       locationType != CQChartsKeyLocation::Type::ABS_RECT) {
     if      (isInsideX() && isInsideY()) {
-      if (plot_->isDataFilled())
-        return plot_->interpDataFillColor(0, 1);
+      if (plot()->isDataFilled())
+        return plot()->interpDataFillColor(ColorInd());
     }
     else if (isInsideX()) {
       if (locationType == CQChartsKeyLocation::Type::CENTER_LEFT ||
           locationType == CQChartsKeyLocation::Type::CENTER_CENTER ||
           locationType == CQChartsKeyLocation::Type::CENTER_RIGHT) {
-        if (plot_->isDataFilled())
-          return plot_->interpDataFillColor(0, 1);
+        if (plot()->isDataFilled())
+          return plot()->interpDataFillColor(ColorInd());
       }
     }
     else if (isInsideY()) {
       if (locationType == CQChartsKeyLocation::Type::TOP_CENTER ||
           locationType == CQChartsKeyLocation::Type::CENTER_CENTER ||
           locationType == CQChartsKeyLocation::Type::BOTTOM_CENTER) {
-        if (plot_->isDataFilled())
-          return plot_->interpDataFillColor(0, 1);
+        if (plot()->isDataFilled())
+          return plot()->interpDataFillColor(ColorInd());
       }
     }
   }
 
-  if (plot_->isPlotFilled())
-    return plot_->interpPlotFillColor(0, 1);
+  if (plot()->isPlotFilled())
+    return plot()->interpPlotFillColor(ColorInd());
 
-  return plot_->interpThemeColor(0);
+  return plot()->interpThemeColor(ColorInd());
 }
 
 //------
 
 CQChartsKeyItem::
-CQChartsKeyItem(CQChartsPlotKey *key, int i, int n) :
- key_(key), i_(i), n_(n)
+CQChartsKeyItem(CQChartsPlotKey *key, const ColorInd &ic) :
+ key_(key), ic_(ic)
 {
 }
 
@@ -1617,17 +1893,17 @@ doShow(CQChartsSelMod selMod)
   CQChartsPlot *plot = key_->plot();
 
   if      (selMod == CQChartsSelMod::REPLACE) {
-    for (int i = 0; i < n_; ++i)
-      plot->setSetHidden(i, i != i_);
+    for (int i = 0; i < ic_.n; ++i)
+      plot->setSetHidden(i, i != ic_.i);
   }
   else if (selMod == CQChartsSelMod::ADD)
-    plot->setSetHidden(i_, false);
+    plot->setSetHidden(ic_.i, false);
   else if (selMod == CQChartsSelMod::REMOVE)
-    plot->setSetHidden(i_, true);
+    plot->setSetHidden(ic_.i, true);
   else if (selMod == CQChartsSelMod::TOGGLE)
-    plot->setSetHidden(i_, ! plot->isSetHidden(i_));
+    plot->setSetHidden(ic_.i, ! plot->isSetHidden(ic_.i));
 
-  plot->queueUpdateObjs();
+  plot->updateObjs();
 }
 
 void
@@ -1646,8 +1922,8 @@ tipText(const CQChartsGeom::Point &, QString &) const
 //------
 
 CQChartsKeyText::
-CQChartsKeyText(CQChartsPlot *plot, const QString &text, int i, int n) :
- CQChartsKeyItem(plot->key(), i, n), plot_(plot), text_(text)
+CQChartsKeyText(CQChartsPlot *plot, const QString &text, const ColorInd &ic) :
+ CQChartsKeyItem(plot->key(), ic), plot_(plot), text_(text)
 {
 }
 
@@ -1672,25 +1948,24 @@ size() const
 
 QColor
 CQChartsKeyText::
-interpTextColor(int i, int n) const
+interpTextColor(const ColorInd &ind) const
 {
-  return key_->interpTextColor(i, n);
+  return key_->interpTextColor(ind);
 }
 
 void
 CQChartsKeyText::
-draw(QPainter *painter, const CQChartsGeom::BBox &rect) const
+draw(CQChartsPaintDevice *device, const CQChartsGeom::BBox &rect) const
 {
   CQChartsPlot *plot = key_->plot();
 
-  plot->view()->setPlotPainterFont(plot, painter, key_->textFont());
+  plot->view()->setPlotPainterFont(plot, device, key_->textFont());
 
-  QFontMetricsF fm(painter->font());
+  QColor tc = interpTextColor(ColorInd());
 
-  QColor tc = interpTextColor(0, 1);
+  device->setPen(tc);
 
-  painter->setPen(tc);
-
+#if 0
   CQChartsGeom::Point p1 =
     plot->windowToPixel(CQChartsGeom::Point(rect.getXMin(), rect.getYMin()));
   CQChartsGeom::Point p2 =
@@ -1701,6 +1976,8 @@ draw(QPainter *painter, const CQChartsGeom::BBox &rect) const
 
   double px = p1.x + 2;
 
+  QFontMetricsF fm(device->font());
+
   if (key_->textAlign() & Qt::AlignRight)
     px = p2.x - 2 - fm.width(text_);
 
@@ -1710,24 +1987,44 @@ draw(QPainter *painter, const CQChartsGeom::BBox &rect) const
     tp = QPointF(px, p1.y - fm.descent() - 2);
   else
     tp = QPointF(px, p1.y + fm.ascent() + 2);
+#endif
 
-  CQChartsDrawUtil::drawSimpleText(painter, tp, text_);
+  CQChartsTextOptions textOptions;
+
+  textOptions.contrast  = key_->isTextContrast();
+  textOptions.formatted = key_->isTextFormatted();
+  textOptions.scaled    = key_->isTextScaled();
+  textOptions.html      = key_->isTextHtml();
+  textOptions.align     = key_->textAlign();
+
+  textOptions = plot->adjustTextOptions(textOptions);
+
+  QRectF qrect = rect.qrect();
+
+  CQChartsDrawUtil::drawTextInBox(device, qrect, text_, textOptions);
+
+  //CQChartsDrawUtil::drawSimpleText(device, device->pixelToWindow(tp), text_);
 }
 
 //------
 
 CQChartsKeyColorBox::
-CQChartsKeyColorBox(CQChartsPlot *plot, int i, int n) :
- CQChartsKeyItem(plot->key(), i, n), plot_(plot)
+CQChartsKeyColorBox(CQChartsPlot *plot, const ColorInd &is, const ColorInd &ig, const ColorInd &iv,
+                    const RangeValue &xv, const RangeValue &yv) :
+ CQChartsKeyItem(plot->key(), iv), plot_(plot), is_(is), ig_(ig), iv_(iv), xv_(xv), yv_(yv)
 {
+  assert(is_.isValid());
+  assert(ig_.isValid());
+  assert(iv_.isValid());
+
   setClickable(true);
 }
 
 QColor
 CQChartsKeyColorBox::
-interpBorderColor(int i, int n) const
+interpStrokeColor(const ColorInd &ic) const
 {
-  return plot_->charts()->interpColor(borderColor(), i, n);
+  return plot()->interpColor(strokeColor(), ic);
 }
 
 QSizeF
@@ -1750,7 +2047,7 @@ size() const
 
 void
 CQChartsKeyColorBox::
-draw(QPainter *painter, const CQChartsGeom::BBox &rect) const
+draw(CQChartsPaintDevice *device, const CQChartsGeom::BBox &rect) const
 {
   CQChartsPlot *plot = key_->plot();
 
@@ -1759,19 +2056,19 @@ draw(QPainter *painter, const CQChartsGeom::BBox &rect) const
   QRectF prect1(QPointF(prect.getXMin() + 2, prect.getYMin() + 2),
                 QPointF(prect.getXMax() - 2, prect.getYMax() - 2));
 
-  QColor bc    = interpBorderColor(0, 1);
+  ColorInd colorInd = calcColorInd();
+
+  QColor bc    = interpStrokeColor(colorInd);
   QBrush brush = fillBrush();
 
   if (isInside())
     brush.setColor(plot->insideColor(brush.color()));
 
-  painter->setPen  (bc);
-  painter->setBrush(brush);
+  device->setPen  (bc);
+  device->setBrush(brush);
 
-  double cxs = plot->lengthPixelWidth (cornerRadius());
-  double cys = plot->lengthPixelHeight(cornerRadius());
-
-  CQChartsRoundedPolygon::draw(painter, prect1, cxs, cys);
+  CQChartsDrawUtil::drawRoundedPolygon(device,
+    device->pixelToWindow(prect1), cornerRadius(), cornerRadius());
 }
 
 QBrush
@@ -1780,10 +2077,33 @@ fillBrush() const
 {
   CQChartsPlot *plot = key_->plot();
 
-  QColor c = plot->interpPaletteColor(i_, n_);
+  ColorInd ic = calcColorInd();
 
-  if (plot->isSetHidden(i_))
+  QColor c = plot->interpPaletteColor(ic);
+
+  if (plot->isSetHidden(ic.i))
     c = CQChartsUtil::blendColors(c, key_->interpBgColor(), key_->hiddenAlpha());
 
   return c;
+}
+
+CQChartsKeyColorBox::ColorInd
+CQChartsKeyColorBox::
+calcColorInd() const
+{
+  return plot()->calcColorInd(nullptr, this, is_, ig_, iv_);
+}
+
+double
+CQChartsKeyColorBox::
+xColorValue(bool relative) const
+{
+  return (relative ? xv_.map() : xv_.v);
+}
+
+double
+CQChartsKeyColorBox::
+yColorValue(bool relative) const
+{
+  return (relative ? yv_.map() : yv_.v);
 }

@@ -1,5 +1,6 @@
 #include <CQChartsCmdBase.h>
 #include <CQChartsInput.h>
+#include <CQBaseModel.h>
 #include <CQPerfMonitor.h>
 #include <CQUtil.h>
 #include <CQTclUtil.h>
@@ -324,8 +325,8 @@ bool
 CQChartsCmdBase::
 helpCmd(CQChartsCmdArgs &)
 {
-  for (auto &name : commandNames_)
-    std::cout << name.toStdString() << "\n";
+  for (auto &p : commandProcs_)
+    std::cout << p.first.toStdString() << "\n";
 
   return true;
 }
@@ -342,6 +343,20 @@ stringToCmdData(const QString &str) const
    }
   );
 }
+
+//------
+
+#if 0
+bool
+CQChartsCmdBase::
+valueToStrs(const QString &str, QStringList &strs) const
+{
+  if (str.length() >= 2 && str[0] == '{' && str[str.length() - 1] == '}')
+    return qtcl()->splitList(str.mid(1, str.length() - 2), strs);
+  else
+    return qtcl()->splitList(str, strs);
+}
+#endif
 
 //------
 
@@ -364,6 +379,13 @@ CQChartsCmdBase::
 setCmdRc(const QString &rc)
 {
   qtcl()->setResult(rc);
+}
+
+void
+CQChartsCmdBase::
+setCmdRc(const std::string &rc)
+{
+  qtcl()->setResult(QString(rc.c_str()));
 }
 
 void

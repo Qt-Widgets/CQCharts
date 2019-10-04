@@ -21,16 +21,33 @@
 #include <QTabWidget>
 #include <QVBoxLayout>
 
+namespace {
+
+int valueTypeToInd(const CQChartsAxisValueType &valueType) {
+  if (valueType.type() != CQChartsAxisValueType::Type::NONE)
+    return ((int) valueType.type()) - 1;
+  else
+    return -1;
+}
+
+CQChartsAxisValueType indToValueType(int ind) {
+  if (ind <= 0)
+    return CQChartsAxisValueType::Type::NONE;
+  else
+    return CQChartsAxisValueType((CQChartsAxisValueType::Type) ind);
+}
+
+}
+
 CQChartsEditAxisDlg::
-CQChartsEditAxisDlg(CQChartsAxis *axis) :
- QDialog(), axis_(axis)
+CQChartsEditAxisDlg(QWidget *parent, CQChartsAxis *axis) :
+ QDialog(parent), axis_(axis)
 {
   setWindowTitle(QString("Edit Plot Axis (%1)").arg(axis->plot()->id()));
 
   //---
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setMargin(2); layout->setSpacing(2);
+  QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 2, 2);
 
   //---
 
@@ -94,20 +111,17 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
 {
   setObjectName("axisEdit");
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setMargin(2); layout->setSpacing(2);
+  QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 2, 2);
 
   //---
 
   data_.visible        = axis->isVisible();
   data_.direction      = axis->direction();
   data_.side           = axis->side();
-  data_.integral       = axis->isIntegral();
-  data_.date           = axis->isDate();
-  data_.log            = axis->isLog();
+  data_.valueType      = axis->valueType();
   data_.format         = axis->format();
-  data_.tickIncrement  = axis->tickIncrement();
-  data_.majorIncrement = axis->majorIncrement();
+  data_.tickIncrement  = axis->tickIncrement ().integerOr(0);
+  data_.majorIncrement = axis->majorIncrement().integerOr(0);
   data_.start          = axis->start();
   data_.end            = axis->end();
   data_.includeZero    = axis->isIncludeZero();
@@ -129,14 +143,11 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
   groupBox_->setChecked(data_.visible);
   groupBox_->setTitle("Visible");
 
-  connect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
-
   layout->addWidget(groupBox_);
 
   //---
 
-  QGridLayout *groupLayout = new QGridLayout(groupBox_);
-  groupLayout->setMargin(2); groupLayout->setSpacing(2);
+  QGridLayout *groupLayout = CQUtil::makeLayout<QGridLayout>(groupBox_, 2, 2);
 
   int row = 0;
 
@@ -156,51 +167,25 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
 
   sideEdit_->setAxisSide(data_.side);
 
-  connect(sideEdit_, SIGNAL(axisSideChanged()), this, SLOT(widgetsToData()));
-
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Side", sideEdit_, row);
 
   //--
 
-  // integral
-  integralEdit_ = CQUtil::makeWidget<CQCheckBox>("integralEdit");
+  // valueType
+  valueTypeCombo_ = CQUtil::makeWidget<QComboBox>("valueTypeCombo");
 
-  integralEdit_->setChecked(data_.integral);
+  valueTypeCombo_->addItems(data_.valueType.enumNames());
 
-  connect(integralEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
+  valueTypeCombo_->setCurrentIndex(valueTypeToInd(data_.valueType));
 
-  CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Integral", integralEdit_, row);
-
-  //--
-
-  // date
-  dateEdit_ = CQUtil::makeWidget<CQCheckBox>("dateEdit");
-
-  dateEdit_->setChecked(data_.date);
-
-  connect(dateEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-
-  CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Date", dateEdit_, row);
-
-  //--
-
-  // log
-  logEdit_ = CQUtil::makeWidget<CQCheckBox>("logEdit");
-
-  logEdit_->setChecked(data_.log);
-
-  connect(logEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-
-  CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Log", logEdit_, row);
+  CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Integral", valueTypeCombo_, row);
 
   //--
 
   // format
-  formatEdit_ = CQUtil::makeWidget<QLineEdit>("formatEdit");
+  formatEdit_ = CQUtil::makeWidget<CQLineEdit>("formatEdit");
 
   formatEdit_->setText(data_.format);
-
-  connect(formatEdit_, SIGNAL(editingFinished()), this, SLOT(widgetsToData()));
 
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Format", formatEdit_, row);
 
@@ -211,18 +196,14 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
 
   tickIncrementEdit_->setValue(data_.tickIncrement);
 
-  connect(tickIncrementEdit_, SIGNAL(valueChanged(int)), this, SLOT(widgetsToData()));
-
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Tick Increment", tickIncrementEdit_, row);
 
   //--
 
   // majorIncrement
-  majorIncrementEdit_ = CQUtil::makeWidget<CQRealSpin>("majorIncrementEdit");
+  majorIncrementEdit_ = CQUtil::makeWidget<CQIntegerSpin>("majorIncrementEdit");
 
   majorIncrementEdit_->setValue(data_.majorIncrement);
-
-  connect(majorIncrementEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
 
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Major Increment", majorIncrementEdit_, row);
 
@@ -233,8 +214,6 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
 
   startEdit_->setValue(data_.start);
 
-  connect(startEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Start", startEdit_, row);
 
   //--
@@ -243,8 +222,6 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
   endEdit_ = CQUtil::makeWidget<CQRealSpin>("endEdit");
 
   endEdit_->setValue(data_.end);
-
-  connect(endEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
 
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "End", endEdit_, row);
 
@@ -255,18 +232,14 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
 
   includeZeroEdit_->setChecked(data_.includeZero);
 
-  connect(includeZeroEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-
-  CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Date", includeZeroEdit_, row);
+  CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Include Zero", includeZeroEdit_, row);
 
   //--
 
   // position
-  positionEdit_ = CQUtil::makeWidget<QLineEdit>("positionEdit");
+  positionEdit_ = CQUtil::makeWidget<CQLineEdit>("positionEdit");
 
   positionEdit_->setText(data_.position.toString());
-
-  connect(positionEdit_, SIGNAL(editingFinished()), this, SLOT(widgetsToData()));
 
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Position", positionEdit_, row);
 
@@ -281,8 +254,6 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
   lineDataEdit_->setView(axis_->view());
   lineDataEdit_->setData(data_.lineData);
 
-  connect(lineDataEdit_, SIGNAL(lineDataChanged()), this, SLOT(widgetsToData()));
-
   groupLayout->addWidget(lineDataEdit_, row, 0, 1, 2); ++row;
 
   //------
@@ -296,8 +267,7 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
   // label
   QFrame *labelFrame = CQUtil::makeWidget<QFrame>("labelFrame");
 
-  QVBoxLayout *labelLayout = new QVBoxLayout(labelFrame);
-  labelLayout->setMargin(0); labelLayout->setSpacing(2);
+  QVBoxLayout *labelLayout = CQUtil::makeLayout<QVBoxLayout>(labelFrame, 0, 2);
 
   labelTab->addTab(labelFrame, "Axis Label");
 
@@ -309,8 +279,6 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
   labelTextDataEdit_->setView(axis_->view());
   labelTextDataEdit_->setData(data_.labelTextData);
 
-  connect(labelTextDataEdit_, SIGNAL(textDataChanged()), this, SLOT(widgetsToData()));
-
   labelLayout->addWidget(labelTextDataEdit_);
 
   //--
@@ -318,8 +286,7 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
   // tick label
   QFrame *tickLabelFrame = CQUtil::makeWidget<QFrame>("tickLabelFrame");
 
-  QVBoxLayout *tickLabelLayout = new QVBoxLayout(tickLabelFrame);
-  tickLabelLayout->setMargin(0); tickLabelLayout->setSpacing(2);
+  QVBoxLayout *tickLabelLayout = CQUtil::makeLayout<QVBoxLayout>(tickLabelFrame, 0, 2);
 
   labelTab->addTab(tickLabelFrame, "Tick Label");
 
@@ -330,8 +297,6 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
   tickLabelTextDataEdit_->setPlot(axis_->plot());
   tickLabelTextDataEdit_->setView(axis_->view());
   tickLabelTextDataEdit_->setData(data_.tickLabelTextData);
-
-  connect(tickLabelTextDataEdit_, SIGNAL(textDataChanged()), this, SLOT(widgetsToData()));
 
   tickLabelLayout->addWidget(tickLabelTextDataEdit_);
 
@@ -346,8 +311,7 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
   // major grid line
   QFrame *majorGridLineFrame = CQUtil::makeWidget<QFrame>("majorGridLineFrame");
 
-  QVBoxLayout *majorGridLineLayout = new QVBoxLayout(majorGridLineFrame);
-  majorGridLineLayout->setMargin(0); majorGridLineLayout->setSpacing(2);
+  QVBoxLayout *majorGridLineLayout = CQUtil::makeLayout<QVBoxLayout>(majorGridLineFrame, 0, 2);
 
   gridTab->addTab(majorGridLineFrame, "Major Grid Line");
 
@@ -359,8 +323,6 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
   majorGridLineDataEdit_->setView(axis_->view());
   majorGridLineDataEdit_->setData(data_.majorGridLineData);
 
-  connect(majorGridLineDataEdit_, SIGNAL(lineDataChanged()), this, SLOT(widgetsToData()));
-
   majorGridLineLayout->addWidget(majorGridLineDataEdit_);
 
   //---
@@ -368,8 +330,7 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
   // minor grid line
   QFrame *minorGridLineFrame = CQUtil::makeWidget<QFrame>("minorGridLineFrame");
 
-  QVBoxLayout *minorGridLineLayout = new QVBoxLayout(minorGridLineFrame);
-  minorGridLineLayout->setMargin(0); minorGridLineLayout->setSpacing(2);
+  QVBoxLayout *minorGridLineLayout = CQUtil::makeLayout<QVBoxLayout>(minorGridLineFrame, 0, 2);
 
   gridTab->addTab(minorGridLineFrame, "Minor Grid Line");
 
@@ -381,8 +342,6 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
   minorGridLineDataEdit_->setView(axis_->view());
   minorGridLineDataEdit_->setData(data_.minorGridLineData);
 
-  connect(minorGridLineDataEdit_, SIGNAL(lineDataChanged()), this, SLOT(widgetsToData()));
-
   minorGridLineLayout->addWidget(minorGridLineDataEdit_);
 
   //---
@@ -390,8 +349,7 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
   // grid fill
   QFrame *gridFillFrame = CQUtil::makeWidget<QFrame>("gridFillFrame");
 
-  QVBoxLayout *gridFillLayout = new QVBoxLayout(gridFillFrame);
-  gridFillLayout->setMargin(0); gridFillLayout->setSpacing(2);
+  QVBoxLayout *gridFillLayout = CQUtil::makeLayout<QVBoxLayout>(gridFillFrame, 0, 2);
 
   gridTab->addTab(gridFillFrame, "Grid Fill");
 
@@ -403,8 +361,6 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
   gridFillDataEdit_->setView(axis_->view());
   gridFillDataEdit_->setData(data_.gridFillData);
 
-  connect(gridFillDataEdit_, SIGNAL(fillDataChanged()), this, SLOT(widgetsToData()));
-
   gridFillLayout->addWidget(gridFillDataEdit_);
 
   //---
@@ -413,37 +369,55 @@ CQChartsAxisEdit(QWidget *parent, CQChartsAxis *axis) :
 
   //---
 
+  connectSlots(true);
+
   widgetsToData();
+}
+
+void
+CQChartsAxisEdit::
+connectSlots(bool b)
+{
+  assert(b != connected_);
+
+  connected_ = b;
+
+  //---
+
+  auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
+    if (b)
+      connect(w, from, this, to);
+    else
+      disconnect(w, from, this, to);
+  };
+
+  connectDisconnect(b, groupBox_, SIGNAL(clicked(bool)), SLOT(widgetsToData()));
+  connectDisconnect(b, valueTypeCombo_, SIGNAL(currentIndexChanged(int)), SLOT(widgetsToData()));
+  connectDisconnect(b, formatEdit_, SIGNAL(editingFinished()), SLOT(widgetsToData()));
+  connectDisconnect(b, tickIncrementEdit_, SIGNAL(valueChanged(int)), SLOT(widgetsToData()));
+  connectDisconnect(b, majorIncrementEdit_, SIGNAL(valueChanged(int)), SLOT(widgetsToData()));
+  connectDisconnect(b, startEdit_, SIGNAL(valueChanged(double)), SLOT(widgetsToData()));
+  connectDisconnect(b, endEdit_, SIGNAL(valueChanged(double)), SLOT(widgetsToData()));
+  connectDisconnect(b, includeZeroEdit_, SIGNAL(toggled(bool)), SLOT(widgetsToData()));
+  connectDisconnect(b, positionEdit_, SIGNAL(editingFinished()), SLOT(widgetsToData()));
+  connectDisconnect(b, lineDataEdit_, SIGNAL(lineDataChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, tickLabelTextDataEdit_, SIGNAL(textDataChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, labelTextDataEdit_, SIGNAL(textDataChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, majorGridLineDataEdit_, SIGNAL(lineDataChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, minorGridLineDataEdit_, SIGNAL(lineDataChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, gridFillDataEdit_, SIGNAL(fillDataChanged()), SLOT(widgetsToData()));
 }
 
 void
 CQChartsAxisEdit::
 dataToWidgets()
 {
-  disconnect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
-  disconnect(integralEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-  disconnect(dateEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-  disconnect(logEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-  disconnect(formatEdit_, SIGNAL(editingFinished()), this, SLOT(widgetsToData()));
-  disconnect(tickIncrementEdit_, SIGNAL(valueChanged(int)), this, SLOT(widgetsToData()));
-  disconnect(majorIncrementEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-  disconnect(startEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-  disconnect(endEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-  disconnect(includeZeroEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-  disconnect(positionEdit_, SIGNAL(editingFinished()), this, SLOT(widgetsToData()));
-  disconnect(lineDataEdit_, SIGNAL(lineDataChanged()), this, SLOT(widgetsToData()));
-  disconnect(tickLabelTextDataEdit_, SIGNAL(textDataChanged()), this, SLOT(widgetsToData()));
-  disconnect(labelTextDataEdit_, SIGNAL(textDataChanged()), this, SLOT(widgetsToData()));
-  disconnect(majorGridLineDataEdit_, SIGNAL(lineDataChanged()), this, SLOT(widgetsToData()));
-  disconnect(minorGridLineDataEdit_, SIGNAL(lineDataChanged()), this, SLOT(widgetsToData()));
-  disconnect(gridFillDataEdit_, SIGNAL(fillDataChanged()), this, SLOT(widgetsToData()));
+  connectSlots(false);
 
   groupBox_             ->setChecked(data_.visible);
 //directionEdit_        ->setDirection(data_.direction);
   sideEdit_             ->setAxisSide(data_.side);
-  integralEdit_         ->setChecked(data_.integral);
-  dateEdit_             ->setChecked(data_.date);
-  logEdit_              ->setChecked(data_.log);
+  valueTypeCombo_       ->setCurrentIndex(valueTypeToInd(data_.valueType));
   formatEdit_           ->setText(data_.format);
   tickIncrementEdit_    ->setValue(data_.tickIncrement);
   majorIncrementEdit_   ->setValue(data_.majorIncrement);
@@ -458,23 +432,7 @@ dataToWidgets()
   minorGridLineDataEdit_->setData(data_.minorGridLineData);
   gridFillDataEdit_     ->setData(data_.gridFillData);
 
-  connect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
-  connect(integralEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-  connect(dateEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-  connect(logEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-  connect(formatEdit_, SIGNAL(editingFinished()), this, SLOT(widgetsToData()));
-  connect(tickIncrementEdit_, SIGNAL(valueChanged(int)), this, SLOT(widgetsToData()));
-  connect(majorIncrementEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-  connect(startEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-  connect(endEdit_, SIGNAL(valueChanged(double)), this, SLOT(widgetsToData()));
-  connect(includeZeroEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-  connect(positionEdit_, SIGNAL(editingFinished()), this, SLOT(widgetsToData()));
-  connect(lineDataEdit_, SIGNAL(lineDataChanged()), this, SLOT(widgetsToData()));
-  connect(tickLabelTextDataEdit_, SIGNAL(textDataChanged()), this, SLOT(widgetsToData()));
-  connect(labelTextDataEdit_, SIGNAL(textDataChanged()), this, SLOT(widgetsToData()));
-  connect(majorGridLineDataEdit_, SIGNAL(lineDataChanged()), this, SLOT(widgetsToData()));
-  connect(minorGridLineDataEdit_, SIGNAL(lineDataChanged()), this, SLOT(widgetsToData()));
-  connect(gridFillDataEdit_, SIGNAL(fillDataChanged()), this, SLOT(widgetsToData()));
+  connectSlots(true);
 }
 
 void
@@ -484,11 +442,9 @@ widgetsToData()
   data_.visible           = groupBox_->isChecked();
 //data_.direction         = directionEdit_->direction();
   data_.side              = sideEdit_->axisSide();
-  data_.integral          = integralEdit_->isChecked();
-  data_.date              = dateEdit_->isChecked();
-  data_.log               = logEdit_->isChecked();
+  data_.valueType         = indToValueType(valueTypeCombo_->currentIndex());
   data_.format            = formatEdit_->text();
-  data_.tickIncrement     = tickIncrementEdit_->value();
+  data_.tickIncrement     = tickIncrementEdit_ ->value();
   data_.majorIncrement    = majorIncrementEdit_->value();
   data_.start             = startEdit_->value();
   data_.end               = endEdit_->value();
@@ -511,9 +467,7 @@ applyData()
   axis_->setVisible       (data_.visible);
 //axis_->setDirection     (data_.direction);
   axis_->setSide          (data_.side);
-  axis_->setIntegral      (data_.integral);
-  axis_->setDate          (data_.date);
-  axis_->setLog           (data_.log);
+  axis_->setValueType     (data_.valueType);
   axis_->setFormat        (data_.format);
   axis_->setTickIncrement (data_.tickIncrement);
   axis_->setMajorIncrement(data_.majorIncrement);

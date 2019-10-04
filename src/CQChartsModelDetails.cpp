@@ -15,6 +15,8 @@ CQChartsModelDetails::
 CQChartsModelDetails(CQChartsModelData *data) :
  data_(data)
 {
+  if (charts())
+    connect(charts(), SIGNAL(modelTypeChanged(int)), this, SLOT(modelTypeChangedSlot(int)));
 }
 
 CQChartsModelDetails::
@@ -83,9 +85,13 @@ CQChartsModelDetails::
 initSimpleData() const
 {
   if (initialized_ == Initialized::NONE) {
-    CQChartsModelDetails *th = const_cast<CQChartsModelDetails *>(this);
+    std::unique_lock<std::mutex> lock(mutex_);
 
-    th->updateSimple();
+    if (initialized_ == Initialized::NONE) {
+      CQChartsModelDetails *th = const_cast<CQChartsModelDetails *>(this);
+
+      th->updateSimple();
+    }
   }
 }
 
@@ -94,9 +100,13 @@ CQChartsModelDetails::
 initFullData() const
 {
   if (initialized_ != Initialized::FULL) {
-    CQChartsModelDetails *th = const_cast<CQChartsModelDetails *>(this);
+    std::unique_lock<std::mutex> lock(mutex_);
 
-    th->updateFull();
+    if (initialized_ != Initialized::FULL) {
+      CQChartsModelDetails *th = const_cast<CQChartsModelDetails *>(this);
+
+      th->updateFull();
+    }
   }
 }
 
@@ -104,9 +114,11 @@ void
 CQChartsModelDetails::
 reset()
 {
+  {
   std::unique_lock<std::mutex> lock(mutex_);
 
   resetValues();
+  }
 
   emit detailsReset();
 }
@@ -128,26 +140,20 @@ resetValues()
 
 void
 CQChartsModelDetails::
-updateSimple(bool lock)
+updateSimple()
 {
   CQPerfTrace trace("CQChartsModelDetails::updateSimple");
 
-  if (lock)
-    mutex_.lock();
+  assert(initialized_ == Initialized::NONE);
 
-  if (initialized_ != Initialized::SIMPLE) {
-    QAbstractItemModel *model = data_->currentModel().data();
+  QAbstractItemModel *model = this->model();
 
-    hierarchical_ = CQChartsModelUtil::isHierarchical(model);
+  hierarchical_ = CQChartsModelUtil::isHierarchical(model);
 
-    numColumns_ = model->columnCount();
-    numRows_    = model->rowCount   ();
+  numColumns_ = model->columnCount();
+  numRows_    = model->rowCount   ();
 
-    initialized_ = Initialized::SIMPLE;
-  }
-
-  if (lock)
-    mutex_.unlock();
+  initialized_ = Initialized::SIMPLE;
 }
 
 void
@@ -156,20 +162,32 @@ updateFull()
 {
   CQPerfTrace trace("CQChartsModelDetails::updateFull");
 
-  std::unique_lock<std::mutex> lock(mutex_);
+  assert(initialized_ != Initialized::FULL);
 
-  if (initialized_ != Initialized::FULL) {
-    resetValues();
+  resetValues();
 
-    updateSimple(/*lock*/false);
+  if (initialized_ == Initialized::NONE)
+    updateSimple();
 
+  for (int c = 0; c < numColumns_; ++c) {
+    CQChartsModelColumnDetails *columnDetails = this->columnDetails(c);
+
+    numRows_ = std::max(numRows_, columnDetails->numRows());
+  }
+
+  initialized_ = Initialized::FULL;
+}
+
+void
+CQChartsModelDetails::
+modelTypeChangedSlot(int modelInd)
+{
+  if (data_ && data_->ind() == modelInd) {
     for (int c = 0; c < numColumns_; ++c) {
       CQChartsModelColumnDetails *columnDetails = this->columnDetails(c);
 
-      numRows_ = std::max(numRows_, columnDetails->numRows());
+      columnDetails->resetTypeInitialized();
     }
-
-    initialized_ = Initialized::FULL;
   }
 }
 
@@ -231,9 +249,12 @@ columnDuplicates(const CQChartsColumn &column, bool all) const
 
   //---
 
-  CQCharts *charts = data_->charts();
+  std::vector<int> rows;
 
-  QAbstractItemModel *model = data_->currentModel().data();
+  CQCharts *charts = this->charts();
+  if (! charts) return rows;
+
+  QAbstractItemModel *model = this->model();
 
   std::vector<QVariant> rowValues1, rowValues2;
 
@@ -241,8 +262,6 @@ columnDuplicates(const CQChartsColumn &column, bool all) const
     rowValues2.resize(numColumns_);
   else
     rowValues2.resize(1);
-
-  std::vector<int> rows;
 
   for (int r = 0; r < numRows_; ++r) {
     bool match = true;
@@ -283,12 +302,28 @@ columnDuplicates(const CQChartsColumn &column, bool all) const
   return rows;
 }
 
+CQCharts *
+CQChartsModelDetails::
+charts() const
+{
+  return (data_ ? data_->charts() : nullptr);
+}
+
+QAbstractItemModel *
+CQChartsModelDetails::
+model() const
+{
+  return (data_ ? data_->currentModel().data() : nullptr);
+}
+
 //------
 
 CQChartsModelColumnDetails::
 CQChartsModelColumnDetails(CQChartsModelDetails *details, const CQChartsColumn &column) :
  details_(details), column_(column)
 {
+  assert(details_);
+
   valueSet_ = new CQChartsValueSet;
 }
 
@@ -378,7 +413,7 @@ QString
 CQChartsModelColumnDetails::
 headerName() const
 {
-  QAbstractItemModel *model = details_->data()->currentModel().data();
+  QAbstractItemModel *model = details_->model();
 
   bool ok;
 
@@ -389,7 +424,7 @@ bool
 CQChartsModelColumnDetails::
 isKey() const
 {
-  QAbstractItemModel *model = details_->data()->currentModel().data();
+  QAbstractItemModel *model = details_->model();
 
   bool ok;
 
@@ -527,16 +562,15 @@ dataName(const QVariant &v) const
 {
   initCache();
 
-  CQCharts *charts = details_->data()->charts();
+  CQCharts *charts = details_->charts();
+  if (! charts) return QVariant();
 
-  CQChartsColumnTypeMgr *columnTypeMgr = charts->columnTypeMgr();
-
-  const CQChartsColumnType *columnType = columnTypeMgr->getType(type_);
+  const CQChartsColumnType *columnType = this->columnType();
 
   if (! columnType)
     return v;
 
-  QAbstractItemModel *model = details_->data()->currentModel().data();
+  QAbstractItemModel *model = details_->model();
 
   bool converted;
 
@@ -575,7 +609,7 @@ isMonotonic() const
 
     bool ok;
 
-    QAbstractItemModel *model = details_->data()->currentModel().data();
+    QAbstractItemModel *model = details_->model();
 
     QVariant var = CQChartsModelUtil::modelHeaderValue(
       model, icolumn, static_cast<int>(CQBaseModelRole::Sorted), ok);
@@ -601,7 +635,7 @@ isIncreasing() const
 
     bool ok;
 
-    QAbstractItemModel *model = details_->data()->currentModel().data();
+    QAbstractItemModel *model = details_->model();
 
     QVariant var = CQChartsModelUtil::modelHeaderValue(
       model, icolumn, static_cast<int>(CQBaseModelRole::Sorted), ok);
@@ -936,6 +970,39 @@ outlierValues() const
   return vars;
 }
 
+bool
+CQChartsModelColumnDetails::
+isOutlier(const QVariant &value) const
+{
+  initCache();
+
+  bool ok;
+
+  if      (type() == CQBaseModelType::INTEGER) {
+    long i = CQChartsVariant::toInt(value, ok);
+
+    return (ok && valueSet_->ivals().isOutlier(i));
+  }
+  else if (type() == CQBaseModelType::REAL) {
+    double r = CQChartsVariant::toReal(value, ok);
+
+    return (ok && valueSet_->rvals().isOutlier(r));
+  }
+  else if (type() == CQBaseModelType::STRING) {
+    return false;
+  }
+  else if (type() == CQBaseModelType::TIME) {
+    double r = CQChartsVariant::toReal(value, ok);
+
+    return (ok && valueSet_->tvals().isOutlier(r));
+  }
+  else if (type() == CQBaseModelType::COLOR) {
+    return false;
+  }
+
+  return false;
+}
+
 double
 CQChartsModelColumnDetails::
 map(const QVariant &var) const
@@ -975,9 +1042,13 @@ CQChartsModelColumnDetails::
 initCache() const
 {
   if (! initialized_) {
-    CQChartsModelColumnDetails *th = const_cast<CQChartsModelColumnDetails *>(this);
+    std::unique_lock<std::mutex> lock(mutex_);
 
-    (void) th->initData();
+    if (! initialized_) {
+      CQChartsModelColumnDetails *th = const_cast<CQChartsModelColumnDetails *>(this);
+
+      (void) th->initData();
+    }
   }
 }
 
@@ -987,16 +1058,18 @@ initData()
 {
   CQPerfTrace trace("CQChartsModelColumnDetails::initData");
 
-  initialized_ = true;
-
-  if (! calcType())
-    return false;
+  assert(! initialized_);
 
   //---
 
-  std::unique_lock<std::mutex> lock(mutex_);
+  if (! typeInitialized_) {
+    if (! calcType())
+      return false;
+  }
 
-  QAbstractItemModel *model = details_->data()->currentModel().data();
+  //---
+
+  QAbstractItemModel *model = details_->model();
   if (! model) return false;
 
   CQChartsModelFilter *modelFilter = nullptr;
@@ -1028,7 +1101,7 @@ initData()
    public:
     DetailVisitor(CQChartsModelColumnDetails *details) :
      details_(details) {
-      charts_ = details_->details()->data()->charts();
+      charts_ = details_->details()->charts();
 
       CQChartsColumnTypeMgr *columnTypeMgr = charts_->columnTypeMgr();
 
@@ -1367,7 +1440,8 @@ initData()
 
   DetailVisitor detailVisitor(this);
 
-  CQCharts *charts = details()->data()->charts();
+  CQCharts *charts = details()->charts();
+  if (! charts) return false;
 
   CQChartsModelVisit::exec(charts, model, detailVisitor);
 
@@ -1382,6 +1456,10 @@ initData()
   if (modelFilter)
     modelFilter->setMapping(true);
 
+  //---
+
+  initialized_ = true;
+
   return true;
 }
 
@@ -1390,9 +1468,13 @@ CQChartsModelColumnDetails::
 initType() const
 {
   if (! typeInitialized_) {
-    CQChartsModelColumnDetails *th = const_cast<CQChartsModelColumnDetails *>(this);
+    std::unique_lock<std::mutex> lock(mutex_);
 
-    (void) th->calcType();
+    if (! typeInitialized_) {
+      CQChartsModelColumnDetails *th = const_cast<CQChartsModelColumnDetails *>(this);
+
+      (void) th->calcType();
+    }
   }
 }
 
@@ -1402,11 +1484,11 @@ calcType()
 {
   CQPerfTrace trace("CQChartsModelColumnDetails::calcType");
 
+  assert(! typeInitialized_);
+
   //---
 
-  std::unique_lock<std::mutex> lock(mutex_);
-
-  QAbstractItemModel *model = details_->data()->currentModel().data();
+  QAbstractItemModel *model = details_->model();
   if (! model) return false;
 
   if (! column_.isValid())
@@ -1424,34 +1506,39 @@ calcType()
 
   //---
 
-  if (! typeInitialized_) {
-    // get column type and name values
-    // TODO: calls CQChartsModelVisitor, integrate into this visitor
-    CQCharts *charts = details_->data()->charts();
+  // get column type and name values
+  // TODO: calls CQChartsModelVisitor, integrate into this visitor
+  CQCharts *charts = details_->charts();
+  if (! charts) return false;
 
-    if (! CQChartsModelUtil::columnValueType(charts, model, column_, type_,
-                                             baseType_, nameValues_)) {
-      type_     = CQBaseModelType::NONE;
-      baseType_ = CQBaseModelType::NONE;
-    }
-
-    //---
-
-    CQChartsColumnTypeMgr *columnTypeMgr = charts->columnTypeMgr();
-
-    const CQChartsColumnType *columnType = columnTypeMgr->getType(type_);
-
-    if (columnType) {
-      typeName_ = columnType->name();
-    }
-    else {
-      type_     = CQBaseModelType::STRING;
-      baseType_ = CQBaseModelType::STRING;
-      typeName_ = "string";
-    }
-
-    typeInitialized_ = true;
+  if (! CQChartsModelUtil::columnValueType(charts, model, column_, type_,
+                                           baseType_, nameValues_)) {
+    type_     = CQBaseModelType::NONE;
+    baseType_ = CQBaseModelType::NONE;
   }
+
+  //---
+
+  const CQChartsColumnType *columnType = this->columnType();
+
+  if (columnType) {
+    typeName_ = columnType->name();
+  }
+  else {
+    type_     = CQBaseModelType::STRING;
+    baseType_ = CQBaseModelType::STRING;
+    typeName_ = "string";
+  }
+
+  //---
+
+  tableDrawColor_ = columnType->drawColor(nameValues_);
+  tableDrawType_  = columnType->drawType (nameValues_);
+  tableDrawStops_ = columnType->drawStops(nameValues_);
+
+  //---
+
+  typeInitialized_ = true;
 
   return true;
 }
@@ -1511,9 +1598,10 @@ bool
 CQChartsModelColumnDetails::
 columnColor(const QVariant &var, CQChartsColor &color) const
 {
-  CQCharts *charts = details_->data()->charts();
+  CQCharts *charts = details_->charts();
+  if (! charts) return false;
 
-  QAbstractItemModel *model = details_->data()->currentModel().data();
+  QAbstractItemModel *model = details_->model();
 
   CQChartsColumnTypeMgr *columnTypeMgr = charts->columnTypeMgr();
 
@@ -1532,4 +1620,31 @@ columnColor(const QVariant &var, CQChartsColor &color) const
     return false;
 
   return true;
+}
+
+bool
+CQChartsModelColumnDetails::
+columnNameValue(const QString &name, QString &value) const
+{
+  const CQChartsColumnType *columnType = this->columnType();
+
+  if (! columnType)
+    return false;
+
+  if (! columnType->nameValueString(nameValues_, name, value))
+    return false;
+
+  return true;
+}
+
+const CQChartsColumnType *
+CQChartsModelColumnDetails::
+columnType() const
+{
+  CQCharts *charts = details_->charts();
+  if (! charts) return nullptr;
+
+  CQChartsColumnTypeMgr *columnTypeMgr = charts->columnTypeMgr();
+
+  return columnTypeMgr->getType(type_);
 }

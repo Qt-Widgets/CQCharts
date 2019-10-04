@@ -4,8 +4,13 @@
 #include <QString>
 #include <vector>
 
+/*!
+ * \brief Charts Tcl Command Argument
+ * \ingroup Charts
+ */
 class CQChartsCmdArg {
  public:
+  //! types
   enum class Type {
     None,
     Boolean,
@@ -41,6 +46,8 @@ class CQChartsCmdArg {
     }
   }
 
+  int ind() const { return ind_; }
+
   const QString &name() const { return name_; }
 
   bool isOpt() const { return isOpt_; }
@@ -53,6 +60,9 @@ class CQChartsCmdArg {
 
   bool isRequired() const { return required_; }
   CQChartsCmdArg &setRequired(bool b=true) { required_ = b; return *this; }
+
+  bool isHidden() const { return hidden_; }
+  CQChartsCmdArg &setHidden(bool b=true) { hidden_ = b; return *this; }
 
   bool isMultiple() const { return multiple_; }
   CQChartsCmdArg &setMultiple(bool b=true) { multiple_ = b; return *this; }
@@ -68,16 +78,17 @@ class CQChartsCmdArg {
   const NameValues &nameValues() const { return nameValues_; }
 
  private:
-  int        ind_      { -1 };         // command ind
-  QString    name_;                    // arg name
-  bool       isOpt_    { false };      // is option
-  Type       type_     { Type::None }; // value type
-  QString    argDesc_;                 // short description
-  QString    desc_;                    // long description
-  bool       required_ { false };      // is required
-  bool       multiple_ { false };      // can have multiple values
-  int        groupInd_ { -1 };         // cmd group ind
-  NameValues nameValues_;              // enum name values
+  int        ind_      { -1 };         //!< command ind
+  QString    name_;                    //!< arg name
+  bool       isOpt_    { false };      //!< is option
+  Type       type_     { Type::None }; //!< value type
+  QString    argDesc_;                 //!< short description
+  QString    desc_;                    //!< long description
+  bool       required_ { false };      //!< is required
+  bool       hidden_   { false };      //!< is hidden
+  bool       multiple_ { false };      //!< can have multiple values
+  int        groupInd_ { -1 };         //!< cmd group ind
+  NameValues nameValues_;              //!< enum name values
 };
 
 #endif

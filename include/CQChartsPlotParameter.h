@@ -7,6 +7,10 @@
 #include <QStringList>
 #include <QVariant>
 
+/*!
+ * \brief plot parameter attributes
+ * \ingroup Charts
+ */
 class CQChartsPlotParameterAttributes {
  public:
   enum Flags {
@@ -101,13 +105,17 @@ class CQChartsPlotParameterAttributes {
   }
 
  private:
-  unsigned int flags_  { 0 };   //! flags
-  double       mapMin_ { 0.0 }; //! map min
-  double       mapMax_ { 1.0 }; //! map max
+  unsigned int flags_  { 0 };   //!< flags
+  double       mapMin_ { 0.0 }; //!< map min
+  double       mapMax_ { 1.0 }; //!< map max
 };
 
 //---
 
+/*!
+ * \brief plot parameter object
+ * \ingroup Charts
+ */
 class CQChartsPlotParameter : public QObject {
   Q_OBJECT
 
@@ -118,6 +126,7 @@ class CQChartsPlotParameter : public QObject {
   Q_PROPERTY(int      groupId         READ groupId         WRITE setGroupId )
   Q_PROPERTY(QVariant defValue        READ defValue        WRITE setDefValue)
   Q_PROPERTY(QString  tip             READ tip             WRITE setTip     )
+  Q_PROPERTY(bool     hidden          READ isHidden        WRITE setHidden  )
   Q_PROPERTY(bool     isColumn        READ isColumn                         )
   Q_PROPERTY(bool     isMultiple      READ isMultiple                       )
   Q_PROPERTY(bool     isOptional      READ isOptional                       )
@@ -146,76 +155,114 @@ class CQChartsPlotParameter : public QObject {
 
   virtual ~CQChartsPlotParameter() { }
 
+  //! get/set name
   const QString &name() const { return name_; }
   CQChartsPlotParameter &setName(const QString &s) { name_ = s; return *this; }
 
+  //! get/set description
   const QString &desc() const { return desc_; }
   CQChartsPlotParameter &setDesc(const QString &s) { desc_ = s; return *this; }
 
+  //! get/set type
   const Type &type() const { return type_; }
   CQChartsPlotParameter &setType(const Type &s) { type_ = s; return *this; }
 
+  //! get/set type name
   QString typeName() const;
   CQChartsPlotParameter &setTypeName(const QString &name);
 
+  //! get/set property name
   const QString &propName() const { return propName_; }
   CQChartsPlotParameter &setPropName(const QString &s) { propName_ = s; return *this; }
 
+  //! get/set attributes
   const Attributes &attributes() const { return attributes_; }
   CQChartsPlotParameter &setAttributes(const Attributes &s) { attributes_ = s; return *this; }
 
+  //! is in group
   bool inGroup() const { return groupId_ > 0; }
 
+  //! get/set associated group id
   int groupId() const { return groupId_; }
   void setGroupId(int i) { groupId_ = i; }
 
+  //! get/set default value
   const QVariant &defValue() const { return defValue_; }
   CQChartsPlotParameter &setDefValue(const QVariant &v) { defValue_ = v; return *this; }
 
+  //! get/set tip
   const QString &tip() const { return tip_; }
   CQChartsPlotParameter &setTip(const QString &s) { tip_ = s; return *this; }
 
+  //! get/set is hidden
+  bool isHidden() const { return hidden_; }
+  void setHidden(bool b) { hidden_ = b; }
+
+  //! is a column parameter
   virtual bool isColumn() const { return false; }
 
+  //! does support multiple values
   virtual bool isMultiple() const { return false; }
 
-  bool isOptional     () const { return attributes_.isOptional     (); }
-  bool isRequired     () const { return attributes_.isRequired     (); }
+  //! get/set optional
+  bool isOptional() const { return attributes_.isOptional(); }
+  CQChartsPlotParameter &setOptional() { attributes_.setOptional(); return *this; }
+
+  //! get/set required
+  bool isRequired() const { return attributes_.isRequired(); }
+  CQChartsPlotParameter &setRequired() { attributes_.setRequired(); return *this; }
+
+  //! get/set is discriminator (for analyze)
   bool isDiscriminator() const { return attributes_.isDiscriminator(); }
-  bool isMonotonic    () const { return attributes_.isMonotonic    (); }
+  CQChartsPlotParameter &setDiscriminator() { attributes_.setDiscriminator(); return *this; }
 
-  bool isNumeric() const { return attributes_.isNumeric    (); }
-  bool isString () const { return attributes_.isString     (); }
-  bool isBool   () const { return attributes_.isBool       (); }
-  bool isColor  () const { return attributes_.isColor      (); }
+  //! get/set is monotonic (for analyze)
+  bool isMonotonic() const { return attributes_.isMonotonic(); }
+  CQChartsPlotParameter &setMonotonic() { attributes_.setMonotonic(); return *this; }
 
+  //! get/set is numeric (real or integer)
+  bool isNumeric() const { return attributes_.isNumeric(); }
+  CQChartsPlotParameter &setNumeric() { attributes_.setNumeric(); return *this; }
+
+  //! get/set is string
+  bool isString() const { return attributes_.isString(); }
+  CQChartsPlotParameter &setString() { attributes_.setString(); return *this; }
+
+  //! get/set is boolean
+  bool isBool() const { return attributes_.isBool(); }
+  CQChartsPlotParameter &setBool() { attributes_.setBool(); return *this; }
+
+  //! get/set is color
+  bool isColor() const { return attributes_.isColor(); }
+  CQChartsPlotParameter &setColor() { attributes_.setColor(); return *this; }
+
+  //! has type detail
   bool hasTypeDetail() const { return attributes_.hasTypeDetail(); }
 
+  //! type detail string
   QString typeDetail() const { return attributes_.typeDetail(); }
 
+  //! get/set is groupable
   bool isGroupable() const { return attributes_.isGroupable  (); }
-  bool isMapped   () const { return attributes_.isMapped     (); }
+  CQChartsPlotParameter &setGroupable() { attributes_.setGroupable(); return *this; }
 
-  CQChartsPlotParameter &setOptional     () { attributes_.setOptional     (); return *this; }
-  CQChartsPlotParameter &setRequired     () { attributes_.setRequired     (); return *this; }
-  CQChartsPlotParameter &setDiscriminator() { attributes_.setDiscriminator(); return *this; }
-  CQChartsPlotParameter &setMonotonic    () { attributes_.setMonotonic    (); return *this; }
-  CQChartsPlotParameter &setNumeric      () { attributes_.setNumeric      (); return *this; }
-  CQChartsPlotParameter &setString       () { attributes_.setString       (); return *this; }
-  CQChartsPlotParameter &setBool         () { attributes_.setBool         (); return *this; }
-  CQChartsPlotParameter &setColor        () { attributes_.setColor        (); return *this; }
-  CQChartsPlotParameter &setGroupable    () { attributes_.setGroupable    (); return *this; }
-  CQChartsPlotParameter &setMapped       () { attributes_.setMapped       (); return *this; }
+  //! get/set is mapped value
+  bool isMapped() const { return attributes_.isMapped(); }
+  CQChartsPlotParameter &setMapped() { attributes_.setMapped(); return *this; }
 
+  //! get/set is map minimum
   double mapMin() const { return attributes_.mapMin(); }
-  double mapMax() const { return attributes_.mapMax(); }
-
   CQChartsPlotParameter &setMapMin(double r) { attributes_.setMapMin(r); return *this; }
+
+  //! get/set is map maximum
+  double mapMax() const { return attributes_.mapMax(); }
   CQChartsPlotParameter &setMapMax(double r) { attributes_.setMapMax(r); return *this; }
 
+  //! set map maximum and maximum
   CQChartsPlotParameter &setMapMinMax(double min, double max) {
     attributes_.setMapMinMax(min, max); return *this; }
 
+  //! get map property names
   bool mapPropNames(QString &mappedName, QString &mapMinName, QString &mapMaxName) const {
     QString columnPropName = this->propName();
 
@@ -231,10 +278,13 @@ class CQChartsPlotParameter : public QObject {
 
   //---
 
+  //! add parameter property (for tcl command)
   void addProperty(const QString &name, const QString &propName, const QString &desc);
 
+  //! get parameter property names (for tcl command)
   void propertyNames(QStringList &names) const;
 
+  //! has specified property name
   bool hasProperty(const QString &name) const;
 
   QVariant getPropertyValue(const QString &name) const;
@@ -244,6 +294,7 @@ class CQChartsPlotParameter : public QObject {
   CQChartsPlotParameter &operator=(const CQChartsPlotParameter &);
 
  private:
+  //! property data
   struct PropertyData {
     QString name;
     QString propName;
@@ -256,19 +307,24 @@ class CQChartsPlotParameter : public QObject {
 
   using Properties = std::map<QString,PropertyData>;
 
-  QString    name_;           //! name
-  QString    desc_;           //! description
-  Type       type_;           //! type
-  QString    propName_;       //! property name
-  Attributes attributes_;     //! attributes
-  int        groupId_ { -1 }; //! parent group id
-  QVariant   defValue_;       //! default value
-  QString    tip_;            //! tip
-  Properties properties_;     //! properties
+  QString    name_;                    //!< name
+  QString    desc_;                    //!< description
+  Type       type_     { Type::NONE }; //!< type
+  QString    propName_;                //!< property name
+  Attributes attributes_;              //!< attributes
+  int        groupId_ { -1 };          //!< parent group id
+  QVariant   defValue_;                //!< default value
+  QString    tip_;                     //!< tip
+  bool       hidden_  { false };       //!< is hidden
+  Properties properties_;              //!< properties
 };
 
 //---
 
+/*!
+ * \brief column parameter
+ * \ingroup Charts
+ */
 class CQChartsColumnParameter : public CQChartsPlotParameter {
   Q_OBJECT
 
@@ -284,6 +340,10 @@ class CQChartsColumnParameter : public CQChartsPlotParameter {
 
 //---
 
+/*!
+ * \brief columns parameter
+ * \ingroup Charts
+ */
 class CQChartsColumnsParameter : public CQChartsPlotParameter {
   Q_OBJECT
 
@@ -301,6 +361,10 @@ class CQChartsColumnsParameter : public CQChartsPlotParameter {
 
 //---
 
+/*!
+ * \brief string parameter
+ * \ingroup Charts
+ */
 class CQChartsStringParameter : public CQChartsPlotParameter {
   Q_OBJECT
 
@@ -313,6 +377,10 @@ class CQChartsStringParameter : public CQChartsPlotParameter {
 
 //---
 
+/*!
+ * \brief real parameter
+ * \ingroup Charts
+ */
 class CQChartsRealParameter : public CQChartsPlotParameter {
   Q_OBJECT
 
@@ -325,6 +393,10 @@ class CQChartsRealParameter : public CQChartsPlotParameter {
 
 //---
 
+/*!
+ * \brief integer parameter
+ * \ingroup Charts
+ */
 class CQChartsIntParameter : public CQChartsPlotParameter {
   Q_OBJECT
 
@@ -337,6 +409,10 @@ class CQChartsIntParameter : public CQChartsPlotParameter {
 
 //---
 
+/*!
+ * \brief enum parameter
+ * \ingroup Charts
+ */
 class CQChartsEnumParameter : public CQChartsPlotParameter {
   Q_OBJECT
 
@@ -380,12 +456,16 @@ class CQChartsEnumParameter : public CQChartsPlotParameter {
   using NameValues = std::map<QString,int>;
   using ValueNames = std::map<int,QString>;
 
-  NameValues nameValues_;
-  ValueNames valueNames_;
+  NameValues nameValues_; //!< name values
+  ValueNames valueNames_; //!< value names
 };
 
 //---
 
+/*!
+ * \brief boolean parameter
+ * \ingroup Charts
+ */
 class CQChartsBoolParameter : public CQChartsPlotParameter {
   Q_OBJECT
 
@@ -398,6 +478,10 @@ class CQChartsBoolParameter : public CQChartsPlotParameter {
 
 //------
 
+/*!
+ * \brief plot parameter group
+ * \ingroup Charts
+ */
 class CQChartsPlotParameterGroup : public QObject {
   Q_OBJECT
 
@@ -418,27 +502,37 @@ class CQChartsPlotParameterGroup : public QObject {
    name_(name), groupId_(groupId) {
   }
 
+  //! get/set type
   const Type &type() const { return type_; }
   void setType(const Type &t) { type_ = t; }
 
+  //! get/set name
   const QString &name() const { return name_; }
   void setName(const QString &s) { name_ = s; }
 
+  //! get/set group id
   int groupId() const { return groupId_; }
   void setGroupId(int i) { groupId_ = i; }
 
+  //! get/set other group id (for primary or secondary)
   int otherGroupId() const { return otherGroupId_; }
   void setOtherGroupId(int i) { otherGroupId_ = i; }
 
+  //! get/set parent group id
   int parentGroupId() const { return parentGroupId_; }
   void setParentGroupId(int i) { parentGroupId_ = i; }
 
+  //! get/set is hidden
+  bool isHidden() const { return hidden_; }
+  void setHidden(bool b) { hidden_ = b; }
+
  private:
-  Type    type_          { Type::NONE }; //! group type
-  QString name_;                         //! group name
-  int     groupId_       { -1 };         //! group id
-  int     otherGroupId_  { -1 };         //! other group id
-  int     parentGroupId_ { -1 };         //! parent group id
+  Type    type_          { Type::NONE }; //!< group type
+  QString name_;                         //!< group name
+  int     groupId_       { -1 };         //!< group id
+  int     otherGroupId_  { -1 };         //!< other group id
+  int     parentGroupId_ { -1 };         //!< parent group id
+  bool    hidden_        { false };      //!< is hidden
 };
 
 #endif

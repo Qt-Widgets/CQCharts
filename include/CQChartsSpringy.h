@@ -8,7 +8,10 @@
 namespace Springy {
   class Node;
 
-  // Vector
+  /*!
+   * \brief Vector
+   * \ingroup Charts
+   */
   class Vector {
    public:
     static Vector random() {
@@ -42,7 +45,7 @@ namespace Springy {
     }
 
     double magnitude() const {
-      return sqrt(x_*x_ + y_*y_);
+      return std::hypot(x_, y_);
     }
 
     Vector normal() const {
@@ -63,7 +66,10 @@ namespace Springy {
     double y_ { 0.0 };
   };
 
-  // Point
+  /*!
+   * \brief Point
+   * \ingroup Charts
+   */
   class Point {
    public:
     Point(const Vector &position, double mass) :
@@ -90,16 +96,19 @@ namespace Springy {
     }
 
    private:
-    Vector p_;               //! position
-    double mass_ { 1.0 };    //! mass
-    Vector v_;               //! velocity
-    Vector a_;               //! acceleration
-    bool   fixed_ { false }; //! is fixed
+    Vector p_;               //!< position
+    double mass_ { 1.0 };    //!< mass
+    Vector v_;               //!< velocity
+    Vector a_;               //!< acceleration
+    bool   fixed_ { false }; //!< is fixed
   };
 
   //-----------
 
-  // Spring
+  /*!
+   * \brief Spring
+   * \ingroup Charts
+   */
   class Spring {
    public:
     Spring(Point *point1, Point *point2, double length, double k) :
@@ -122,17 +131,20 @@ namespace Springy {
 */
 
    private:
-    Point* point1_ { nullptr }; //! start point
-    Point* point2_ { nullptr }; //! end point
-    double length_ { 1.0 };     //! spring length at rest
-    double k_      { 1.0 };     //! spring constant (See Hooke's law) .. how stiff the spring is
+    Point* point1_ { nullptr }; //!< start point
+    Point* point2_ { nullptr }; //!< end point
+    double length_ { 1.0 };     //!< spring length at rest
+    double k_      { 1.0 };     //!< spring constant (See Hooke's law) .. how stiff the spring is
   };
 
   using NodePoint = std::pair<Node*,Point*>;
 
   //-----------
 
-  // Node
+  /*!
+   * \brief Node
+   * \ingroup Charts
+   */
   class Node {
    public:
     Node(int id) :
@@ -158,19 +170,22 @@ namespace Springy {
     void setFixed(bool b) { fixed_ = b; }
 
    private:
-    int     id_     { 0 };     //! id
-    Vector  pos_;              //! position
-    double  mass_   { 1.0 };   //! mass
-    QString label_;            //! label
-    double  value_  { 0.0 };   //! value
-    bool    fixed_  { false }; //! is fixed
+    int     id_     { 0 };     //!< id
+    Vector  pos_;              //!< position
+    double  mass_   { 1.0 };   //!< mass
+    QString label_;            //!< label
+    double  value_  { 0.0 };   //!< value
+    bool    fixed_  { false }; //!< is fixed
   };
 
   using Nodes = std::vector<Node*>;
 
   //-----------
 
-  // Edge
+  /*!
+   * \brief Edge
+   * \ingroup Charts
+   */
   class Edge {
    public:
     Edge(int id, Node *source, Node *target) :
@@ -189,18 +204,21 @@ namespace Springy {
     void setValue(double v) { value_ = v; }
 
    private:
-    int    id_     { 0 };       //! id
-    Node*  source_ { nullptr }; //! source node
-    Node*  target_ { nullptr }; //! target node
-    double length_ { 1.0 };     //! length
-    double value_  { 0.0 };     //! value
+    int    id_     { 0 };       //!< id
+    Node*  source_ { nullptr }; //!< source node
+    Node*  target_ { nullptr }; //!< target node
+    double length_ { 1.0 };     //!< length
+    double value_  { 0.0 };     //!< value
   };
 
   using Edges = std::vector<Edge*>;
 
   //-----------
 
-  // Graph
+  /*!
+   * \brief Graph
+   * \ingroup Charts
+   */
   class Graph {
    public:
     Graph() :
@@ -379,7 +397,10 @@ namespace Springy {
 
   //-----------
 
-  // Layout
+  /*!
+   * \brief Layout
+   * \ingroup Charts
+   */
   class Layout {
    public:
     Layout(Graph *graph, double stiffness, double repulsion, double damping) :
@@ -397,11 +418,11 @@ namespace Springy {
     Graph *graph() const { return graph_; }
 
     Point *nodePoint(Node *node) const {
-      auto p = nodePoints_.find(node->id());
+      Layout *th = const_cast<Layout *>(this);
 
-      if (p == nodePoints_.end()) {
-        Layout *th = const_cast<Layout *>(this);
+      auto p = th->nodePoints_.find(node->id());
 
+      if (p == th->nodePoints_.end()) {
         auto point = new Point(node->position(), node->mass());
 
         if (node->isFixed())
@@ -606,13 +627,13 @@ namespace Springy {
     using NodePoints  = std::map<int,Point*>;
     using EdgeSprings = std::map<int,Spring*>;
 
-    Graph*      graph_              { nullptr }; //! parent graph
-    double      stiffness_          { 400.0 };   //! spring stiffness constant
-    double      repulsion_          { 400.0 };   //! repulsion constant
-    double      damping_            { 0.5 };     //! velocity damping factor
-//  double      minEnergyThreshold_ { 0.0 };
-    NodePoints  nodePoints_;                     //! keep track of points associated with nodes
-    EdgeSprings edgeSprings_;                    //! keep track of springs associated with edges
+    Graph*      graph_              { nullptr }; //!< parent graph
+    double      stiffness_          { 400.0 };   //!< spring stiffness constant
+    double      repulsion_          { 400.0 };   //!< repulsion constant
+    double      damping_            { 0.5 };     //!< velocity damping factor
+//  double      minEnergyThreshold_ { 0.0 };     //!< min energy threshold
+    NodePoints  nodePoints_;                     //!< keep track of points associated with nodes
+    EdgeSprings edgeSprings_;                    //!< keep track of springs associated with edges
   };
 }
 

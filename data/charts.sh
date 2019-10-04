@@ -40,9 +40,13 @@ while ($#argv > 0)
     setenv HRTIMER_ACTIVE 1
     setenv CQ_PERF_MONITOR_DEBUG 1
     setenv CQ_PERF_MONITOR_DEBUG_PATTERN "*"
+    setenv CQ_CHARTS_DEBUG_UPDATE 1
     shift
   else if ("$1" == "-perf") then
     setenv CQ_PERF_MONITOR_ENABLED 1
+    shift
+  else if ("$1" == "-quad_tree") then
+    setenv CQ_CHARTS_DEBUG_QUAD_TREE 1
     shift
   else if ("$1" == "-record") then
     setenv CQ_CHARTS_OBJ_TREE_WAIT 1

@@ -10,6 +10,10 @@ class CQChartsDataLabel;
 
 //---
 
+/*!
+ * \brief Geometry plot type
+ * \ingroup Charts
+ */
 class CQChartsGeometryPlotType : public CQChartsPlotType {
  public:
   CQChartsGeometryPlotType();
@@ -20,6 +24,8 @@ class CQChartsGeometryPlotType : public CQChartsPlotType {
   Dimension dimension() const override { return Dimension::NONE; }
 
   void addParameters() override;
+
+  bool canProbe() const override { return true; }
 
   QString description() const override;
 
@@ -33,6 +39,10 @@ class CQChartsGeometryPlotType : public CQChartsPlotType {
 
 class CQChartsGeometryPlot;
 
+/*!
+ * \brief Geometry Plot object
+ * \ingroup Charts
+ */
 class CQChartsGeometryObj : public CQChartsPlotObj {
   Q_OBJECT
 
@@ -46,14 +56,13 @@ class CQChartsGeometryObj : public CQChartsPlotObj {
 
  public:
   CQChartsGeometryObj(const CQChartsGeometryPlot *plot, const CQChartsGeom::BBox &rect,
-                      const Polygons &polygons, const QModelIndex &ind, int i, int n);
+                      const Polygons &polygons, const QModelIndex &ind, const ColorInd &iv);
+
+  QString typeName() const override { return "geom"; }
 
   QString calcId() const override;
 
   QString calcTipId() const override;
-
-  double value() const { return value_; }
-  void setValue(double r) { value_ = r; }
 
   const QString &name() const { return name_; }
   void setName(const QString &s) { name_ = s; }
@@ -64,31 +73,35 @@ class CQChartsGeometryObj : public CQChartsPlotObj {
   const CQChartsStyle &style() const { return style_; }
   void setStyle(const CQChartsStyle &s) { style_ = s; }
 
+  double value() const { return value_; }
+  void setValue(double r) { value_ = r; hasValue_ = true; }
+
   bool inside(const CQChartsGeom::Point &p) const override;
 
   void getSelectIndices(Indices &inds) const override;
 
-  void addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const override;
+  void draw(CQChartsPaintDevice *device) override;
 
-  void draw(QPainter *painter) override;
-
-  void drawFg(QPainter *painter) const override;
+  void drawFg(CQChartsPaintDevice *device) const override;
 
  private:
-  const CQChartsGeometryPlot* plot_  { nullptr }; //! parent plot
-  Polygons                    polygons_;          //! geometry polygons
-  double                      value_ { 0.0 };     //! geometry value
-  QString                     name_;              //! geometry name
-  CQChartsColor               color_;             //! optional color
-  CQChartsStyle               style_;             //! optional style
-  QModelIndex                 ind_;               //! model index
-  int                         i_     { -1 };      //! value index
-  int                         n_     { -1 };      //! value count
-  Polygons                    ppolygons_;         //! pixel polygons
+
+ private:
+  const CQChartsGeometryPlot* plot_     { nullptr }; //!< parent plot
+  Polygons                    polygons_;             //!< geometry polygons
+  QString                     name_;                 //!< geometry name
+  CQChartsColor               color_;                //!< optional color
+  CQChartsStyle               style_;                //!< optional style
+  double                      value_    { 0.0 };     //!< geometry value
+  bool                        hasValue_ { false };   //!< has value
 };
 
 //---
 
+/*!
+ * \brief Geometry Plot
+ * \ingroup Charts
+ */
 class CQChartsGeometryPlot : public CQChartsPlot,
  public CQChartsObjShapeData<CQChartsGeometryPlot> {
   Q_OBJECT
@@ -99,6 +112,9 @@ class CQChartsGeometryPlot : public CQChartsPlot,
   Q_PROPERTY(CQChartsColumn valueColumn    READ valueColumn    WRITE setValueColumn   )
   Q_PROPERTY(CQChartsColumn styleColumn    READ styleColumn    WRITE setStyleColumn   )
 
+  // color
+  Q_PROPERTY(bool colorByValue READ isColorByValue WRITE setColorByValue)
+
   // value range
   Q_PROPERTY(double minValue READ minValue WRITE setMinValue)
   Q_PROPERTY(double maxValue READ maxValue WRITE setMaxValue)
@@ -108,15 +124,17 @@ class CQChartsGeometryPlot : public CQChartsPlot,
 
  public:
   using Polygons = std::vector<QPolygonF>;
+  using OptReal  = boost::optional<double>;
 
+  //! geometry data
   struct Geometry {
-    QString            name;
-    Polygons           polygons;
-    double             value { 0.0 };
-    CQChartsColor      color;
-    CQChartsStyle      style;
-    CQChartsGeom::BBox bbox;
-    QModelIndex        ind;
+    QString            name;     //!< name
+    Polygons           polygons; //!< polygon list
+    OptReal            value;    //!< value
+    CQChartsColor      color;    //!< custom color
+    CQChartsStyle      style;    //!< custom style
+    CQChartsGeom::BBox bbox;     //!< bounding box
+    QModelIndex        ind;      //!< associated model index
   };
 
  public:
@@ -140,6 +158,11 @@ class CQChartsGeometryPlot : public CQChartsPlot,
 
   //---
 
+  bool isColorByValue() const { return colorByValue_; }
+  void setColorByValue(bool b);
+
+  //---
+
   double minValue() const;
   void setMinValue(double r);
 
@@ -155,11 +178,22 @@ class CQChartsGeometryPlot : public CQChartsPlot,
 
   void addProperties() override;
 
+  void getPropertyNames(QStringList &names, bool hidden) const override;
+
+  //---
+
   CQChartsGeom::Range calcRange() const override;
 
   bool createObjs(PlotObjs &objs) const override;
 
   //---
+
+  bool probe(ProbeData &probeData) const override;
+
+  //---
+
+  void write(std::ostream &os, const QString &varName="",
+             const QString &modelName="") const override;
 
  private:
   void addRow(const QAbstractItemModel *model, const ModelVisitor::VisitData &data,
@@ -169,20 +203,20 @@ class CQChartsGeometryPlot : public CQChartsPlot,
 
  private:
   using Geometries = std::vector<Geometry>;
-  using OptReal    = boost::optional<double>;
 
-  CQChartsColumn        nameColumn_;                              //! name column
-  CQChartsColumn        geometryColumn_;                          //! geometry column
-  CQChartsColumn        valueColumn_;                             //! value column
-  CQChartsColumn        styleColumn_;                             //! style column
-  CQChartsDataLabel*    dataLabel_          { nullptr };          //! data label style
-  OptReal               minValue_;                                //! user min value
-  OptReal               maxValue_;                                //! user max value
-  CQChartsGeom::RMinMax valueRange_;                              //! data value range
-  ColumnType            geometryColumnType_ { ColumnType::NONE }; //! geometry column type
-  ColumnType            colorColumnType_    { ColumnType::NONE }; //! color column type
-  ColumnType            styleColumnType_    { ColumnType::NONE }; //! style column type
-  Geometries            geometries_;                              //! geometry shapes
+  CQChartsColumn        nameColumn_;                              //!< name column
+  CQChartsColumn        geometryColumn_;                          //!< geometry column
+  CQChartsColumn        valueColumn_;                             //!< value column
+  CQChartsColumn        styleColumn_;                             //!< style column
+  CQChartsDataLabel*    dataLabel_          { nullptr };          //!< data label style
+  bool                  colorByValue_       { true };             //!< color by value
+  OptReal               minValue_;                                //!< user min value
+  OptReal               maxValue_;                                //!< user max value
+  CQChartsGeom::RMinMax valueRange_;                              //!< data value range
+  ColumnType            geometryColumnType_ { ColumnType::NONE }; //!< geometry column type
+  ColumnType            colorColumnType_    { ColumnType::NONE }; //!< color column type
+  ColumnType            styleColumnType_    { ColumnType::NONE }; //!< style column type
+  Geometries            geometries_;                              //!< geometry shapes
 };
 
 #endif

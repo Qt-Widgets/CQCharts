@@ -17,7 +17,10 @@ void getPropertyItemPlotView(CQPropertyViewItem *item, CQChartsPlot* &plot, CQCh
 
 class QRect;
 
-// property view type
+/*!
+ * \brief property view type
+ * \ingroup Charts
+ */
 class CQChartsPropertyViewType : public CQPropertyViewType {
  public:
   CQChartsPropertyViewType() { }
@@ -26,7 +29,7 @@ class CQChartsPropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &ind,
             const QVariant &value, bool inside) override;
 
@@ -40,7 +43,10 @@ class CQChartsPropertyViewType : public CQPropertyViewType {
 
 class CQChartsLineEditBase;
 
-// property view editor factory
+/*!
+ * \brief property view editor factory
+ * \ingroup Charts
+ */
 class CQChartsPropertyViewEditorFactory : public CQPropertyViewEditorFactory {
  public:
   CQChartsPropertyViewEditorFactory() { }

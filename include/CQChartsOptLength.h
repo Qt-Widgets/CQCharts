@@ -6,6 +6,10 @@
 
 #include <boost/optional.hpp>
 
+/*!
+ * \brief Optional length
+ * \ingroup Charts
+ */
 class CQChartsOptLength {
  public:
   static void registerMetaType();
@@ -36,7 +40,7 @@ class CQChartsOptLength {
 
   //---
 
-  const CQChartsLength &length() const { return value_.value(); }
+  const CQChartsLength &length() const { assert(isSet()); return value_.value(); }
   void setLength(const CQChartsLength &l) { value_ = l; }
 
   CQChartsLength lengthOr(const CQChartsLength &def) const { return value_.value_or(def); }

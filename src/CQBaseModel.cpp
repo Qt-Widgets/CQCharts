@@ -1,5 +1,6 @@
 #include <CQBaseModel.h>
-#include <CQStrUtil.h>
+#include <CQModelUtil.h>
+#include <CQModelNameValues.h>
 #include <CMathUtil.h>
 #include <cmath>
 #include <cassert>
@@ -23,10 +24,10 @@ void initTypes() {
     addType(CQBaseModelType::INTEGER        , "integer"        );
     addType(CQBaseModelType::REAL           , "real"           );
     addType(CQBaseModelType::STRING         , "string"         );
-    addType(CQBaseModelType::STRINGS        , "strings"        );
+    addType(CQBaseModelType::STRINGS        , "string_list"    );
     addType(CQBaseModelType::POINT          , "point"          );
     addType(CQBaseModelType::LINE           , "line"           );
-    addType(CQBaseModelType::RECT           , "rect"           );
+    addType(CQBaseModelType::RECT           , "rectangle"      );
     addType(CQBaseModelType::SIZE           , "size"           );
     addType(CQBaseModelType::POLYGON        , "polygon"        );
     addType(CQBaseModelType::POLYGON_LIST   , "polygon_list"   );
@@ -88,24 +89,36 @@ void
 CQBaseModel::
 genColumnType(const ColumnData &columnData) const
 {
-  std::unique_lock<std::mutex> lock(mutex_);
-
   if (columnData.type == CQBaseModelType::NONE) {
-    CQBaseModel *th = const_cast<CQBaseModel *>(this);
+    std::unique_lock<std::mutex> lock(typeMutex_);
 
-    th->genColumnType(const_cast<ColumnData &>(columnData));
+    if (columnData.type == CQBaseModelType::NONE) {
+      CQBaseModel *th = const_cast<CQBaseModel *>(this);
+
+      th->genColumnTypeI(const_cast<ColumnData &>(columnData));
+    }
   }
 }
 
 void
 CQBaseModel::
-genColumnType(ColumnData &columnData)
+genColumnTypeI(ColumnData &columnData)
 {
+  int maxRows = maxTypeRows();
+
+  if (maxRows <= 0)
+    maxRows = 1000;
+
+  //---
+
+  columnData.type     = CQBaseModelType::STRING;
+  columnData.baseType = CQBaseModelType::STRING;
+
+  //---
+
   ColumnTypeData columnTypeData;
 
-  QModelIndex parent;
-
-  (void) genColumnType(parent, columnData.column, columnTypeData);
+  columnTypeData.type = CQModelUtil::calcColumnType(this, columnData.column, maxRows);
 
   // if inderminate (no values or all reals or integers) then use real if any reals,
   // integer if any integers and string if no values.
@@ -124,68 +137,6 @@ genColumnType(ColumnData &columnData)
     columnData.type     = columnTypeData.type;
     columnData.baseType = columnTypeData.baseType;
   }
-}
-
-bool
-CQBaseModel::
-genColumnType(const QModelIndex &parent, int c, ColumnTypeData &columnTypeData)
-{
-  bool done = false;
-
-  int nr = rowCount(parent);
-
-  for (int r = 0; r < nr && r < maxTypeRows(); ++r) {
-    QModelIndex ind0 = index(r, 0, parent);
-
-    if (rowCount(ind0) > 0) {
-      if (genColumnType(ind0, c, columnTypeData)) {
-        done = true;
-        break;
-      }
-    }
-
-    //---
-
-    // get value
-    QModelIndex ind = (c != 0 ? index(r, c, parent) : ind0);
-
-    QVariant v = data(ind, Qt::DisplayRole);
-
-    if      (v.type() == QVariant::Double) {
-      ++columnTypeData.numReal;
-    }
-    else if (v.type() == QVariant::Int) {
-      ++columnTypeData.numInt;
-    }
-    else {
-      QString s = v.toString();
-
-      if (! s.length())
-        continue;
-
-      //---
-
-      // check if string can be converted to real
-      bool ok;
-
-      double real = toReal(s, ok);
-
-      // if not real then assume string column and we are done
-      if (! ok) {
-        columnTypeData.type = CQBaseModelType::STRING;
-        done = true;
-        break;
-      }
-
-      // if real can also be an integer prefer integer
-      if (isInteger(real))
-        ++columnTypeData.numInt;
-      else
-        ++columnTypeData.numReal;
-    }
-  }
-
-  return done;
 }
 
 CQBaseModelType
@@ -453,6 +404,43 @@ setColumnTitle(int column, const QString &s)
   return true;
 }
 
+QVariant
+CQBaseModel::
+columnNameValue(int column, const QString &name) const
+{
+  if (column < 0 || column >= columnCount())
+    return "";
+
+  QString values = columnTypeValues(column);
+
+  CQModelNameValues nameValues(values);
+
+  QVariant value;
+
+  if (! nameValues.nameValue(name, value))
+    return QVariant();
+
+  return value;
+}
+
+bool
+CQBaseModel::
+setColumnNameValue(int column, const QString &name, const QVariant &value)
+{
+  if (column < 0 || column >= columnCount())
+    return false;
+
+  QString values = columnTypeValues(column);
+
+  CQModelNameValues nameValues(values);
+
+  nameValues.setNameValue(name, value);
+
+  setColumnTypeValues(column, nameValues.toString());
+
+  return true;
+}
+
 const CQBaseModel::ColumnData &
 CQBaseModel::
 getColumnData(int column) const
@@ -585,10 +573,20 @@ headerData(int section, Qt::Orientation orientation, int role) const
   // generic column data
   if      (orientation == Qt::Horizontal) {
     if      (role == static_cast<int>(CQBaseModelRole::Type)) {
-      return QVariant((int) columnType(section));
+      CQBaseModelType type = columnType(section);
+
+      if (type == CQBaseModelType::NONE)
+        return QVariant();
+
+      return QVariant((int) type);
     }
     else if (role == static_cast<int>(CQBaseModelRole::BaseType)) {
-      return QVariant((int) columnBaseType(section));
+      CQBaseModelType type = columnBaseType(section);
+
+      if (type == CQBaseModelType::NONE)
+        return QVariant();
+
+      return QVariant((int) type);
     }
     else if (role == static_cast<int>(CQBaseModelRole::TypeValues)) {
       return QVariant(columnTypeValues(section));
@@ -610,6 +608,12 @@ headerData(int section, Qt::Orientation orientation, int role) const
     }
     else if (role == static_cast<int>(CQBaseModelRole::Title)) {
       return columnTitle(section);
+    }
+    else if (role == static_cast<int>(CQBaseModelRole::DataMin)) {
+      return columnMin(section);
+    }
+    else if (role == static_cast<int>(CQBaseModelRole::DataMax)) {
+      return columnMax(section);
     }
     else {
       return QAbstractItemModel::headerData(section, orientation, role);
@@ -675,6 +679,12 @@ setHeaderData(int section, Qt::Orientation orientation, const QVariant &value, i
     }
     else if (role == static_cast<int>(CQBaseModelRole::Title)) {
       return setColumnTitle(section, value.toString());
+    }
+    else if (role == static_cast<int>(CQBaseModelRole::DataMin)) {
+      assert(false);
+    }
+    else if (role == static_cast<int>(CQBaseModelRole::DataMax)) {
+      assert(false);
     }
     else {
       return QAbstractItemModel::setHeaderData(section, orientation, role);
@@ -840,6 +850,8 @@ bool
 CQBaseModel::
 isType(int type)
 {
+  initTypes();
+
   return (s_typeName.find((CQBaseModelType) type) != s_typeName.end());
 }
 
@@ -847,6 +859,8 @@ QString
 CQBaseModel::
 typeName(CQBaseModelType type)
 {
+  initTypes();
+
   auto p = s_typeName.find(type);
 
   if (p == s_typeName.end())
@@ -859,6 +873,8 @@ CQBaseModelType
 CQBaseModel::
 nameType(const QString &name)
 {
+  initTypes();
+
   auto p = s_nameType.find(name);
 
   if (p == s_nameType.end())
@@ -871,14 +887,14 @@ double
 CQBaseModel::
 toReal(const QString &str, bool &ok)
 {
-  return CQStrUtil::toReal(str, ok);
+  return str.toDouble(&ok);
 }
 
 long
 CQBaseModel::
 toInt(const QString &str, bool &ok)
 {
-  return CQStrUtil::toInt(str, ok);
+  return str.toInt(&ok);
 }
 
 bool

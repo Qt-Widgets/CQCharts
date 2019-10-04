@@ -4,11 +4,11 @@
 #include <CQChartsUtil.h>
 #include <CQCharts.h>
 #include <CQChartsNamePair.h>
+#include <CQChartsPaintDevice.h>
+#include <CQChartsHtml.h>
 
 #include <CQPropertyViewItem.h>
 #include <CQPerfMonitor.h>
-
-#include <QPainter>
 
 CQChartsForceDirectedPlotType::
 CQChartsForceDirectedPlotType()
@@ -48,7 +48,11 @@ addParameters()
 
   //---
 
+  startParameterGroup("Group");
+
   addColumnParameter("groupId", "Group Id", "groupIdColumn");
+
+  endParameterGroup();
 
   //---
 
@@ -59,8 +63,16 @@ QString
 CQChartsForceDirectedPlotType::
 description() const
 {
-  return "<h2>Summary</h2>\n"
-         "<p>Draw connected data using animated nodes connected by springs.</p>\n";
+  auto IMG = [](const QString &src) { return CQChartsHtml::Str::img(src); };
+
+  return CQChartsHtml().
+   h2("Force Directed Plot").
+    h3("Summary").
+     p("Draw connected data using animated nodes connected by springs.").
+    h3("Limitations").
+     p("None.").
+    h3("Example").
+     p(IMG("images/forcedirected.png"));
 }
 
 bool
@@ -105,7 +117,7 @@ CQChartsForceDirectedPlot(CQChartsView *view, const ModelP &model) :
 
   setOuterMargin(0, 0, 0, 0);
 
-  setNodeBorderAlpha(0.5);
+  setNodeStrokeAlpha(0.5);
 }
 
 CQChartsForceDirectedPlot::
@@ -120,42 +132,42 @@ void
 CQChartsForceDirectedPlot::
 setNodeColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(nodeColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(nodeColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsForceDirectedPlot::
 setConnectionsColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(connectionsColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(connectionsColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsForceDirectedPlot::
 setNameColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(nameColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(nameColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsForceDirectedPlot::
 setNamePairColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(namePairColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(namePairColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsForceDirectedPlot::
 setCountColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(countColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(countColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsForceDirectedPlot::
 setGroupIdColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(groupIdColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(groupIdColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 //---
@@ -171,14 +183,14 @@ void
 CQChartsForceDirectedPlot::
 setNodeRadius(double r)
 {
-  CQChartsUtil::testAndSet(nodeRadius_, r, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(nodeRadius_, r, [&]() { drawObjs(); } );
 }
 
 void
 CQChartsForceDirectedPlot::
 setEdgeLinesValueWidth(bool b)
 {
-  CQChartsUtil::testAndSet(edgeLinesValueWidth_, b, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(edgeLinesValueWidth_, b, [&]() { drawObjs(); } );
 }
 
 //---
@@ -187,24 +199,34 @@ void
 CQChartsForceDirectedPlot::
 addProperties()
 {
+  auto addProp = [&](const QString &path, const QString &name, const QString &alias,
+                     const QString &desc) {
+    return &(this->addProperty(path, this, name, alias)->setDesc(desc));
+  };
+
+  //---
+
   CQChartsPlot::addProperties();
 
-  addProperty("columns", this, "nodeColumn"       , "node"      )->setDesc("Node column");
-  addProperty("columns", this, "connectionsColumn", "connection")->setDesc("Connections column");
-  addProperty("columns", this, "nameColumn"       , "name"      )->setDesc("Name column");
+  // columns
+  addProp("columns", "nodeColumn"       , "node"      , "Node column");
+  addProp("columns", "connectionsColumn", "connection", "Connections column");
+  addProp("columns", "nameColumn"       , "name"      , "Name column");
 
-  addProperty("columns", this, "namePairColumn", "namePair")->setDesc("Name/pair column");
-  addProperty("columns", this, "countColumn"   , "count"   )->setDesc("Count column");
+  addProp("columns", "namePairColumn", "namePair", "Name/pair column");
+  addProp("columns", "countColumn"   , "count"   , "Count column");
 
-  addProperty("columns", this, "groupIdColumn", "groupId")->setDesc("Group id column");
+  addProp("columns", "groupIdColumn", "groupId", "Group id column");
 
-  addProperty("options", this, "running")->setDesc("Is running");
+  // options
+  addProp("options", "running", "", "Is running");
 
-  addProperty("node", this, "nodeRadius", "radius")->setDesc("Node radius");
+  // node/edge
+  addProp("node", "nodeRadius", "radius", "Node radius");
 
-  addLineProperties("node/stroke", "nodeBorder");
-  addFillProperties("node/fill"  , "nodeFill"  );
-  addLineProperties("edge/stroke", "edgeLines" );
+  addFillProperties("node/fill"  , "nodeFill"  , "Node");
+  addLineProperties("node/stroke", "nodeStroke", "Node");
+  addLineProperties("edge/stroke", "edgeLines" , "Edge");
 }
 
 CQChartsGeom::Range
@@ -237,9 +259,7 @@ createObjs(PlotObjs &) const
 {
   CQPerfTrace trace("CQChartsForceDirectedPlot::createObjs");
 
-  CQChartsForceDirectedPlot *th = const_cast<CQChartsForceDirectedPlot *>(this);
-
-  NoUpdate noUpdate(th);
+  NoUpdate noUpdate(this);
 
   //---
 
@@ -247,6 +267,8 @@ createObjs(PlotObjs &) const
     return false;
 
   //---
+
+  CQChartsForceDirectedPlot *th = const_cast<CQChartsForceDirectedPlot *>(this);
 
   class RowVisitor : public ModelVisitor {
    public:
@@ -585,7 +607,7 @@ animateStep()
     applyDataRange();
   }
 
-  queueDrawObjs();
+  drawObjs();
 }
 
 bool
@@ -599,7 +621,7 @@ selectPress(const CQChartsGeom::Point &p, SelMod /*selMod*/)
 
   pressed_ = true;
 
-  queueDrawObjs();
+  drawObjs();
 
   return true;
 }
@@ -612,7 +634,7 @@ selectMove(const CQChartsGeom::Point &p, bool first)
     if (forceDirected_->currentPoint())
       forceDirected_->currentPoint()->setP(Springy::Vector(p.x, p.y));
 
-    queueDrawObjs();
+    drawObjs();
 
     return true;
   }
@@ -638,7 +660,7 @@ selectRelease(const CQChartsGeom::Point &p)
 
   pressed_ = false;
 
-  queueDrawObjs();
+  drawObjs();
 
   return true;
 }
@@ -694,14 +716,25 @@ void
 CQChartsForceDirectedPlot::
 drawParts(QPainter *painter) const
 {
-  painter->save();
+  CQChartsForceDirectedPlot *th = const_cast<CQChartsForceDirectedPlot *>(this);
 
-  setClipRect(painter);
+  CQChartsPlotPainter device(th, painter);
+
+  drawDeviceParts(&device);
+}
+
+void
+CQChartsForceDirectedPlot::
+drawDeviceParts(CQChartsPaintDevice *device) const
+{
+  device->save();
+
+  setClipRect(device);
 
   // draw edges
   QPen edgePen;
 
-  QColor edgeColor = this->interpEdgeLinesColor(0, 1);
+  QColor edgeColor = this->interpEdgeLinesColor(ColorInd());
 
   setPen(edgePen, true, edgeColor, edgeLinesAlpha(), edgeLinesWidth(), edgeLinesDash());
 
@@ -713,9 +746,6 @@ drawParts(QPainter *painter) const
     const Springy::Vector &p1 = spring->point1()->p();
     const Springy::Vector &p2 = spring->point2()->p();
 
-    QPointF pp1 = windowToPixel(QPointF(p1.x(), p1.y()));
-    QPointF pp2 = windowToPixel(QPointF(p2.x(), p2.y()));
-
     if (isEdgeLinesValueWidth()) {
       QPen edgePen1 = edgePen;
 
@@ -723,51 +753,52 @@ drawParts(QPainter *painter) const
 
       edgePen1.setWidthF(w);
 
-      painter->setPen(edgePen1);
+      device->setPen(edgePen1);
     }
     else
-      painter->setPen(edgePen);
+      device->setPen(edgePen);
 
-    painter->drawLine(pp1, pp2);
+    device->drawLine(QPointF(p1.x(), p1.y()), QPointF(p2.x(), p2.y()));
 
     if (isTemp)
       delete spring;
   }
 
   // draw nodes
+  double r = nodeRadius();
+
+  double xm = pixelToWindowWidth (2*r);
+  double ym = pixelToWindowHeight(2*r);
+
   for (auto &node : forceDirected_->nodes()) {
     auto point = forceDirected_->point(node);
 
     const Springy::Vector &p1 = point->p();
-
-    CQChartsGeom::Point p2 = windowToPixel(CQChartsGeom::Point(p1.x(), p1.y()));
 
     //---
 
     QPen   pen;
     QBrush brush;
 
-    QColor pc = interpNodeBorderColor(0, 1);
-    QColor fc = interpPaletteColor(node->value(), /*scale*/false);
+    QColor pc = interpNodeStrokeColor(ColorInd());
+    QColor fc = interpPaletteColor(ColorInd(node->value()), /*scale*/false);
 
     if (node == forceDirected_->currentNode())
       fc = insideColor(fc);
 
-    setPen(pen, true, pc, nodeBorderAlpha(), nodeBorderWidth(), nodeBorderDash());
+    setPen(pen, true, pc, nodeStrokeAlpha(), nodeStrokeWidth(), nodeStrokeDash());
 
     setBrush(brush, true, fc, nodeFillAlpha(), nodeFillPattern());
 
-    painter->setPen  (pen);
-    painter->setBrush(brush);
+    device->setPen  (pen);
+    device->setBrush(brush);
 
     //---
 
-    double r = nodeRadius();
-
-    painter->drawEllipse(QRectF(p2.x - r, p2.y - r, 2*r, 2*r));
+    device->drawEllipse(QRectF(p1.x() - xm/2.0, p1.y() - xm/2.0, xm, ym));
   }
 
   //---
 
-  painter->restore();
+  device->restore();
 }

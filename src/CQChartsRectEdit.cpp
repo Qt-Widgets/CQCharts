@@ -3,6 +3,7 @@
 
 #include <CQPropertyView.h>
 #include <CQRectEdit.h>
+#include <CQUtil.h>
 
 #include <QHBoxLayout>
 
@@ -12,18 +13,13 @@ CQChartsRectEdit(QWidget *parent) :
 {
   setObjectName("rectEdit");
 
-  QHBoxLayout *layout = new QHBoxLayout(this);
-  layout->setMargin(0); layout->setSpacing(2);
+  QHBoxLayout *layout = CQUtil::makeLayout<QHBoxLayout>(this, 0, 2);
 
   //---
 
-  edit_ = new CQRectEdit;
-
-  edit_->setObjectName("rect");
+  edit_ = CQUtil::makeWidget<CQRectEdit>("rect");
 
   layout->addWidget(edit_);
-
-  connect(edit_, SIGNAL(valueChanged()), this, SLOT(editChanged()));
 
   //---
 
@@ -31,7 +27,9 @@ CQChartsRectEdit(QWidget *parent) :
 
   layout->addWidget(unitsEdit_);
 
-  connect(unitsEdit_, SIGNAL(unitsChanged()), this, SLOT(unitsChanged()));
+  //---
+
+  connectSlots(true);
 }
 
 const CQChartsRect &
@@ -119,14 +117,21 @@ void
 CQChartsRectEdit::
 connectSlots(bool b)
 {
-  if (b) {
-    connect(edit_, SIGNAL(valueChanged()), this, SLOT(editChanged()));
-    connect(unitsEdit_, SIGNAL(unitsChanged()), this, SLOT(unitsChanged()));
-  }
-  else {
-    disconnect(edit_, SIGNAL(valueChanged()), this, SLOT(editChanged()));
-    disconnect(unitsEdit_, SIGNAL(unitsChanged()), this, SLOT(unitsChanged()));
-  }
+  assert(b != connected_);
+
+  connected_ = b;
+
+  //---
+
+  auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
+    if (b)
+      connect(w, from, this, to);
+    else
+      disconnect(w, from, this, to);
+  };
+
+  connectDisconnect(b, edit_, SIGNAL(valueChanged()), SLOT(editChanged()));
+  connectDisconnect(b, unitsEdit_, SIGNAL(unitsChanged()), SLOT(unitsChanged()));
 }
 
 //------
@@ -155,7 +160,7 @@ setEditorData(CQPropertyViewItem *item, const QVariant &value)
 
 void
 CQChartsRectPropertyViewType::
-draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+draw(CQPropertyViewItem *, const CQPropertyViewDelegate *delegate, QPainter *painter,
      const QStyleOptionViewItem &option, const QModelIndex &ind,
      const QVariant &value, bool inside)
 {

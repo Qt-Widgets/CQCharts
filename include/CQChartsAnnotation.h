@@ -8,17 +8,20 @@
 #include <CQChartsOptPosition.h>
 #include <CQChartsPolygon.h>
 #include <CQChartsGeom.h>
-#include <QFont>
 
 class CQChartsEditHandles;
+class CQPropertyViewItem;
 
 /*!
  * \brief base class for view/plot annotation
+ * \ingroup Charts
  */
 class CQChartsAnnotation : public CQChartsTextBoxObj {
   Q_OBJECT
 
-  Q_PROPERTY(int ind READ ind WRITE setInd)
+  Q_PROPERTY(int  ind       READ ind         WRITE setInd      )
+  Q_PROPERTY(bool checkable READ isCheckable WRITE setCheckable)
+  Q_PROPERTY(bool checked   READ isChecked   WRITE setChecked  )
 
  public:
   enum class Type {
@@ -28,23 +31,23 @@ class CQChartsAnnotation : public CQChartsTextBoxObj {
     POLYGON,
     POLYLINE,
     TEXT,
+    IMAGE,
     ARROW,
     POINT
- };
+  };
+
+  using ColorInd = CQChartsUtil::ColorInd;
 
  public:
-  static const QStringList &typeNames() {
-    static QStringList names = QStringList() <<
-      "rect" << "ellipse" << "polygon" << "polyline" << "text" << "arrow" << "point";
-
-    return names;
-  }
+  static const QStringList &typeNames();
 
  public:
   CQChartsAnnotation(CQChartsView *view, Type type);
   CQChartsAnnotation(CQChartsPlot *plot, Type type);
 
   virtual ~CQChartsAnnotation();
+
+  //---
 
   //! get/set ind
   int ind() const { return ind_; }
@@ -56,13 +59,26 @@ class CQChartsAnnotation : public CQChartsTextBoxObj {
   //! calculate tip
   QString calcTipId() const override;
 
+  //! get path id
+  QString pathId() const;
+
+  //---
+
   //! get type and type name
   const Type &type() const { return type_; }
 
   virtual const char *typeName() const = 0;
 
-  //! get path id
-  QString pathId() const;
+  //---
+
+  // checkable/checked
+  bool isCheckable() const { return checkable_; }
+  void setCheckable(bool b);
+
+  bool isChecked() const { return checked_; }
+  void setChecked(bool b);
+
+  //---
 
   //! get bounding box
   const CQChartsGeom::BBox &bbox() const { return bbox_; }
@@ -76,7 +92,8 @@ class CQChartsAnnotation : public CQChartsTextBoxObj {
   virtual QString propertyId() const = 0;
 
   //! add properties
-  void addProperties(CQPropertyViewModel *model, const QString &path) override;
+  void addProperties(CQPropertyViewModel *model, const QString &path,
+                     const QString &desc="") override;
 
   //! add stroke and fill properties
   void addStrokeFillProperties(CQPropertyViewModel *model, const QString &path);
@@ -87,12 +104,27 @@ class CQChartsAnnotation : public CQChartsTextBoxObj {
   //! add fill properties
   void addFillProperties(CQPropertyViewModel *model, const QString &path);
 
+  bool setProperties(const QString &properties);
+
   //! get/set property
   bool getProperty(const QString &name, QVariant &value) const;
   bool setProperty(const QString &name, const QVariant &value);
 
+  bool getTclProperty(const QString &name, QVariant &value) const;
+
+  bool getPropertyDesc    (const QString &name, QString  &desc, bool hidden=false) const;
+  bool getPropertyType    (const QString &name, QString  &type, bool hidden=false) const;
+  bool getPropertyUserType(const QString &name, QString  &type, bool hidden=false) const;
+  bool getPropertyObject  (const QString &name, QObject* &obj , bool hidden=false) const;
+  bool getPropertyIsHidden(const QString &name, bool &is_hidden) const;
+  bool getPropertyIsStyle (const QString &name, bool &is_style) const;
+
   //! get property names
-  void getPropertyNames(QStringList &names) const;
+  virtual void getPropertyNames(QStringList &names, bool hidden=false) const;
+
+  CQPropertyViewModel *propertyModel() const;
+
+  const CQPropertyViewItem *propertyItem(const QString &name, bool hidden=false) const;
 
   //---
 
@@ -101,6 +133,11 @@ class CQChartsAnnotation : public CQChartsTextBoxObj {
 
   //! is point inside
   virtual bool inside(const CQChartsGeom::Point &p) const;
+
+  //---
+
+  //! interp color
+  QColor interpColor(const CQChartsColor &c, const ColorInd &ind) const;
 
   //---
 
@@ -124,69 +161,81 @@ class CQChartsAnnotation : public CQChartsTextBoxObj {
   //! handle box obj data changed
   void boxDataInvalidate() override { emit dataChanged(); }
 
+  void invalidate();
+
+  //---
+
   //! draw
-  virtual void draw(QPainter *painter);
+  virtual void draw(CQChartsPaintDevice *device);
 
   //! draw edit handles
   void drawEditHandles(QPainter *painter) const;
 
   //---
 
-  //! get parent view
-  CQChartsView *view() const;
-
-  //---
-
   //! write details (command to recreate)
-  virtual void write(std::ostream &os) const = 0;
+  virtual void write(std::ostream &os, const QString &parentVarName="",
+                     const QString &varName="") const = 0;
 
   //! write key values
-  void writeKeys(std::ostream &os, const QString &cmd) const;
+  void writeKeys(std::ostream &os, const QString &cmd, const QString &parentVarName="",
+                 const QString &varName="") const;
 
+#if 0
   //! write fill, stroke values
   void writeFill  (std::ostream &os) const;
   void writeStroke(std::ostream &os) const;
+#endif
+
+  //! write polygon points
+  void writePoints(std::ostream &os, const QPolygonF &polygon) const;
+
+  //! write properties
+  void writeProperties(std::ostream &os, const QString &varName="") const;
 
   //---
 
   //! initialize state when first resized to explicit rectangle in edit
-  virtual void initRect();
+  virtual void initRectangle();
 
  signals:
   //! emitted when data changed
   void dataChanged();
 
  protected:
-  Type                 type_        { Type::NONE }; //! type
-  int                  ind_         { 0 };          //! unique ind
-  CQChartsGeom::BBox   bbox_;                       //! bbox (plot coords)
-  CQChartsEditHandles* editHandles_ { nullptr };    //! edit handles
+  Type                 type_        { Type::NONE }; //!< type
+  int                  ind_         { 0 };          //!< unique ind
+  bool                 checkable_   { false };      //!< is checkable
+  bool                 checked_     { false };      //!< is checked
+  CQChartsGeom::BBox   bbox_;                       //!< bbox (plot coords)
+  CQChartsEditHandles* editHandles_ { nullptr };    //!< edit handles
 };
 
 //---
 
 /*!
  * \brief rectangle annotation
+ * \ingroup Charts
  */
-class CQChartsRectAnnotation : public CQChartsAnnotation {
+class CQChartsRectangleAnnotation : public CQChartsAnnotation {
   Q_OBJECT
 
-  Q_PROPERTY(CQChartsRect     rect  READ rect  WRITE setRect )
-  Q_PROPERTY(CQChartsPosition start READ start WRITE setStart)
-  Q_PROPERTY(CQChartsPosition end   READ end   WRITE setEnd  )
+  Q_PROPERTY(CQChartsRect     rectangle READ rectangle WRITE setRectangle)
+  Q_PROPERTY(CQChartsPosition start     READ start     WRITE setStart    )
+  Q_PROPERTY(CQChartsPosition end       READ end       WRITE setEnd      )
 
  public:
-  CQChartsRectAnnotation(CQChartsView *view, const CQChartsRect &rect=CQChartsRect());
-  CQChartsRectAnnotation(CQChartsPlot *plot, const CQChartsRect &rect=CQChartsRect());
+  CQChartsRectangleAnnotation(CQChartsView *view, const CQChartsRect &rect=CQChartsRect());
+  CQChartsRectangleAnnotation(CQChartsPlot *plot, const CQChartsRect &rect=CQChartsRect());
 
-  virtual ~CQChartsRectAnnotation();
+  virtual ~CQChartsRectangleAnnotation();
 
-  const char *typeName() const override { return "rect"; }
+  const char *typeName() const override { return "rectangle"; }
 
-  const CQChartsRect &rect() const { return rect_; }
-  void setRect(const CQChartsRect &rect);
+  const CQChartsRect &rectangle() const { return rectangle_; }
+  void setRectangle(const CQChartsRect &rectangle);
 
-  void setRect(const CQChartsPosition &start, const CQChartsPosition &end);
+  void setRectangle(const CQChartsPosition &start, const CQChartsPosition &end);
 
   CQChartsPosition start() const;
   void setStart(const CQChartsPosition &p);
@@ -194,24 +243,27 @@ class CQChartsRectAnnotation : public CQChartsAnnotation {
   CQChartsPosition end() const;
   void setEnd(const CQChartsPosition &p);
 
-  void addProperties(CQPropertyViewModel *model, const QString &path) override;
+  void addProperties(CQPropertyViewModel *model, const QString &path,
+                     const QString &desc="") override;
 
   QString propertyId() const override;
 
   void setBBox(const CQChartsGeom::BBox &bbox, const CQChartsResizeSide &dragSide) override;
 
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
-  void write(std::ostream &os) const override;
+  void write(std::ostream &os, const QString &parentVarName="",
+             const QString &varName="") const override;
 
  private:
-  CQChartsRect rect_; //! rectangle
+  CQChartsRect rectangle_; //!< rectangle
 };
 
 //---
 
 /*!
  * \brief ellipse annotation
+ * \ingroup Charts
  */
 class CQChartsEllipseAnnotation : public CQChartsAnnotation {
   Q_OBJECT
@@ -239,7 +291,8 @@ class CQChartsEllipseAnnotation : public CQChartsAnnotation {
   const CQChartsLength &yRadius() const { return yRadius_; }
   void setYRadius(const CQChartsLength &r) { yRadius_ = r; }
 
-  void addProperties(CQPropertyViewModel *model, const QString &path) override;
+  void addProperties(CQPropertyViewModel *model, const QString &path,
+                     const QString &desc="") override;
 
   QString propertyId() const override;
 
@@ -247,20 +300,22 @@ class CQChartsEllipseAnnotation : public CQChartsAnnotation {
 
   bool inside(const CQChartsGeom::Point &p) const override;
 
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
-  void write(std::ostream &os) const override;
+  void write(std::ostream &os, const QString &parentVarName="",
+             const QString &varName="") const override;
 
  private:
-  CQChartsPosition center_;          //! ellipse center
-  CQChartsLength   xRadius_ { 1.0 }; //! ellipse x radius
-  CQChartsLength   yRadius_ { 1.0 }; //! ellipse y radius
+  CQChartsPosition center_;          //!< ellipse center
+  CQChartsLength   xRadius_ { 1.0 }; //!< ellipse x radius
+  CQChartsLength   yRadius_ { 1.0 }; //!< ellipse y radius
 };
 
 //---
 
 /*!
  * \brief polygon annotation
+ * \ingroup Charts
  */
 class CQChartsPolygonAnnotation : public CQChartsAnnotation {
   Q_OBJECT
@@ -278,7 +333,8 @@ class CQChartsPolygonAnnotation : public CQChartsAnnotation {
   const CQChartsPolygon &polygon() const { return polygon_; }
   void setPolygon(const CQChartsPolygon &polygon) { polygon_ = polygon; emit dataChanged(); }
 
-  void addProperties(CQPropertyViewModel *model, const QString &path) override;
+  void addProperties(CQPropertyViewModel *model, const QString &path,
+                     const QString &desc="") override;
 
   QString propertyId() const override;
 
@@ -286,18 +342,20 @@ class CQChartsPolygonAnnotation : public CQChartsAnnotation {
 
   bool inside(const CQChartsGeom::Point &p) const override;
 
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
-  void write(std::ostream &os) const override;
+  void write(std::ostream &os, const QString &parentVarName="",
+             const QString &varName="") const override;
 
  private:
-  CQChartsPolygon polygon_; //! polygon points
+  CQChartsPolygon polygon_; //!< polygon points
 };
 
 //---
 
 /*!
  * \brief polyline annotation
+ * \ingroup Charts
  */
 class CQChartsPolylineAnnotation : public CQChartsAnnotation {
   Q_OBJECT
@@ -315,7 +373,8 @@ class CQChartsPolylineAnnotation : public CQChartsAnnotation {
   const CQChartsPolygon &polygon() const { return polygon_; }
   void setPolygon(const CQChartsPolygon &polygon) { polygon_ = polygon; emit dataChanged(); }
 
-  void addProperties(CQPropertyViewModel *model, const QString &path) override;
+  void addProperties(CQPropertyViewModel *model, const QString &path,
+                     const QString &desc="") override;
 
   QString propertyId() const override;
 
@@ -323,24 +382,26 @@ class CQChartsPolylineAnnotation : public CQChartsAnnotation {
 
   bool inside(const CQChartsGeom::Point &p) const override;
 
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
-  void write(std::ostream &os) const override;
+  void write(std::ostream &os, const QString &parentVarName="",
+             const QString &varName="") const override;
 
  private:
-  CQChartsPolygon polygon_; //! polyline points
+  CQChartsPolygon polygon_; //!< polyline points
 };
 
 //---
 
 /*!
  * \brief text annotation
+ * \ingroup Charts
  */
 class CQChartsTextAnnotation : public CQChartsAnnotation {
   Q_OBJECT
 
-  Q_PROPERTY(CQChartsOptPosition position READ position WRITE setPosition)
-  Q_PROPERTY(CQChartsOptRect     rect     READ rect     WRITE setRect    )
+  Q_PROPERTY(CQChartsOptPosition position  READ position  WRITE setPosition )
+  Q_PROPERTY(CQChartsOptRect     rectangle READ rectangle WRITE setRectangle)
 
  public:
   CQChartsTextAnnotation(CQChartsView *view, const CQChartsPosition &p=CQChartsPosition(),
@@ -363,15 +424,16 @@ class CQChartsTextAnnotation : public CQChartsAnnotation {
   CQChartsPosition positionValue() const;
   void setPosition(const CQChartsPosition &p);
 
-  const CQChartsOptRect &rect() const { return rect_; }
-  void setRect(const CQChartsOptRect &r);
+  const CQChartsOptRect &rectangle() const { return rectangle_; }
+  void setRectangle(const CQChartsOptRect &r);
 
-  CQChartsRect rectValue() const;
-  void setRect(const CQChartsRect &r);
+  CQChartsRect rectangleValue() const;
+  void setRectangle(const CQChartsRect &r);
 
   //---
 
-  void addProperties(CQPropertyViewModel *model, const QString &path) override;
+  void addProperties(CQPropertyViewModel *model, const QString &path,
+                     const QString &desc="") override;
 
   QString propertyId() const override;
 
@@ -381,13 +443,14 @@ class CQChartsTextAnnotation : public CQChartsAnnotation {
 
   bool inside(const CQChartsGeom::Point &p) const override;
 
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
-  void write(std::ostream &os) const override;
+  void write(std::ostream &os, const QString &parentVarName="",
+             const QString &varName="") const override;
 
   //---
 
-  void initRect() override;
+  void initRectangle() override;
 
  private:
   void init(const QString &text);
@@ -401,8 +464,87 @@ class CQChartsTextAnnotation : public CQChartsAnnotation {
   void positionToBBox();
 
  private:
-  CQChartsOptPosition position_; //! text position
-  CQChartsOptRect     rect_;     //! text bounding rect
+  CQChartsOptPosition position_;  //!< text position
+  CQChartsOptRect     rectangle_; //!< text bounding rect
+};
+
+//---
+
+/*!
+ * \brief image annotation
+ * \ingroup Charts
+ */
+class CQChartsImageAnnotation : public CQChartsAnnotation {
+  Q_OBJECT
+
+  Q_PROPERTY(CQChartsOptPosition position  READ position  WRITE setPosition )
+  Q_PROPERTY(CQChartsOptRect     rectangle READ rectangle WRITE setRectangle)
+
+ public:
+  CQChartsImageAnnotation(CQChartsView *view, const CQChartsPosition &p=CQChartsPosition(),
+                         const QImage &image=QImage());
+  CQChartsImageAnnotation(CQChartsPlot *plot, const CQChartsPosition &p=CQChartsPosition(),
+                         const QImage &image=QImage());
+
+  CQChartsImageAnnotation(CQChartsView *view, const CQChartsRect &r=CQChartsRect(),
+                         const QImage &image=QImage());
+  CQChartsImageAnnotation(CQChartsPlot *plot, const CQChartsRect &r=CQChartsRect(),
+                         const QImage &image=QImage());
+
+  virtual ~CQChartsImageAnnotation();
+
+  const char *typeName() const override { return "image"; }
+
+  const CQChartsOptPosition &position() const { return position_; }
+  void setPosition(const CQChartsOptPosition &p);
+
+  CQChartsPosition positionValue() const;
+  void setPosition(const CQChartsPosition &p);
+
+  const CQChartsOptRect &rectangle() const { return rectangle_; }
+  void setRectangle(const CQChartsOptRect &r);
+
+  CQChartsRect rectangleValue() const;
+  void setRectangle(const CQChartsRect &r);
+
+  //---
+
+  void addProperties(CQPropertyViewModel *model, const QString &path,
+                     const QString &desc="") override;
+
+  QString propertyId() const override;
+
+  //---
+
+  void setBBox(const CQChartsGeom::BBox &bbox, const CQChartsResizeSide &dragSide) override;
+
+  bool inside(const CQChartsGeom::Point &p) const override;
+
+  void draw(CQChartsPaintDevice *device) override;
+
+  void write(std::ostream &os, const QString &parentVarName="",
+             const QString &varName="") const override;
+
+  //---
+
+  void initRectangle() override;
+
+ private:
+  void init(const QImage &image);
+
+  void calcImageSize(QSizeF &psize, QSizeF &wsize) const;
+
+  void positionToLL(double w, double h, double &x, double &y) const;
+
+  void rectToBBox();
+
+  void positionToBBox();
+
+ private:
+  CQChartsOptPosition position_;      //!< image position
+  CQChartsOptRect     rectangle_;     //!< image bounding rectangle
+  QImage              image_;         //!< image
+  QImage              disabledImage_; //!< disabled image
 };
 
 //---
@@ -411,6 +553,7 @@ class CQChartsArrow;
 
 /*!
  * \brief arrow annotation
+ * \ingroup Charts
  */
 class CQChartsArrowAnnotation : public CQChartsAnnotation {
   Q_OBJECT
@@ -434,12 +577,15 @@ class CQChartsArrowAnnotation : public CQChartsAnnotation {
   const CQChartsPosition &end() const { return end_; }
   void setEnd(const CQChartsPosition &p) { end_ = p; emit dataChanged(); }
 
-  CQChartsArrow *arrow() const { return arrow_; }
+  CQChartsArrow *arrow() const { return arrow_.get(); }
 
   const CQChartsArrowData &arrowData() const;
   void setArrowData(const CQChartsArrowData &data);
 
-  void addProperties(CQPropertyViewModel *model, const QString &path) override;
+  void addProperties(CQPropertyViewModel *model, const QString &path,
+                     const QString &desc="") override;
+
+  void getPropertyNames(QStringList &names, bool hidden) const override;
 
   QString propertyId() const override;
 
@@ -447,20 +593,24 @@ class CQChartsArrowAnnotation : public CQChartsAnnotation {
 
   bool inside(const CQChartsGeom::Point &p) const override;
 
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
-  void write(std::ostream &os) const override;
+  void write(std::ostream &os, const QString &parentVarName="",
+             const QString &varName="") const override;
 
  private:
-  CQChartsPosition start_ { QPointF(0, 0) }; //! arrow start
-  CQChartsPosition end_   { QPointF(1, 1) }; //! arrow end
-  CQChartsArrow*   arrow_ { nullptr };       //! arrow data
+  using ArrowP = std::unique_ptr<CQChartsArrow>;
+
+  CQChartsPosition start_ { QPointF(0, 0) }; //!< arrow start
+  CQChartsPosition end_   { QPointF(1, 1) }; //!< arrow end
+  ArrowP           arrow_;                   //!< arrow data
 };
 
 //---
 
 /*!
  * \brief point annotation
+ * \ingroup Charts
  */
 class CQChartsPointAnnotation : public CQChartsAnnotation,
  public CQChartsObjPointData<CQChartsPointAnnotation> {
@@ -483,7 +633,8 @@ class CQChartsPointAnnotation : public CQChartsAnnotation,
   const CQChartsPosition &position() const { return position_; }
   void setPosition(const CQChartsPosition &p) { position_ = p; emit dataChanged(); }
 
-  void addProperties(CQPropertyViewModel *model, const QString &path) override;
+  void addProperties(CQPropertyViewModel *model, const QString &path,
+                     const QString &desc="") override;
 
   QString propertyId() const override;
 
@@ -491,12 +642,13 @@ class CQChartsPointAnnotation : public CQChartsAnnotation,
 
   bool inside(const CQChartsGeom::Point &p) const override;
 
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
-  void write(std::ostream &os) const override;
+  void write(std::ostream &os, const QString &parentVarName="",
+             const QString &varName="") const override;
 
  private:
-  CQChartsPosition position_; //! point position
+  CQChartsPosition position_; //!< point position
 };
 
 #endif

@@ -8,7 +8,12 @@
 
 class CQChartsPlot;
 class CQChartsPlotObj;
+class QPainter;
 
+/*!
+ * \brief Charts Plot object quad tree
+ * \ingroup Charts
+ */
 class CQChartsPlotObjTree {
  public:
   using Objs = std::vector<CQChartsPlotObj*>;
@@ -26,7 +31,16 @@ class CQChartsPlotObjTree {
 
   void objectsIntersectRect(const CQChartsGeom::BBox &r, Objs &objs, bool inside) const;
 
+  bool objectNearest(const CQChartsGeom::Point &p, double searchX, double searchY,
+                     CQChartsPlotObj* &obj) const;
+
   bool isBusy() const { return busy_.load(); }
+
+  CQChartsGeom::BBox findEmptyBBox(double w, double h) const;
+
+  bool waitTree() const;
+
+  void draw(QPainter *painter);
 
  private:
   using PlotObjTree       = CQChartsQuadTree<CQChartsPlotObj,CQChartsGeom::BBox>;
@@ -39,15 +53,13 @@ class CQChartsPlotObjTree {
 
   void interruptTree();
 
-  void waitTree() const;
-
  private:
-  CQChartsPlot*      plot_        { nullptr }; //! parent plot
-  PlotObjTree*       plotObjTree_ { nullptr }; //! object tree
-  PlotObjTreeFuture  plotObjTreeFuture_;       //! future
-  bool               wait_        { false };   //! wait for thread
-  std::atomic<bool>  busy_        { false };   //! busy flag
-  std::atomic<bool>  interrupt_   { false };   //! interrupt flag
+  CQChartsPlot*      plot_              { nullptr }; //!< parent plot
+  PlotObjTree*       plotObjTree_       { nullptr }; //!< object tree
+  PlotObjTreeFuture  plotObjTreeFuture_;             //!< future
+  bool               wait_              { false };   //!< wait for thread
+  std::atomic<bool>  busy_              { false };   //!< busy flag
+  std::atomic<bool>  interrupt_         { false };   //!< interrupt flag
 };
 
 #endif

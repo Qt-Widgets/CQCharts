@@ -5,12 +5,17 @@
 #include <vector>
 #include <algorithm>
 
+/*!
+ * \brief Dendrogram plot data
+ * \ingroup Charts
+ */
 class CQChartsDendrogram {
  public:
   class RootNode;
   class HierNode;
   class Node;
 
+  //! Node
   class Node {
    private:
     static uint nextId() {
@@ -94,6 +99,7 @@ class CQChartsDendrogram {
 
   //---
 
+  //! Hierarchical Node
   class HierNode : public Node {
    public:
     typedef std::vector<HierNode *> Children;
@@ -136,6 +142,7 @@ class CQChartsDendrogram {
 
   //---
 
+  //! Root Node
   class RootNode : public HierNode {
    public:
     RootNode(const QString &name="");

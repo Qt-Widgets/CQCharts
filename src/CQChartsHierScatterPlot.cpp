@@ -4,13 +4,16 @@
 #include <CQChartsKey.h>
 #include <CQChartsValueSet.h>
 #include <CQChartsUtil.h>
+#include <CQChartsTip.h>
 #include <CQChartsDataLabel.h>
 #include <CQCharts.h>
+#include <CQChartsPaintDevice.h>
+#include <CQChartsHtml.h>
 
+#include <CQPropertyViewModel.h>
 #include <CQPropertyViewItem.h>
 #include <CQPerfMonitor.h>
 
-#include <QPainter>
 #include <QMenu>
 
 CQChartsHierScatterPlotType::
@@ -24,17 +27,15 @@ addParameters()
 {
   startParameterGroup("Hier Scatter");
 
-  addColumnParameter("x", "X", "xColumn").
-    setTip("X Value").setRequired().setNumeric();
-  addColumnParameter("y", "Y", "yColumn").
-    setTip("Y Value").setRequired().setNumeric();
+  addColumnParameter("x", "X", "xColumn").setTip("X Value").setRequired().setNumeric();
+  addColumnParameter("y", "Y", "yColumn").setTip("Y Value").setRequired().setNumeric();
 
-  addColumnParameter("name", "Name", "nameColumn").
-    setTip("Value Name").setString();
+  addColumnParameter("name", "Name", "nameColumn").setTip("Value Name").setString();
 
   addColumnsParameter("group", "Group", "groupColumns").setTip("Group Name(s)");
 
-  addBoolParameter("textLabels", "Text Labels", "showTextLabels");
+  addBoolParameter("textLabels", "Text Labels", "textLabels").
+   setTip("Show Text Label at Point");
 
   endParameterGroup();
 
@@ -47,9 +48,17 @@ QString
 CQChartsHierScatterPlotType::
 description() const
 {
-  return "<h2>Summary</h2>\n"
-         "<p>Draws scatter plot x, y points with support for customization of"
-         "point size, color and label font.\n";
+  auto IMG = [](const QString &src) { return CQChartsHtml::Str::img(src); };
+
+  return CQChartsHtml().
+   h2("Hierarchical Scatter Plot").
+    h3("Summary").
+     p("Draws scatter plot x, y points with support for customization of point symbol type, "
+       "symbol size and symbol color.").
+    h3("Limitations").
+     p("None.").
+    h3("Example").
+     p(IMG("images/hierscatter.png"));
 }
 
 CQChartsPlot *
@@ -68,9 +77,19 @@ CQChartsHierScatterPlot(CQChartsView *view, const ModelP &model) :
 {
   NoUpdate noUpdate(this);
 
+  //---
+
   dataLabel_ = new CQChartsDataLabel(this);
 
+  //---
+
   setSymbolSize(CQChartsLength("4px"));
+  setSymbolType(CQChartsSymbol::Type::CIRCLE);
+  setSymbolStroked(true);
+  setSymbolFilled (true);
+  setSymbolFillColor(CQChartsColor(CQChartsColor::Type::PALETTE));
+
+  //---
 
   addAxes();
 
@@ -94,23 +113,23 @@ CQChartsHierScatterPlot::
 
 void
 CQChartsHierScatterPlot::
+setNameColumn(const CQChartsColumn &c)
+{
+  CQChartsUtil::testAndSet(nameColumn_, c, [&]() { updateRangeAndObjs(); } );
+}
+
+void
+CQChartsHierScatterPlot::
 setXColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(xColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(xColumn_, c, [&]() { resetAxes(); updateRangeAndObjs(); } );
 }
 
 void
 CQChartsHierScatterPlot::
 setYColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(yColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
-}
-
-void
-CQChartsHierScatterPlot::
-setNameColumn(const CQChartsColumn &c)
-{
-  CQChartsUtil::testAndSet(nameColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(yColumn_, c, [&]() { resetAxes(); updateRangeAndObjs(); } );
 }
 
 void
@@ -120,7 +139,7 @@ setGroupColumns(const CQChartsColumns &c)
   CQChartsUtil::testAndSet(groupColumns_, c, [&]() {
     initGroupValueSets();
 
-    queueUpdateRangeAndObjs();
+    updateRangeAndObjs();
   } );
 }
 
@@ -137,7 +156,7 @@ void
 CQChartsHierScatterPlot::
 setTextLabels(bool b)
 {
-  if (b != isTextLabels()) { dataLabel_->setVisible(b); queueDrawObjs(); }
+  if (b != isTextLabels()) { dataLabel_->setVisible(b); drawObjs(); }
 }
 
 //---
@@ -146,7 +165,7 @@ void
 CQChartsHierScatterPlot::
 setFontSize(double s)
 {
-  CQChartsUtil::testAndSet(fontSize_, s, [&]() { queueUpdateObjs(); } );
+  CQChartsUtil::testAndSet(fontSize_, s, [&]() { updateObjs(); } );
 }
 
 //---
@@ -187,9 +206,9 @@ setCurrentGroup(CQChartsHierScatterPointGroup *group)
 
   currentGroup_ = group;
 
-  queueUpdateRangeAndObjs();
+  updateRangeAndObjs();
 
-  //queueUpdateObjs();
+  //updateObjs();
 }
 
 //------
@@ -198,20 +217,42 @@ void
 CQChartsHierScatterPlot::
 addProperties()
 {
+  auto addProp = [&](const QString &path, const QString &name, const QString &alias,
+                     const QString &desc) {
+    return &(this->addProperty(path, this, name, alias)->setDesc(desc));
+  };
+
+  //---
+
   CQChartsPlot::addProperties();
 
-  addProperty("columns", this, "xColumn"     , "x"     )->setDesc("X column");
-  addProperty("columns", this, "yColumn"     , "y"     )->setDesc("Y column");
-  addProperty("columns", this, "nameColumn"  , "name"  )->setDesc("Name column");
-  addProperty("columns", this, "groupColumns", "groups")->setDesc("Group Columns");
+  // columns
+  addProp("columns", "xColumn", "x", "X column");
+  addProp("columns", "yColumn", "y", "Y column");
 
-  addSymbolProperties("symbol");
+  addProp("columns", "nameColumn"  , "name"  , "Name column");
+  addProp("columns", "groupColumns", "groups", "Group columns");
 
-  addProperty("font", this, "fontSize", "font")->setDesc("Font size");
+  // symbl
+  addSymbolProperties("symbol", "", "");
+
+  // font
+  addProp("font", "fontSize", "size", "Font size");
 
   // point data labels
-  dataLabel_->addPathProperties("dataLabel");
+  dataLabel_->addPathProperties("labels", "Labels");
 }
+
+void
+CQChartsHierScatterPlot::
+getPropertyNames(QStringList &names, bool hidden) const
+{
+  CQChartsPlot::getPropertyNames(names, hidden);
+
+  propertyModel()->objectNames(dataLabel_, names, hidden);
+}
+
+//------
 
 CQChartsGeom::Range
 CQChartsHierScatterPlot::
@@ -227,19 +268,32 @@ calcRange() const
     }
 
     State visit(const QAbstractItemModel *, const VisitData &data) override {
+      if (plot_->isInterrupt())
+        return State::TERMINATE;
+
+      //---
+
+      // check filter
       if (! plot_->acceptsRow(data.row, data.parent))
         return State::SKIP;
 
-      bool ok1, ok2;
+      //---
 
-      double x = plot_->modelReal(data.row, plot_->xColumn(), data.parent, ok1);
-      double y = plot_->modelReal(data.row, plot_->yColumn(), data.parent, ok2);
+      // get x, y value
+      double x, y;
+
+      bool ok1 = plot_->modelMappedReal(data.row, plot_->xColumn(), data.parent,
+                                        x, plot_->isLogX(), data.row);
+      bool ok2 = plot_->modelMappedReal(data.row, plot_->yColumn(), data.parent,
+                                        y, plot_->isLogY(), data.row);
 
       if (! ok1) x = data.row;
       if (! ok2) y = data.row;
 
       if (CMathUtil::isNaN(x) || CMathUtil::isNaN(y))
         return State::SKIP;
+
+      //---
 
       range_.updateRange(x, y);
 
@@ -259,22 +313,19 @@ calcRange() const
 
   CQChartsGeom::Range dataRange = visitor.range();
 
+  if (isInterrupt())
+    return dataRange;
+
   //---
 
+  // update data range if unset
   dataRange.makeNonZero();
 
   //---
 
-  xAxis_->setColumn(xColumn());
-  yAxis_->setColumn(yColumn());
+  CQChartsHierScatterPlot *th = const_cast<CQChartsHierScatterPlot *>(this);
 
-  bool ok;
-
-  QString xname = modelHeaderString(xColumn(), ok);
-  QString yname = modelHeaderString(yColumn(), ok);
-
-  xAxis_->setLabel(xname);
-  yAxis_->setLabel(yname);
+  th->initAxes();
 
   //---
 
@@ -302,6 +353,43 @@ acceptsRow(int row, const QModelIndex &parent) const
   }
 
   return true;
+}
+
+void
+CQChartsHierScatterPlot::
+resetAxes()
+{
+  xAxis_->setLabel("");
+  yAxis_->setLabel("");
+}
+
+void
+CQChartsHierScatterPlot::
+initAxes()
+{
+  setXValueColumn(xColumn());
+  setYValueColumn(yColumn());
+
+  //---
+
+  xAxis_->setColumn(xColumn());
+  yAxis_->setColumn(yColumn());
+
+  if (xAxis_->label() == "") {
+    bool ok;
+
+    QString xname = modelHeaderString(xColumn(), ok);
+
+    xAxis_->setLabel(xname);
+  }
+
+  if (yAxis_->label() == "") {
+    bool ok;
+
+    QString yname = modelHeaderString(yColumn(), ok);
+
+    yAxis_->setLabel(yname);
+  }
 }
 
 //------
@@ -388,9 +476,9 @@ createObjs(PlotObjs &objs) const
 {
   CQPerfTrace trace("CQChartsHierScatterPlot::createObjs");
 
-  CQChartsHierScatterPlot *th = const_cast<CQChartsHierScatterPlot *>(this);
+  NoUpdate noUpdate(this);
 
-  NoUpdate noUpdate(th);
+  CQChartsHierScatterPlot *th = const_cast<CQChartsHierScatterPlot *>(this);
 
   //---
 
@@ -414,10 +502,12 @@ createObjs(PlotObjs &objs) const
         //---
 
         // get x, y value
-        bool ok1, ok2;
+        double x, y;
 
-        double x = plot_->modelReal(data.row, plot_->xColumn(), data.parent, ok1);
-        double y = plot_->modelReal(data.row, plot_->yColumn(), data.parent, ok2);
+        bool ok1 = plot_->modelMappedReal(data.row, plot_->xColumn(), data.parent,
+                                          x, plot_->isLogX(), data.row);
+        bool ok2 = plot_->modelMappedReal(data.row, plot_->yColumn(), data.parent,
+                                          y, plot_->isLogY(), data.row);
 
         if (! ok1) x = data.row;
         if (! ok2) y = data.row;
@@ -562,7 +652,7 @@ addGroupPoints(CQChartsHierScatterPointGroup *baseGroup,
 
   double sx, sy;
 
-  pixelSymbolSize(symbolSize(), sx, sy);
+  plotSymbolSize(symbolSize(), sx, sy);
 
   //---
 
@@ -574,14 +664,16 @@ addGroupPoints(CQChartsHierScatterPointGroup *baseGroup,
 
     CQChartsGeom::BBox bbox(p.x() - sx, p.y() - sy, p.x() + sx, p.y() + sy);
 
+    ColorInd iv = (i > 0 ? ColorInd(i, n) : ColorInd());
+
     CQChartsHierScatterPointObj *pointObj =
-      new CQChartsHierScatterPointObj(this, bbox, p, i, n);
+      new CQChartsHierScatterPointObj(this, bbox, p, iv);
 
     //---
 
-    pointObj->setName (point.name);
-    pointObj->setInd  (point.ind);
-    pointObj->setGroup(point.group);
+    pointObj->setName    (point.name);
+    pointObj->setModelInd(point.ind);
+    pointObj->setGroup   (point.group);
 
     objs.push_back(pointObj);
   }
@@ -602,8 +694,10 @@ addKeyItems(CQChartsPlotKey *key)
 
     const QString &name = group->name();
 
-    CQChartsHierScatterKeyColor *color = new CQChartsHierScatterKeyColor(this, group, i, n);
-    CQChartsKeyText             *text  = new CQChartsKeyText            (this, name , i, n);
+    CQChartsHierScatterKeyColor *color =
+      new CQChartsHierScatterKeyColor(this, group, ColorInd(i, n));
+
+    CQChartsKeyText *text = new CQChartsKeyText(this, name, ColorInd(i, n));
 
     key->addItem(color, i, 0);
     key->addItem(text , i, 1);
@@ -612,7 +706,29 @@ addKeyItems(CQChartsPlotKey *key)
   key->plot()->updateKeyPosition(/*force*/true);
 }
 
-//------
+//---
+
+bool
+CQChartsHierScatterPlot::
+probe(ProbeData &probeData) const
+{
+  CQChartsPlotObj *obj;
+
+  if (! objNearestPoint(probeData.p, obj))
+    return false;
+
+  CQChartsGeom::Point c = obj->rect().getCenter();
+
+  probeData.p    = c;
+  probeData.both = true;
+
+  probeData.xvals.push_back(c.x);
+  probeData.yvals.push_back(c.y);
+
+  return true;
+}
+
+//---
 
 bool
 CQChartsHierScatterPlot::
@@ -635,13 +751,24 @@ addMenuItems(QMenu *menu)
   return true;
 }
 
+//---
+
+void
+CQChartsHierScatterPlot::
+write(std::ostream &os, const QString &varName, const QString &modelName) const
+{
+  CQChartsPlot::write(os, varName, modelName);
+
+  dataLabel_->write(os, varName);
+}
+
 //------
 
 CQChartsHierScatterPointObj::
 CQChartsHierScatterPointObj(const CQChartsHierScatterPlot *plot, const CQChartsGeom::BBox &rect,
-                            const QPointF &p, int i, int n) :
- CQChartsPlotObj(const_cast<CQChartsHierScatterPlot *>(plot), rect), plot_(plot),
- p_(p), i_(i), n_(n)
+                            const QPointF &p, const ColorInd &iv) :
+ CQChartsPlotObj(const_cast<CQChartsHierScatterPlot *>(plot), rect, ColorInd(), ColorInd(), iv),
+ plot_(plot), p_(p)
 {
 }
 
@@ -649,21 +776,25 @@ QString
 CQChartsHierScatterPointObj::
 calcId() const
 {
-  QString id = name_;
-
-  id += QString(" %1=%2").arg(plot_->xname()).arg(p_.x());
-  id += QString(" %1=%2").arg(plot_->yname()).arg(p_.y());
-
-  return id;
+  return QString("%1:%2").arg(typeName()).arg(iv_.i);
 }
 
 QString
 CQChartsHierScatterPointObj::
 calcTipId() const
 {
-  QString tip = QString("%1:%2").arg(group()->name()).arg(name());
+  CQChartsTableTip tableTip;
 
-  return tip;
+  tableTip.addTableRow("Group", group()->name());
+  tableTip.addTableRow("Name" , name());
+
+  //---
+
+  plot()->addTipColumns(tableTip, modelInd());
+
+  //---
+
+  return tableTip.str();
 }
 
 bool
@@ -693,47 +824,35 @@ getSelectIndices(Indices &inds) const
 
 void
 CQChartsHierScatterPointObj::
-addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const
+draw(CQChartsPaintDevice *device)
 {
-  if (column.isValid())
-    addSelectIndex(inds, ind_.row(), column, ind_.parent());
-}
-
-void
-CQChartsHierScatterPointObj::
-draw(QPainter *painter)
-{
-  // get symbol size
-  double sx, sy;
-
-  plot_->pixelSymbolSize(plot_->symbolSize(), sx, sy);
+  ColorInd ic = calcColorInd();
 
   //---
 
-  // set pen and brush
-  // TODO: allow full control of symbol fill and stroke
+  // calc pen and brush
   QPen   pen;
   QBrush brush;
 
-  QColor fillColor   = plot_->interpPaletteColor(i_, n_);
-  QColor strokeColor = plot_->interpPaletteColor(i_, n_);
+  QColor fillColor   = plot_->interpColor(plot_->symbolFillColor  (), ic);
+  QColor strokeColor = plot_->interpColor(plot_->symbolStrokeColor(), ic);
 
-  plot_->setPen  (pen  , true, strokeColor, 1.0);
-  plot_->setBrush(brush, true, fillColor, 1.0);
+  plot_->setPen  (pen  , true, strokeColor, plot_->symbolStrokeAlpha());
+  plot_->setBrush(brush, true, fillColor  , plot_->symbolFillAlpha());
 
-  plot_->updateObjPenBrushState(this, pen, brush);
+  plot_->updateObjPenBrushState(this, pen, brush, CQChartsPlot::DrawType::SYMBOL);
 
-  painter->setPen  (pen);
-  painter->setBrush(brush);
+  device->setPen  (pen);
+  device->setBrush(brush);
 
   //---
 
+  // get symbol type and size
+  CQChartsSymbol symbolType = plot_->symbolType();
+  CQChartsLength symbolSize = plot_->symbolSize();
+
   // draw symbol
-  QPointF p1 = plot_->windowToPixel(p_);
-
-  QRectF erect(p1.x() - sx, p1.y() - sy, 2*sx, 2*sy);
-
-  painter->drawEllipse(erect);
+  plot_->drawSymbol(device, p_, symbolType, symbolSize, pen, brush);
 
   //---
 
@@ -741,7 +860,15 @@ draw(QPainter *painter)
   if (plot_->isTextLabels()) {
     const CQChartsDataLabel *dataLabel = plot_->dataLabel();
 
-    dataLabel->draw(painter, erect, name_);
+    QPointF ps = plot_->windowToPixel(p_);
+
+    double sx, sy;
+
+    plot_->pixelSymbolSize(symbolSize, sx, sy);
+
+    QRectF erect(ps.x() - sx, ps.y() - sy, 2*sx, 2*sy);
+
+    dataLabel->draw(device, device->pixelToWindow(erect), name_);
   }
 }
 
@@ -749,8 +876,8 @@ draw(QPainter *painter)
 
 CQChartsHierScatterKeyColor::
 CQChartsHierScatterKeyColor(CQChartsHierScatterPlot *plot, CQChartsHierScatterPointGroup *group,
-                            int i, int n) :
- CQChartsKeyColorBox(plot, i, n), group_(group)
+                            const ColorInd &ic) :
+ CQChartsKeyColorBox(plot, ColorInd(), ColorInd(), ic), group_(group)
 {
 }
 
@@ -760,9 +887,9 @@ selectPress(const CQChartsGeom::Point &, CQChartsSelMod)
 {
   CQChartsHierScatterPlot *plot = qobject_cast<CQChartsHierScatterPlot *>(plot_);
 
-  //plot->setSetHidden(i_, ! plot->isSetHidden(i_));
+  //plot->setSetHidden(ic_.i, ! plot->isSetHidden(ic_.i));
 
-  //plot->queueUpdateObjs();
+  //plot->updateObjs();
 
   if (group_->numGroups())
     plot->setCurrentGroup(group_);
@@ -778,7 +905,7 @@ fillBrush() const
 
   //CQChartsHierScatterPlot *plot = qobject_cast<CQChartsHierScatterPlot *>(plot_);
 
-  //if (plot->isSetHidden(i_))
+  //if (plot->isSetHidden(ic_.i))
   //  c = CQChartsUtil::blendColors(c, key_->interpBgColor(), key_->hiddenAlpha());
 
   return c;

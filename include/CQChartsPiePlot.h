@@ -11,6 +11,10 @@
 
 //---
 
+/*!
+ * \brief Pie Plot type
+ * \ingroup Charts
+ */
 class CQChartsPiePlotType : public CQChartsGroupPlotType {
  public:
   CQChartsPiePlotType();
@@ -27,6 +31,8 @@ class CQChartsPiePlotType : public CQChartsGroupPlotType {
   bool allowXLog() const override { return false; }
   bool allowYLog() const override { return false; }
 
+  bool canProbe() const override { return false; }
+
   QString description() const override;
 
   CQChartsPlot *create(CQChartsView *view, const ModelP &model) const override;
@@ -38,6 +44,10 @@ class CQChartsPiePlot;
 
 //---
 
+/*!
+ * \brief Pie Plot Text object
+ * \ingroup Charts
+ */
 class CQChartsPieTextObj : public CQChartsRotatedTextBoxObj {
  public:
   CQChartsPieTextObj(const CQChartsPiePlot *plot);
@@ -52,17 +62,48 @@ class CQChartsPieTextObj : public CQChartsRotatedTextBoxObj {
 
 class CQChartsPieGroupObj;
 
+/*!
+ * \brief Pie Plot object
+ * \ingroup Charts
+ */
 class CQChartsPieObj : public CQChartsPlotObj {
+  Q_OBJECT
+
+  Q_PROPERTY(int           colorIndex  READ colorIndex  WRITE setColorIndex )
+  Q_PROPERTY(double        angle1      READ angle1      WRITE setAngle1     )
+  Q_PROPERTY(double        angle2      READ angle2      WRITE setAngle2     )
+  Q_PROPERTY(double        innerRadius READ innerRadius WRITE setInnerRadius)
+  Q_PROPERTY(double        outerRadius READ outerRadius WRITE setOuterRadius)
+  Q_PROPERTY(QString       label       READ label       WRITE setLabel      )
+  Q_PROPERTY(double        value       READ value       WRITE setValue      )
+  Q_PROPERTY(bool          missing     READ isMissing   WRITE setMissing    )
+//Q_PROPERTY(double        radius      READ radius      WRITE setRadius     )
+  Q_PROPERTY(QString       keyLabel    READ keyLabel    WRITE setKeyLabel   )
+//Q_PROPERTY(CQChartsColor color       READ color       WRITE setColor      )
+  Q_PROPERTY(bool          exploded    READ isExploded  WRITE setExploded   )
+
  public:
   using OptReal = boost::optional<double>;
 
  public:
   CQChartsPieObj(const CQChartsPiePlot *plot, const CQChartsGeom::BBox &rect,
-                 const QModelIndex &ind);
+                 const QModelIndex &ind, const ColorInd &ig);
+
+  //---
+
+  QString typeName() const override { return "pie"; }
 
   QString calcId() const override;
 
   QString calcTipId() const override;
+
+  //---
+
+  //! get/set color index
+  int colorIndex() const { return colorIndex_; }
+  void setColorIndex(int i) { colorIndex_ = i; }
+
+  //---
 
   double angle1() const { return angle1_; }
   void setAngle1(double a) { angle1_ = a; }
@@ -100,64 +141,89 @@ class CQChartsPieObj : public CQChartsPlotObj {
   CQChartsPieGroupObj *groupObj() const { return groupObj_; }
   void setGroupObj(CQChartsPieGroupObj *p) { groupObj_ = p; }
 
+  //---
+
   bool isExploded() const { return exploded_; }
   void setExploded(bool b) { exploded_ = b; }
 
+  bool calcExploded() const;
+
   //---
 
-  bool calcExploded() const;
+  void addProperties(CQPropertyViewModel *model, const QString &path) override;
+
+  //---
 
   bool inside(const CQChartsGeom::Point &p) const override;
 
   void getSelectIndices(Indices &inds) const override;
 
-  void addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const override;
-
   CQChartsGeom::BBox annotationBBox() const;
 
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
-  void drawFg(QPainter *painter) const override;
+  void drawFg(CQChartsPaintDevice *device) const override;
 
-  void drawSegmentLabel(QPainter *painter, const CQChartsGeom::Point &c) const;
+  void drawSegmentLabel(CQChartsPaintDevice *device, const CQChartsGeom::Point &c) const;
 
   CQChartsGeom::Point getCenter() const;
 
+  //---
+
+  QColor fillColor() const;
+
+  double xColorValue(bool relative) const override;
+  double yColorValue(bool relative) const override;
+
  protected:
-  const CQChartsPiePlot* plot_     { nullptr }; //! parent plot
-  QModelIndex            ind_;                  //! model index
-  double                 angle1_   { 0 };       //! wedge start angle
-  double                 angle2_   { 360 };     //! wedge end angle
-  double                 ri_       { 0.0 };     //! inner radius
-  double                 ro_       { 0.0 };     //! outer radius
-  double                 rv_       { 0.0 };     //! value radius
-  QString                label_    { "" };      //! label
-  double                 value_    { 0 };       //! value
-  bool                   missing_  { false };   //! value missing
-  OptReal                radius_;               //! radius
-  QString                keyLabel_ { "" };      //! key label
-  CQChartsColor          color_;                //! color
-  CQChartsPieGroupObj*   groupObj_ { nullptr }; //! parent group object
-  bool                   exploded_ { false };   //! exploded
+  const CQChartsPiePlot* plot_       { nullptr }; //!< parent plot
+  int                    colorIndex_ { -1 };      //!< color index
+  double                 angle1_     { 0 };       //!< wedge start angle
+  double                 angle2_     { 360 };     //!< wedge end angle
+  double                 ri_         { 0.0 };     //!< inner radius
+  double                 ro_         { 0.0 };     //!< outer radius
+  double                 rv_         { 0.0 };     //!< value radius
+  QString                label_      { "" };      //!< label
+  double                 value_      { 0 };       //!< value
+  bool                   missing_    { false };   //!< value missing
+  OptReal                radius_;                 //!< radius
+  QString                keyLabel_   { "" };      //!< key label
+  CQChartsColor          color_;                  //!< calculated color
+  CQChartsPieGroupObj*   groupObj_   { nullptr }; //!< parent group object
+  bool                   exploded_   { false };   //!< exploded
 };
 
 //---
 
+/*!
+ * \brief Pie Plot Group object
+ * \ingroup Charts
+ */
 class CQChartsPieGroupObj : public CQChartsGroupObj {
  public:
   using PieObjs = std::vector<CQChartsPieObj *>;
 
  public:
   CQChartsPieGroupObj(const CQChartsPiePlot *plot, const CQChartsGeom::BBox &bbox,
-                      int groupInd, const QString &name, int ig, int ng);
+                      int groupInd, const QString &name, const ColorInd &ig);
 
   const CQChartsPiePlot *plot() const { return plot_; }
+
+  //---
 
   int groupInd() const { return groupInd_; }
   void setGroupInd(int i) { groupInd_ = i; }
 
   const QString &name() const { return name_; }
   void setName(const QString &s) { name_ = s; }
+
+  //---
+
+  //! get/set color index
+  int colorIndex() const { return colorIndex_; }
+  void setColorIndex(int i) { colorIndex_ = i; }
+
+  //---
 
   double dataTotal() const { return dataTotal_; }
   void setDataTotal(double r) { dataTotal_ = r; }
@@ -177,6 +243,8 @@ class CQChartsPieGroupObj : public CQChartsGroupObj {
   double outerRadius() const { return outerRadius_; }
   void setOuterRadius(double r) { outerRadius_ = r; }
 
+  //---
+
   void addObject(CQChartsPieObj *obj);
 
   CQChartsPieObj *lookupObj(const QString &name) const;
@@ -187,43 +255,48 @@ class CQChartsPieGroupObj : public CQChartsGroupObj {
 
   void setAngles(double a1, double a2) { startAngle_ = a1; endAngle_ = a2; }
 
+  //---
+
+  QString typeName() const override { return "group"; }
+
   QString calcId() const override;
 
   QString calcTipId() const override;
 
   void getSelectIndices(Indices &) const override { }
 
-  void addColumnSelectIndex(Indices &, const CQChartsColumn &) const override { }
-
   bool inside(const CQChartsGeom::Point &p) const override;
 
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
-  void drawFg(QPainter *painter) const override;
+  void drawFg(CQChartsPaintDevice *device) const override;
 
   QColor bgColor() const;
 
  private:
-  const CQChartsPiePlot* plot_         { nullptr }; //! parent plot
-  int                    groupInd_     { -1 };      //! groupInd
-  QString                name_;                     //! group name
-  int                    ig_           { 0 };       //! group index
-  int                    ng_           { 1 };       //! num groups
-  double                 dataTotal_    { 0.0 };     //! value data total
-  int                    numValues_    { 0 };       //! num values
-  double                 radiusMax_    { 0.0 };     //! radius data max
-  bool                   radiusScaled_ { false };   //! radius scaled
-  double                 innerRadius_  { 0.0 };     //! inner radius
-  double                 outerRadius_  { 0.0 };     //! outer radius
-  PieObjs                objs_;                     //! objects
-  double                 startAngle_   { 0.0 };     //! start angle
-  double                 endAngle_     { 0.0 };     //! end angle
+  const CQChartsPiePlot* plot_         { nullptr }; //!< parent plot
+  int                    groupInd_     { -1 };      //!< groupInd
+  QString                name_;                     //!< group name
+  int                    colorIndex_   { -1 };      //!< color index
+  double                 dataTotal_    { 0.0 };     //!< value data total
+  int                    numValues_    { 0 };       //!< num values
+  double                 radiusMax_    { 0.0 };     //!< radius data max
+  bool                   radiusScaled_ { false };   //!< radius scaled
+  double                 innerRadius_  { 0.0 };     //!< inner radius
+  double                 outerRadius_  { 0.0 };     //!< outer radius
+  PieObjs                objs_;                     //!< objects
+  double                 startAngle_   { 0.0 };     //!< start angle
+  double                 endAngle_     { 0.0 };     //!< end angle
 };
 
 //---
 
 #include <CQChartsKey.h>
 
+/*!
+ * \brief Pie Plot Key Color Box
+ * \ingroup Charts
+ */
 class CQChartsPieKeyColor : public CQChartsKeyColorBox {
   Q_OBJECT
 
@@ -234,17 +307,25 @@ class CQChartsPieKeyColor : public CQChartsKeyColorBox {
 
   QBrush fillBrush() const override;
 
+  int setIndex() const;
+
  private:
   CQChartsPlotObj* obj_ { nullptr };
 };
 
+/*!
+ * \brief Pie Plot Key Text
+ * \ingroup Charts
+ */
 class CQChartsPieKeyText : public CQChartsKeyText {
   Q_OBJECT
 
  public:
   CQChartsPieKeyText(CQChartsPiePlot *plot, CQChartsPlotObj *obj);
 
-  QColor interpTextColor(int i, int n) const override;
+  QColor interpTextColor(const ColorInd &ind) const override;
+
+  int setIndex() const;
 
  private:
   CQChartsPlotObj* obj_ { nullptr };
@@ -252,6 +333,10 @@ class CQChartsPieKeyText : public CQChartsKeyText {
 
 //---
 
+/*!
+ * \brief Pie Chart Plot
+ * \ingroup Charts
+ */
 class CQChartsPiePlot : public CQChartsGroupPlot,
  public CQChartsObjShapeData   <CQChartsPiePlot>,
  public CQChartsObjGridLineData<CQChartsPiePlot> {
@@ -355,7 +440,7 @@ class CQChartsPiePlot : public CQChartsGroupPlot,
 
   CQChartsGeom::BBox annotationBBox() const override;
 
-  bool createObjs(PlotObjs &objs) const;
+  bool createObjs(PlotObjs &objs) const override;
 
   //---
 
@@ -376,6 +461,10 @@ class CQChartsPiePlot : public CQChartsGroupPlot,
   //---
 
   bool selectInvalidateObjs() const override { return true; }
+
+  //---
+
+  void write(std::ostream &os, const QString &varName, const QString &modelName) const override;
 
  public slots:
   void setDonut(bool b);
@@ -401,37 +490,37 @@ class CQChartsPiePlot : public CQChartsGroupPlot,
      name(name) {
     }
 
-    QString              name;                     //! name
-    double               dataTotal    { 0.0 };     //! data column value total
-    int                  numValues    { 0 };       //! data column num values
-    double               radiusMax    { 0.0 };     //! radius column value max
-    bool                 radiusScaled { false };   //! has radius column value max
-    CQChartsPieGroupObj* groupObj     { nullptr }; //! associated group obj
+    QString              name;                     //!< name
+    double               dataTotal    { 0.0 };     //!< data column value total
+    int                  numValues    { 0 };       //!< data column num values
+    double               radiusMax    { 0.0 };     //!< radius column value max
+    bool                 radiusScaled { false };   //!< has radius column value max
+    CQChartsPieGroupObj* groupObj     { nullptr }; //!< associated group obj
   };
 
   using GroupInd   = std::map<QString,int>;
   using GroupDatas = std::map<int,GroupData>;
   using GroupObjs  = std::vector<CQChartsPieGroupObj *>;
 
-  CQChartsColumn      labelColumn_;                 //! label column
-  CQChartsColumns     valueColumns_;                //! value columns
-  CQChartsColumn      radiusColumn_;                //! radius value column
-  CQChartsColumn      keyLabelColumn_;              //! key label column
-  bool                donut_           { false };   //! is donut
-  bool                count_           { false };   //! show value counts
-  double              innerRadius_     { 0.6 };     //! relative inner donut radius
-  double              outerRadius_     { 0.9 };     //! relative outer donut radius
-  double              labelRadius_     { 1.1 };     //! label radius
-  double              startAngle_      { 90 };      //! first pie start angle
-  double              angleExtent_     { 360.0 };   //! pie angle extent
-  double              gapAngle_        { 0.0 };     //! angle gap between segments
-  bool                rotatedText_     { false };   //! is label rotated
-  bool                explodeSelected_ { true };    //! explode selected pie
-  double              explodeRadius_   { 0.05 };    //! expose radius
-  CQChartsPieTextObj* textBox_         { nullptr }; //! text box
-  CQChartsGeom::Point center_;                      //! center point
-  GroupDatas          groupDatas_;                  //! data per group
-  GroupObjs           groupObjs_;                   //! group objects
+  CQChartsColumn      labelColumn_;                 //!< label column
+  CQChartsColumns     valueColumns_;                //!< value columns
+  CQChartsColumn      radiusColumn_;                //!< radius value column
+  CQChartsColumn      keyLabelColumn_;              //!< key label column
+  bool                donut_           { false };   //!< is donut
+  bool                count_           { false };   //!< show value counts
+  double              innerRadius_     { 0.6 };     //!< relative inner donut radius
+  double              outerRadius_     { 0.9 };     //!< relative outer donut radius
+  double              labelRadius_     { 1.1 };     //!< label radius
+  double              startAngle_      { 90 };      //!< first pie start angle
+  double              angleExtent_     { 360.0 };   //!< pie angle extent
+  double              gapAngle_        { 0.0 };     //!< angle gap between segments
+  bool                rotatedText_     { false };   //!< is label rotated
+  bool                explodeSelected_ { true };    //!< explode selected pie
+  double              explodeRadius_   { 0.05 };    //!< expose radius
+  CQChartsPieTextObj* textBox_         { nullptr }; //!< text box
+  CQChartsGeom::Point center_;                      //!< center point
+  GroupDatas          groupDatas_;                  //!< data per group
+  GroupObjs           groupObjs_;                   //!< group objects
 };
 
 #endif

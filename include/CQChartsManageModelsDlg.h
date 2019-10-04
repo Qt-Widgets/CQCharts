@@ -5,8 +5,11 @@
 
 class CQCharts;
 class CQChartsModelWidgets;
-class CQChartsCreatePlotDlg;
 
+/*!
+ * \brief dialog to manage charts models
+ * \ingroup Charts
+ */
 class CQChartsManageModelsDlg : public QDialog {
   Q_OBJECT
 
@@ -14,15 +17,16 @@ class CQChartsManageModelsDlg : public QDialog {
   CQChartsManageModelsDlg(CQCharts *charts);
  ~CQChartsManageModelsDlg();
 
+  QSize sizeHint() const override;
+
  private slots:
   void writeSlot();
   void plotSlot();
   void cancelSlot();
 
  private:
-  CQCharts*              charts_        { nullptr };
-  CQChartsModelWidgets*  modelWidgets_  { nullptr };
-  CQChartsCreatePlotDlg* createPlotDlg_ { nullptr };
+  CQCharts*             charts_       { nullptr };
+  CQChartsModelWidgets* modelWidgets_ { nullptr };
 };
 
 #endif

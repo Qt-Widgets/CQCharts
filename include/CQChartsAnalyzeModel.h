@@ -10,6 +10,7 @@ class CQChartsModelData;
 
 /*!
  * \brief analyze a model to auto determine best plot type and columns
+ * \ingroup Charts
  */
 class CQChartsAnalyzeModel {
  public:
@@ -28,9 +29,9 @@ class CQChartsAnalyzeModel {
   void print() const;
 
  private:
-  CQCharts*          charts_    { nullptr }; //! charts
-  CQChartsModelData* modelData_ { nullptr }; //! model data
-  TypeNameColumns    typeNameColumns_;       //! typed columns
+  CQCharts*          charts_    { nullptr }; //!< charts
+  CQChartsModelData* modelData_ { nullptr }; //!< model data
+  TypeNameColumns    typeNameColumns_;       //!< typed columns
 };
 
 #endif

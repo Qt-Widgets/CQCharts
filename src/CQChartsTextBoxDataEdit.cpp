@@ -2,10 +2,11 @@
 
 #include <CQChartsTextDataEdit.h>
 #include <CQChartsBoxDataEdit.h>
-#include <CQChartsRoundedPolygon.h>
+#include <CQChartsDrawUtil.h>
 #include <CQChartsView.h>
 #include <CQChartsPlot.h>
 #include <CQCharts.h>
+#include <CQChartsPaintDevice.h>
 
 #include <CQPropertyView.h>
 #include <CQWidgetMenu.h>
@@ -13,7 +14,6 @@
 
 #include <QLabel>
 #include <QVBoxLayout>
-#include <QPainter>
 
 CQChartsTextBoxDataLineEdit::
 CQChartsTextBoxDataLineEdit(QWidget *parent) :
@@ -27,9 +27,9 @@ CQChartsTextBoxDataLineEdit(QWidget *parent) :
 
   menu_->setWidget(dataEdit_);
 
-  connect(dataEdit_, SIGNAL(textBoxDataChanged()), this, SLOT(menuEditChanged()));
-
   //---
+
+  connectSlots(true);
 
   textBoxDataToWidgets();
 }
@@ -56,10 +56,10 @@ updateTextBoxData(const CQChartsTextBoxData &textBoxData, bool updateText)
 
   dataEdit_->setData(textBoxData);
 
+  connectSlots(true);
+
   if (updateText)
     textBoxDataToWidgets();
-
-  connectSlots(true);
 
   emit textBoxDataChanged();
 }
@@ -196,8 +196,7 @@ CQChartsTextBoxDataEdit(QWidget *parent, bool tabbed) :
 {
   setObjectName("textBoxDataEdit");
 
-  QGridLayout *layout = new QGridLayout(this);
-  layout->setMargin(0); layout->setSpacing(2);
+  QGridLayout *layout = CQUtil::makeLayout<QGridLayout>(this, 0, 2);
 
   int row = 0;
 
@@ -213,8 +212,7 @@ CQChartsTextBoxDataEdit(QWidget *parent, bool tabbed) :
     // text frame
     QFrame *textFrame = CQUtil::makeWidget<QFrame>("textFrame");
 
-    QVBoxLayout *textFrameLayout = new QVBoxLayout(textFrame);
-    textFrameLayout->setMargin(0); textFrameLayout->setSpacing(2);
+    QVBoxLayout *textFrameLayout = CQUtil::makeLayout<QVBoxLayout>(textFrame, 0, 2);
 
     tab->addTab(textFrame, "Text");
 
@@ -232,8 +230,7 @@ CQChartsTextBoxDataEdit(QWidget *parent, bool tabbed) :
     // box frame
     QFrame *boxFrame = CQUtil::makeWidget<QFrame>("boxFrame");
 
-    QVBoxLayout *boxFrameLayout = new QVBoxLayout(boxFrame);
-    boxFrameLayout->setMargin(0); boxFrameLayout->setSpacing(2);
+    QVBoxLayout *boxFrameLayout = CQUtil::makeLayout<QVBoxLayout>(boxFrame, 0, 2);
 
     tab->addTab(boxFrame, "Box");
 
@@ -268,9 +265,6 @@ CQChartsTextBoxDataEdit(QWidget *parent, bool tabbed) :
     layout->addWidget(boxEdit_, row, 0, 1, 2); ++row;
   }
 
-  connect(textEdit_, SIGNAL(textDataChanged()), this, SLOT(widgetsToData()));
-  connect(boxEdit_ , SIGNAL(boxDataChanged()) , this, SLOT(widgetsToData()));
-
   //---
 
   // preview
@@ -283,6 +277,8 @@ CQChartsTextBoxDataEdit(QWidget *parent, bool tabbed) :
   layout->setRowStretch(row, 1);
 
   //---
+
+  connectSlots(true);
 
   dataToWidgets();
 }
@@ -338,19 +334,29 @@ setPreview(bool b)
 
 void
 CQChartsTextBoxDataEdit::
+connectSlots(bool b)
+{
+  auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
+    if (b)
+      QObject::connect(w, from, this, to);
+    else
+      QObject::disconnect(w, from, this, to);
+  };
+
+  connectDisconnect(b, textEdit_, SIGNAL(textDataChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, boxEdit_ , SIGNAL(boxDataChanged()) , SLOT(widgetsToData()));
+}
+
+void
+CQChartsTextBoxDataEdit::
 dataToWidgets()
 {
-  disconnect(textEdit_, SIGNAL(textDataChanged()), this, SLOT(widgetsToData()));
-  disconnect(boxEdit_, SIGNAL(boxDataChanged()), this, SLOT(widgetsToData()));
+  connectSlots(false);
 
   textEdit_->setData(data_.text());
   boxEdit_ ->setData(data_.box());
 
   preview_->update();
-
-  connect(textEdit_, SIGNAL(textDataChanged()), this, SLOT(widgetsToData()));
-  connect(boxEdit_, SIGNAL(boxDataChanged()), this, SLOT(widgetsToData()));
-
 }
 
 void
@@ -394,34 +400,34 @@ draw(QPainter *painter, const CQChartsTextBoxData &data, const QRect &rect,
   //---
 
   // set pen
-  QColor pc = interpColor(plot, view, shape.border().color());
+  QColor pc = interpColor(plot, view, shape.stroke().color());
 
   QPen pen;
 
-  double width = CQChartsUtil::limitLineWidth(shape.border().width().value());
+  double width = CQChartsUtil::limitLineWidth(shape.stroke().width().value());
 
-  CQChartsUtil::setPen(pen, shape.border().isVisible(), pc,
-                       shape.border().alpha(), width, shape.border().dash());
+  CQChartsUtil::setPen(pen, shape.stroke().isVisible(), pc,
+                       shape.stroke().alpha(), width, shape.stroke().dash());
 
   painter->setPen(pen);
 
   //---
 
   // set brush
-  QColor fc = interpColor(plot, view, shape.background().color());
+  QColor fc = interpColor(plot, view, shape.fill().color());
 
   QBrush brush;
 
-  CQChartsUtil::setBrush(brush, shape.background().isVisible(), fc,
-                         shape.background().alpha(), shape.background().pattern());
+  CQChartsUtil::setBrush(brush, shape.fill().isVisible(), fc,
+                         shape.fill().alpha(), shape.fill().pattern());
 
   painter->setBrush(brush);
 
   //---
 
   // draw text box
-  double cxs = shape.border().cornerSize().value();
-  double cys = shape.border().cornerSize().value();
+  CQChartsPixelPainter device(painter);
 
-  CQChartsRoundedPolygon::draw(painter, rect, cxs, cys);
+  CQChartsDrawUtil::drawRoundedPolygon(&device, rect, shape.stroke().cornerSize(),
+                                       shape.stroke().cornerSize());
 }

@@ -6,6 +6,10 @@
 
 #include <boost/optional.hpp>
 
+/*!
+ * \brief Optional real
+ * \ingroup Charts
+ */
 class CQChartsOptReal {
  public:
   static void registerMetaType();
@@ -36,8 +40,8 @@ class CQChartsOptReal {
 
   //---
 
-  double real() const { return value_.value(); }
-  void setReal(double r) { value_ = r; }
+  double real() const { assert(isSet()); return value_.value(); }
+  void setReal(double value) { value_ = value; }
 
   double realOr(double def) const { return value_.value_or(def); }
 

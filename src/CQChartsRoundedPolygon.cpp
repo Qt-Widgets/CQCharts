@@ -1,6 +1,6 @@
 #include <CQChartsRoundedPolygon.h>
+#include <CQChartsPaintDevice.h>
 #include <QPainterPath>
-#include <QPainter>
 #include <cmath>
 
 namespace Util {
@@ -19,10 +19,10 @@ void interpLine(const QPointF &p1, const QPointF &p2, double xsize, double ysize
     return;
   }
 
-  double mx1 = std::min(dx/2, xsize)/l;
+  double mx1 = (xsize < l/2 ? xsize/l : 0.5);
   double mx2 = 1.0 - mx1;
 
-  double my1 = std::min(dy/2, ysize)/l;
+  double my1 = (ysize < l/2 ? ysize/l : 0.5);
   double my2 = 1.0 - my1;
 
   double x1 = p1.x() + mx1*dx;
@@ -42,29 +42,47 @@ void interpLine(const QPointF &p1, const QPointF &p2, double xsize, double ysize
 namespace CQChartsRoundedPolygon {
 
 void
-draw(QPainter *painter, const QRectF &rect, double xsize, double ysize)
+draw(CQChartsPaintDevice *device, const QRectF &rect, double xsize, double ysize,
+     const CQChartsSides &sides)
 {
   if (xsize > 0 || ysize > 0) {
     QPainterPath path;
 
     path.addRoundedRect(rect, xsize, ysize);
 
-    painter->drawPath(path);
-
-    //painter->drawRoundedRect(rect, xsize, ysize);
+    device->drawPath(path);
   }
   else {
-    painter->drawRect(rect);
+    QPainterPath path;
+
+    if (sides.isAll()) {
+      device->drawRect(rect);
+    }
+    else {
+      device->fillRect(rect, device->brush());
+
+      if (sides.isLeft())
+        device->drawLine(rect.topLeft(), rect.bottomLeft());
+
+      if (sides.isRight())
+        device->drawLine(rect.topRight(), rect.bottomRight());
+
+      if (sides.isTop())
+        device->drawLine(rect.topLeft(), rect.topRight());
+
+      if (sides.isBottom())
+        device->drawLine(rect.bottomLeft(), rect.bottomRight());
+    }
   }
 }
 
 void
-draw(QPainter *painter, const QPolygonF &poly, double xsize, double ysize)
+draw(CQChartsPaintDevice *device, const QPolygonF &poly, double xsize, double ysize)
 {
   QPainterPath path;
 
   if (poly.count() < 3) {
-    painter->drawPolygon(poly);
+    device->drawPolygon(poly);
     return;
   }
 
@@ -112,7 +130,7 @@ draw(QPainter *painter, const QPolygonF &poly, double xsize, double ysize)
 
   path.closeSubpath();
 
-  painter->drawPath(path);
+  device->drawPath(path);
 }
 
 }

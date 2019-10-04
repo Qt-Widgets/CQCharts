@@ -1,8 +1,9 @@
 #include <CQChartsProbeBand.h>
 #include <CQChartsView.h>
 #include <CQChartsUtil.h>
-#include <QRubberBand>
+#include <CQUtil.h>
 
+#include <QRubberBand>
 #include <QLabel>
 
 CQChartsProbeBand::
@@ -11,7 +12,7 @@ CQChartsProbeBand(CQChartsView *view) :
 {
   vband_ = new QRubberBand(QRubberBand::Line, view);
   hband_ = new QRubberBand(QRubberBand::Line, view);
-  tip_   = new QLabel;
+  tip_   = CQUtil::makeLabelWidget<QLabel>("", "tipLabel");
 
   tip_->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::X11BypassWindowManagerHint);
 }
@@ -34,32 +35,36 @@ showVertical(CQChartsPlot *plot, const QString &text, double px, double py1, dou
   CQChartsGeom::Point p2(px          , py2);
   CQChartsGeom::Point p3(px + tickLen, py2);
 
-  vband_->setGeometry(CQChartsUtil::toQRectI(CQChartsGeom::BBox(p1, p2)));
-  hband_->setGeometry(CQChartsUtil::toQRectI(CQChartsGeom::BBox(p2, p3)));
+  vband_->setGeometry(CQChartsGeom::BBox(p1, p2).qrecti());
+  hband_->setGeometry(CQChartsGeom::BBox(p2, p3).qrecti());
 
   vband_->show();
   hband_->show();
 
-  tip_->setText(text);
+  if (text.length()) {
+    tip_->setText(text);
 
-  CQChartsGeom::Point p4(px + tickLen + 2, py2 - tip_->sizeHint().height()/2);
+    CQChartsGeom::Point p4(px + tickLen + 2, py2 - tip_->sizeHint().height()/2);
 
-  QPoint pos = CQChartsUtil::toQPointI(p4);
+    QPoint pos = p4.qpointi();
 
-  QPoint gpos = view_->mapToGlobal(pos);
+    QPoint gpos = view_->mapToGlobal(pos);
 
-  CQChartsGeom::Point wpos = view_->pixelToWindow(CQChartsGeom::Point(pos.x(), pos.y()));
+    CQChartsGeom::Point wpos = view_->pixelToWindow(CQChartsGeom::Point(pos.x(), pos.y()));
 
-  CQChartsGeom::BBox bbox = view_->plotBBox(plot);
+    CQChartsGeom::BBox bbox = view_->plotBBox(plot);
 
-  if (bbox.inside(wpos)) {
-    QFontMetricsF fm(font());
+    if (bbox.inside(wpos)) {
+      QFontMetricsF fm(font());
 
-    tip_->move(gpos);
+      tip_->move(gpos);
 
-    tip_->resize(fm.width(text) + 4, fm.height() + 4);
+      tip_->resize(fm.width(text) + 4, fm.height() + 4);
 
-    tip_->show();
+      tip_->show();
+    }
+    else
+      tip_->hide();
   }
   else
     tip_->hide();
@@ -75,33 +80,37 @@ showHorizontal(CQChartsPlot *plot, const QString &text, double px1, double px2, 
   CQChartsGeom::Point p2(px2, py);
   CQChartsGeom::Point p3(px2, py - tickLen);
 
-  hband_->setGeometry(CQChartsUtil::toQRectI(CQChartsGeom::BBox(p1, p2)));
-  vband_->setGeometry(CQChartsUtil::toQRectI(CQChartsGeom::BBox(p2, p3)));
+  hband_->setGeometry(CQChartsGeom::BBox(p1, p2).qrecti());
+  vband_->setGeometry(CQChartsGeom::BBox(p2, p3).qrecti());
 
   hband_->show();
   vband_->show();
 
-  tip_->setText(text);
+  if (text.length()) {
+    tip_->setText(text);
 
-  CQChartsGeom::Point p4(px2 -  tip_->sizeHint().width()/2,
-                         py - tickLen - 2 - tip_->sizeHint().height());
+    CQChartsGeom::Point p4(px2 -  tip_->sizeHint().width()/2,
+                           py - tickLen - 2 - tip_->sizeHint().height());
 
-  QPoint pos = CQChartsUtil::toQPointI(p4);
+    QPoint pos = p4.qpointi();
 
-  QPoint gpos = view_->mapToGlobal(pos);
+    QPoint gpos = view_->mapToGlobal(pos);
 
-  CQChartsGeom::Point wpos = view_->pixelToWindow(CQChartsGeom::Point(pos.x(), pos.y()));
+    CQChartsGeom::Point wpos = view_->pixelToWindow(CQChartsGeom::Point(pos.x(), pos.y()));
 
-  CQChartsGeom::BBox bbox = view_->plotBBox(plot);
+    CQChartsGeom::BBox bbox = view_->plotBBox(plot);
 
-  if (bbox.inside(wpos)) {
-    QFontMetricsF fm(font());
+    if (bbox.inside(wpos)) {
+      QFontMetricsF fm(font());
 
-    tip_->move(gpos);
+      tip_->move(gpos);
 
-    tip_->resize(fm.width(text) + 4, fm.height() + 4);
+      tip_->resize(fm.width(text) + 4, fm.height() + 4);
 
-    tip_->show();
+      tip_->show();
+    }
+    else
+      tip_->hide();
   }
   else
     tip_->hide();

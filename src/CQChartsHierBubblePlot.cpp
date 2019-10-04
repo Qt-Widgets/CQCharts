@@ -4,11 +4,12 @@
 #include <CQCharts.h>
 #include <CQChartsTip.h>
 #include <CQChartsDrawUtil.h>
+#include <CQChartsPaintDevice.h>
+#include <CQChartsHtml.h>
 
 #include <CQPropertyViewItem.h>
 #include <CQPerfMonitor.h>
 
-#include <QPainter>
 #include <QMenu>
 
 CQChartsHierBubblePlotType::
@@ -27,9 +28,17 @@ QString
 CQChartsHierBubblePlotType::
 description() const
 {
-  return "<h2>Summary</h2>\n"
-         "<p>Draws circles represent a set of data values and packs then into the "
-         "smallest enclosing circle.</p>\n";
+  auto IMG = [](const QString &src) { return CQChartsHtml::Str::img(src); };
+
+  return CQChartsHtml().
+   h2("Hierarchical Bubble Plot").
+    h3("Summary").
+     p("Draws circles represent a set of data values and packs then into the "
+       "smallest enclosing circle.").
+    h3("Limitations").
+     p("None.").
+    h3("Example").
+     p(IMG("images/hierbubble.png"));
 }
 
 CQChartsPlot *
@@ -49,10 +58,14 @@ CQChartsHierBubblePlot(CQChartsView *view, const ModelP &model) :
 {
   NoUpdate noUpdate(this);
 
+//setExactValue(false);
+
+  //---
+
   setFillColor(CQChartsColor(CQChartsColor::Type::PALETTE));
 
-  setBorder(true);
-  setFilled(true);
+  setFilled (true);
+  setStroked(true);
 
   setTextContrast(true);
   setTextFontSize(12.0);
@@ -77,7 +90,7 @@ void
 CQChartsHierBubblePlot::
 setValueLabel(bool b)
 {
-  CQChartsUtil::testAndSet(valueLabel_, b, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(valueLabel_, b, [&]() { drawObjs(); } );
 }
 
 //---
@@ -87,10 +100,19 @@ CQChartsHierBubblePlot::
 setTextFontSize(double s)
 {
   if (s != textData_.font().pointSizeF()) {
-    QFont f = textData_.font(); f.setPointSizeF(s); textData_.setFont(f);
+    CQChartsFont f = textData_.font(); f.setPointSizeF(s); textData_.setFont(f);
 
-    queueDrawObjs();
+    drawObjs();
   }
+}
+
+//---
+
+void
+CQChartsHierBubblePlot::
+setColorById(bool b)
+{
+  CQChartsUtil::testAndSet(colorById_, b, [&]() { drawObjs(); } );
 }
 
 //---
@@ -99,23 +121,36 @@ void
 CQChartsHierBubblePlot::
 addProperties()
 {
+  auto addProp = [&](const QString &path, const QString &name, const QString &alias,
+                     const QString &desc) {
+    return &(this->addProperty(path, this, name, alias)->setDesc(desc));
+  };
+
+  //---
+
   CQChartsHierPlot::addProperties();
 
   // options
-  addProperty("options", this, "valueLabel")->setDesc("Show value label");
+  addProp("options", "valueLabel", "", "Show value label");
+  addProp("options", "sorted"    , "", "Sort values by size");
+
+  // coloring
+  addProp("coloring", "colorById", "colorById", "Color by id");
 
   // fill
-  addProperty("fill", this, "filled", "visible")->setDesc("Fill visible");
+  addProp("fill", "filled", "visible", "Fill visible");
 
-  addFillProperties("fill", "fill");
+  addFillProperties("fill", "fill", "");
 
   // stroke
-  addProperty("stroke", this, "border", "visible")->setDesc("Stroke visible");
+  addProp("stroke", "stroked", "visible", "Stroke visible");
 
-  addLineProperties("stroke", "border");
+  addLineProperties("stroke", "stroke", "");
 
   // text
-  addAllTextProperties("text", "text");
+  addProp("text", "textVisible", "visible", "Text visible");
+
+  addAllTextProperties("text", "text", "");
 }
 
 //------
@@ -162,7 +197,7 @@ updateCurrentRoot()
 {
   replaceNodes();
 
-  queueUpdateObjs();
+  updateObjs();
 }
 
 //---
@@ -206,14 +241,14 @@ createObjs(PlotObjs &objs) const
 {
   CQPerfTrace trace("CQChartsHierBubblePlot::createObjs");
 
-  CQChartsHierBubblePlot *th = const_cast<CQChartsHierBubblePlot *>(this);
+  NoUpdate noUpdate(this);
 
-  NoUpdate noUpdate(th);
+  CQChartsHierBubblePlot *th = const_cast<CQChartsHierBubblePlot *>(this);
 
   //---
 
   // init value sets
-  //initValueSets();
+//initValueSets();
 
   //---
 
@@ -232,6 +267,34 @@ createObjs(PlotObjs &objs) const
 
   //---
 
+  int ig = 0, in = 0;
+
+  for (auto &obj : objs) {
+    CQChartsHierBubbleHierObj *hierObj = dynamic_cast<CQChartsHierBubbleHierObj *>(obj);
+    CQChartsHierBubbleNodeObj *nodeObj = dynamic_cast<CQChartsHierBubbleNodeObj *>(obj);
+
+    if      (hierObj) { hierObj->setInd(ig); ++ig; }
+    else if (nodeObj) { nodeObj->setInd(in); ++in; }
+  }
+
+  for (auto &obj : objs) {
+    CQChartsHierBubbleHierObj *hierObj = dynamic_cast<CQChartsHierBubbleHierObj *>(obj);
+    CQChartsHierBubbleNodeObj *nodeObj = dynamic_cast<CQChartsHierBubbleNodeObj *>(obj);
+
+    if      (hierObj) {
+      if (hierObj->parent())
+        hierObj->setIg(ColorInd(hierObj->parent()->ind(), ig));
+
+      hierObj->setIv(ColorInd(hierObj->ind(), ig));
+    }
+    else if (nodeObj) {
+      if (nodeObj->parent())
+        nodeObj->setIg(ColorInd(nodeObj->parent()->ind(), ig));
+
+      nodeObj->setIv(ColorInd(nodeObj->ind(), in));
+    }
+  }
+
   return true;
 }
 
@@ -240,14 +303,16 @@ CQChartsHierBubblePlot::
 initNodeObjs(CQChartsHierBubbleHierNode *hier, CQChartsHierBubbleHierObj *parentObj,
              int depth, PlotObjs &objs) const
 {
-  CQChartsHierBubbleHierObj *hierObj = 0;
+  CQChartsHierBubbleHierObj *hierObj = nullptr;
 
   if (hier != nodeData_.root) {
     double r = hier->radius();
 
     CQChartsGeom::BBox rect(hier->x() - r, hier->y() - r, hier->x() + r, hier->y() + r);
 
-    hierObj = new CQChartsHierBubbleHierObj(this, hier, parentObj, rect, hier->depth(), maxDepth());
+    ColorInd is(hier->depth(), maxDepth() + 1);
+
+    hierObj = new CQChartsHierBubbleHierObj(this, hier, parentObj, rect, is);
 
     objs.push_back(hierObj);
   }
@@ -269,8 +334,9 @@ initNodeObjs(CQChartsHierBubbleHierNode *hier, CQChartsHierBubbleHierObj *parent
 
     CQChartsGeom::BBox rect(node->x() - r, node->y() - r, node->x() + r, node->y() + r);
 
-    CQChartsHierBubbleObj *obj =
-      new CQChartsHierBubbleObj(this, node, parentObj, rect, node->depth(), maxDepth());
+    ColorInd is(node->depth(), maxDepth() + 1);
+
+    CQChartsHierBubbleNodeObj *obj = new CQChartsHierBubbleNodeObj(this, node, parentObj, rect, is);
 
     objs.push_back(obj);
   }
@@ -519,6 +585,8 @@ loadHier() const
         size = plot_->modelReal(data.row, plot_->valueColumn(), data.parent, ok);
       else if (valueColumnType_ == ColumnType::INTEGER)
         size = plot_->modelInteger(data.row, plot_->valueColumn(), data.parent, ok);
+      else if (valueColumnType_ == ColumnType::STRING)
+        size = 1.0;
       else
         ok = false;
 
@@ -548,8 +616,6 @@ addHierNode(CQChartsHierBubbleHierNode *hier, const QString &name,
 {
   CQChartsHierBubblePlot *th = const_cast<CQChartsHierBubblePlot *>(this);
 
-  //---
-
   int depth1 = hier->depth() + 1;
 
   QModelIndex nameInd1 = normalizeIndex(nameInd);
@@ -571,8 +637,6 @@ addNode(CQChartsHierBubbleHierNode *hier, const QString &name, double size,
         const QModelIndex &nameInd) const
 {
   CQChartsHierBubblePlot *th = const_cast<CQChartsHierBubblePlot *>(this);
-
-  //---
 
   int depth1 = hier->depth() + 1;
 
@@ -797,27 +861,31 @@ bool
 CQChartsHierBubblePlot::
 addMenuItems(QMenu *menu)
 {
+  auto addMenuAction = [&](QMenu *menu, const QString &name, const char *slot) -> QAction *{
+    QAction *action = new QAction(name, menu);
+
+    connect(action, SIGNAL(triggered()), this, slot);
+
+    menu->addAction(action);
+
+    return action;
+  };
+
+  //---
+
   PlotObjs objs;
 
   selectedPlotObjs(objs);
 
-  QAction *pushAction   = new QAction("Push"   , menu);
-  QAction *popAction    = new QAction("Pop"    , menu);
-  QAction *popTopAction = new QAction("Pop Top", menu);
+  menu->addSeparator();
 
-  connect(pushAction  , SIGNAL(triggered()), this, SLOT(pushSlot()));
-  connect(popAction   , SIGNAL(triggered()), this, SLOT(popSlot()));
-  connect(popTopAction, SIGNAL(triggered()), this, SLOT(popTopSlot()));
+  QAction *pushAction   = addMenuAction(menu, "Push"   , SLOT(pushSlot()));
+  QAction *popAction    = addMenuAction(menu, "Pop"    , SLOT(popSlot()));
+  QAction *popTopAction = addMenuAction(menu, "Pop Top", SLOT(popTopSlot()));
 
   pushAction  ->setEnabled(! objs.empty());
   popAction   ->setEnabled(currentRoot() != nodeData_.root);
   popTopAction->setEnabled(currentRoot() != nodeData_.root);
-
-  menu->addSeparator();
-
-  menu->addAction(pushAction  );
-  menu->addAction(popAction   );
-  menu->addAction(popTopAction);
 
   return true;
 }
@@ -835,7 +903,7 @@ pushSlot()
 
     QPointF pos = view()->mapFromGlobal(QPoint(gpos.x(), gpos.y()));
 
-    CQChartsGeom::Point w = pixelToWindow(CQChartsUtil::fromQPoint(pos));
+    CQChartsGeom::Point w = pixelToWindow(CQChartsGeom::Point(pos));
 
     plotObjsAtPoint(w, objs);
   }
@@ -854,7 +922,7 @@ pushSlot()
       break;
     }
 
-    CQChartsHierBubbleObj *nodeObj = dynamic_cast<CQChartsHierBubbleObj *>(obj);
+    CQChartsHierBubbleNodeObj *nodeObj = dynamic_cast<CQChartsHierBubbleNodeObj *>(obj);
 
     if (nodeObj) {
       CQChartsHierBubbleNode *node = nodeObj->node();
@@ -917,14 +985,14 @@ hasForeground() const
 
 void
 CQChartsHierBubblePlot::
-drawForeground(QPainter *painter) const
+execDrawForeground(CQChartsPaintDevice *device) const
 {
-  drawBounds(painter, currentRoot());
+  drawBounds(device, currentRoot());
 }
 
 void
 CQChartsHierBubblePlot::
-drawBounds(QPainter *painter, CQChartsHierBubbleHierNode *hier) const
+drawBounds(CQChartsPaintDevice *device, CQChartsHierBubbleHierNode *hier) const
 {
   double xc = hier->x();
   double yc = hier->y();
@@ -932,24 +1000,24 @@ drawBounds(QPainter *painter, CQChartsHierBubbleHierNode *hier) const
 
   //---
 
-  CQChartsGeom::Point p1 = windowToPixel(CQChartsGeom::Point(xc - r, yc + r));
-  CQChartsGeom::Point p2 = windowToPixel(CQChartsGeom::Point(xc + r, yc - r));
+  CQChartsGeom::Point p1(xc - r, yc - r);
+  CQChartsGeom::Point p2(xc + r, yc + r);
 
   QRectF qrect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
 
   //---
 
   // draw bubble
-  QColor bc = interpBorderColor(0, 1);
+  QColor bc = interpStrokeColor(ColorInd());
 
-  painter->setPen  (bc);
-  painter->setBrush(Qt::NoBrush);
+  device->setPen  (bc);
+  device->setBrush(Qt::NoBrush);
 
   QPainterPath path;
 
   path.addEllipse(qrect);
 
-  painter->drawPath(path);
+  device->drawPath(path);
 }
 
 //------
@@ -957,9 +1025,10 @@ drawBounds(QPainter *painter, CQChartsHierBubbleHierNode *hier) const
 CQChartsHierBubbleHierObj::
 CQChartsHierBubbleHierObj(const CQChartsHierBubblePlot *plot, CQChartsHierBubbleHierNode *hier,
                           CQChartsHierBubbleHierObj *hierObj, const CQChartsGeom::BBox &rect,
-                          int i, int n) :
- CQChartsHierBubbleObj(plot, hier, hierObj, rect, i, n), hier_(hier)
+                          const ColorInd &is) :
+ CQChartsHierBubbleNodeObj(plot, hier, hierObj, rect, is), hier_(hier)
 {
+  setModelInd(hier_->ind());
 }
 
 QString
@@ -967,7 +1036,7 @@ CQChartsHierBubbleHierObj::
 calcId() const
 {
   //return QString("%1:%2").arg(hier_->name()).arg(hier_->hierSize());
-  return CQChartsHierBubbleObj::calcId();
+  return CQChartsHierBubbleNodeObj::calcId();
 }
 
 QString
@@ -975,7 +1044,7 @@ CQChartsHierBubbleHierObj::
 calcTipId() const
 {
   //return QString("%1:%2").arg(hier_->hierName()).arg(hier_->hierSize());
-  return CQChartsHierBubbleObj::calcTipId();
+  return CQChartsHierBubbleNodeObj::calcTipId();
 }
 
 bool
@@ -1001,18 +1070,7 @@ getSelectIndices(Indices &inds) const
 
 void
 CQChartsHierBubbleHierObj::
-addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const
-{
-  if (column.isValid()) {
-    const QModelIndex &ind = hier_->ind();
-
-    addSelectIndex(inds, ind.row(), column, ind.parent());
-  }
-}
-
-void
-CQChartsHierBubbleHierObj::
-draw(QPainter *painter)
+draw(CQChartsPaintDevice *device)
 {
   CQChartsHierBubbleHierNode *root = hier_->parent();
 
@@ -1023,30 +1081,30 @@ draw(QPainter *painter)
 
   double r = hier_->radius();
 
-  CQChartsGeom::Point p1 =
-    plot_->windowToPixel(CQChartsGeom::Point(hier_->x() - r, hier_->y() + r));
-  CQChartsGeom::Point p2 =
-    plot_->windowToPixel(CQChartsGeom::Point(hier_->x() + r, hier_->y() - r));
+  CQChartsGeom::Point p1(hier_->x() - r, hier_->y() - r);
+  CQChartsGeom::Point p2(hier_->x() + r, hier_->y() + r);
 
-  QRectF qrect = CQChartsUtil::toQRect(CQChartsGeom::BBox(p1.x, p2.y, p2.x, p1.y));
+  QRectF qrect = CQChartsGeom::BBox(p1.x, p2.y, p2.x, p1.y).qrect();
 
   //---
 
   // calc stroke and brush
+  ColorInd colorInd = calcColorInd();
+
   QPen   pen;
   QBrush brush;
 
-  QColor bc = plot_->interpBorderColor(0, 1);
-  QColor fc = hier_->interpColor(plot_, plot_->numColorIds());
+  QColor bc = plot_->interpStrokeColor(colorInd);
+  QColor fc = hier_->interpColor(plot_, plot_->fillColor(), colorInd, plot_->numColorIds());
 
   plot_->setPenBrush(pen, brush,
-    plot_->isBorder(), bc, plot_->borderAlpha(), plot_->borderWidth(), plot_->borderDash(),
+    plot_->isStroked(), bc, plot_->strokeAlpha(), plot_->strokeWidth(), plot_->strokeDash(),
     plot_->isFilled(), fc, plot_->fillAlpha(), plot_->fillPattern());
 
   plot_->updateObjPenBrushState(this, pen, brush);
 
-  painter->setPen  (pen);
-  painter->setBrush(brush);
+  device->setPen  (pen);
+  device->setBrush(brush);
 
   //---
 
@@ -1055,32 +1113,35 @@ draw(QPainter *painter)
 
   path.addEllipse(qrect);
 
-  painter->drawPath(path);
+  device->drawPath(path);
 }
 
 //------
 
-CQChartsHierBubbleObj::
-CQChartsHierBubbleObj(const CQChartsHierBubblePlot *plot, CQChartsHierBubbleNode *node,
-                      CQChartsHierBubbleHierObj *hierObj, const CQChartsGeom::BBox &rect,
-                      int i, int n) :
- CQChartsPlotObj(const_cast<CQChartsHierBubblePlot *>(plot), rect), plot_(plot),
- node_(node), hierObj_(hierObj), i_(i), n_(n)
+CQChartsHierBubbleNodeObj::
+CQChartsHierBubbleNodeObj(const CQChartsHierBubblePlot *plot, CQChartsHierBubbleNode *node,
+                          CQChartsHierBubbleHierObj *hierObj, const CQChartsGeom::BBox &rect,
+                          const ColorInd &is) :
+ CQChartsPlotObj(const_cast<CQChartsHierBubblePlot *>(plot), rect, is, ColorInd(), ColorInd()),
+ plot_(plot), node_(node), hierObj_(hierObj)
 {
+  setDetailHint(DetailHint::MAJOR);
+
+  setModelInd(node_->ind());
 }
 
 QString
-CQChartsHierBubbleObj::
+CQChartsHierBubbleNodeObj::
 calcId() const
 {
   if (node_->isFiller())
     return hierObj_->calcId();
 
-  return QString("bubble:%1:%2").arg(node_->name()).arg(node_->hierSize());
+  return QString("%1:%2:%3").arg(typeName()).arg(node_->name()).arg(node_->hierSize());
 }
 
 QString
-CQChartsHierBubbleObj::
+CQChartsHierBubbleNodeObj::
 calcTipId() const
 {
   if (node_->isFiller())
@@ -1103,11 +1164,17 @@ calcTipId() const
     tableTip.addTableRow("Color", colorStr);
   }
 
+  //---
+
+  plot()->addTipColumns(tableTip, node_->ind());
+
+  //---
+
   return tableTip.str();
 }
 
 bool
-CQChartsHierBubbleObj::
+CQChartsHierBubbleNodeObj::
 inside(const CQChartsGeom::Point &p) const
 {
   if (CQChartsUtil::PointPointDistance(p,
@@ -1118,7 +1185,7 @@ inside(const CQChartsGeom::Point &p) const
 }
 
 void
-CQChartsHierBubbleObj::
+CQChartsHierBubbleNodeObj::
 getSelectIndices(Indices &inds) const
 {
   for (const auto &c : plot_->nameColumns())
@@ -1128,73 +1195,88 @@ getSelectIndices(Indices &inds) const
 }
 
 void
-CQChartsHierBubbleObj::
-addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const
-{
-  if (column.isValid()) {
-    const QModelIndex &ind = node_->ind();
-
-    addSelectIndex(inds, ind.row(), column, ind.parent());
-  }
-}
-
-void
-CQChartsHierBubbleObj::
-draw(QPainter *painter)
+CQChartsHierBubbleNodeObj::
+draw(CQChartsPaintDevice *device)
 {
   double r = node_->radius();
 
-  CQChartsGeom::Point p1 =
-    plot_->windowToPixel(CQChartsGeom::Point(node_->x() - r, node_->y() + r));
-  CQChartsGeom::Point p2 =
-    plot_->windowToPixel(CQChartsGeom::Point(node_->x() + r, node_->y() - r));
+  CQChartsGeom::Point p1(node_->x() - r, node_->y() - r);
+  CQChartsGeom::Point p2(node_->x() + r, node_->y() + r);
 
-  QRectF qrect = CQChartsUtil::toQRect(CQChartsGeom::BBox(p1.x, p2.y, p2.x, p1.y));
+  QRectF  qrect = CQChartsGeom::BBox(p1.x, p2.y, p2.x, p1.y).qrect();
+
+  //---
+
+  // check if small enough to draw as point
+  QPointF pp1 = device->windowToPixel(p1.qpoint());
+  QPointF pp2 = device->windowToPixel(p2.qpoint());
+
+  double pw = std::abs(pp2.x() - pp1.x()) - 2;
+  double ph = std::abs(pp2.y() - pp1.y()) - 2;
+
+  QPointF qpoint;
+
+  bool isPoint = (pw <= 1.5 || ph <= 1.5);
+
+  if (isPoint)
+    qpoint = QPointF((p1.x + p2.x)/2.0, (p1.y + p2.y)/2.0);
 
   //---
 
   // calc stroke and brush
+  ColorInd colorInd = calcColorInd();
+
   QPen   pen;
   QBrush brush;
 
-  QColor bc = plot_->interpBorderColor(0, 1);
-  QColor fc = node_->interpColor(plot_, plot_->numColorIds());
+  QColor bc = plot_->interpStrokeColor(colorInd);
+  QColor fc = node_->interpColor(plot_, plot_->fillColor(), colorInd, plot_->numColorIds());
 
-  plot_->setPenBrush(pen, brush,
-    plot_->isBorder(), bc, plot_->borderAlpha(), plot_->borderWidth(), plot_->borderDash(),
-    plot_->isFilled(), fc, plot_->fillAlpha(), plot_->fillPattern());
+  if (isPoint) {
+    if      (plot_->isFilled())
+      plot_->setPenBrush(pen, brush,
+        true, fc, plot_->fillAlpha(), 0.0, CQChartsLineDash(),
+        true, fc, plot_->fillAlpha(), plot_->fillPattern());
+    else if (plot_->isStroked())
+      plot_->setPenBrush(pen, brush,
+        true, bc, plot_->strokeAlpha(), plot_->strokeWidth(), plot_->strokeDash(),
+        true, bc, plot_->strokeAlpha(), CQChartsFillPattern());
+  }
+  else {
+    plot_->setPenBrush(pen, brush,
+      plot_->isStroked(), bc, plot_->strokeAlpha(), plot_->strokeWidth(), plot_->strokeDash(),
+      plot_->isFilled(), fc, plot_->fillAlpha(), plot_->fillPattern());
+  }
 
   plot_->updateObjPenBrushState(this, pen, brush);
 
   //---
 
-  // set text pen
-  QPen tpen;
-
-  QColor tc = plot_->interpTextColor(0, 1);
-
-  plot_->setPen(tpen, true, tc, plot_->textAlpha());
-
-  plot_->updateObjPenBrushState(this, tpen, brush);
-
-  //---
-
-  painter->save();
-
-  //---
-
   // draw bubble
-  painter->setPen  (pen);
-  painter->setBrush(brush);
+  device->setPen  (pen);
+  device->setBrush(brush);
 
-  QPainterPath path;
+  if (isPoint)
+    device->drawPoint(qpoint);
+  else {
+    QPainterPath path;
 
-  path.addEllipse(qrect);
+    path.addEllipse(qrect);
 
-  painter->drawPath(path);
+    device->drawPath(path);
+  }
 
   //---
 
+  if (isPoint)
+    return;
+
+  if (! plot_->isTextVisible())
+    return;
+
+  //---
+
+  // get labels (name and optional size)
   QStringList strs;
 
   QString name = (! node_->isFiller() ? node_->name() : node_->parent()->name());
@@ -1207,12 +1289,27 @@ draw(QPainter *painter)
 
   //---
 
+  // calc text pen
+  QPen tpen;
+
+  QColor tc = plot_->interpTextColor(colorInd);
+
+  plot_->setPen(tpen, true, tc, plot_->textAlpha());
+
+  plot_->updateObjPenBrushState(this, tpen, brush);
+
+  //---
+
+  device->save();
+
+  //---
+
   // set font
-  plot_->view()->setPlotPainterFont(plot_, painter, plot_->textFont());
+  plot_->view()->setPlotPainterFont(plot_, device, plot_->textFont());
 
   if (plot_->isTextScaled()) {
     // calc text size
-    QFontMetricsF fm(painter->font());
+    QFontMetricsF fm(device->font());
 
     double tw = 0;
 
@@ -1224,56 +1321,61 @@ draw(QPainter *painter)
     //---
 
     // calc scale factor
-    double sx = (tw > 0 ? qrect.width ()/tw : 1.0);
-    double sy = (th > 0 ? qrect.height()/th : 1.0);
+    QRectF prect = device->windowToPixel(qrect);
+
+    double sx = (tw > 0 ? prect.width ()/tw : 1.0);
+    double sy = (th > 0 ? prect.height()/th : 1.0);
 
     double s = std::min(sx, sy);
 
     //---
 
     // scale font
-    double fs = painter->font().pointSizeF()*s;
+    double fs = device->font().pointSizeF()*s;
 
-    QFont font1 = painter->font();
+    QFont font1 = device->font();
 
     font1.setPointSizeF(fs);
 
-    painter->setFont(font1);
+    device->setFont(font1);
   }
 
   //---
 
-  // calc text size and position
+  // calc text position
   CQChartsGeom::Point pc = plot_->windowToPixel(CQChartsGeom::Point(node_->x(), node_->y()));
 
   //---
 
   // draw label
-  painter->setClipRect(qrect);
+  device->setClipRect(qrect);
 
   CQChartsTextOptions textOptions;
 
-  textOptions.contrast = plot_->isTextContrast();
+  textOptions.contrast  = plot_->isTextContrast ();
+  textOptions.formatted = plot_->isTextFormatted();
+  textOptions.html      = plot_->isTextHtml();
+//textOptions.align     = plot_->textAlign();
 
   textOptions = plot_->adjustTextOptions(textOptions);
 
-  painter->setPen(tpen);
+  device->setPen(tpen);
+
+  QPointF tp = pc.qpoint();
 
   if      (strs.size() == 1) {
-    QPointF tp(pc.x, pc.y);
-
-    CQChartsDrawUtil::drawTextAtPoint(painter, tp, name, textOptions);
+    CQChartsDrawUtil::drawTextAtPoint(device, device->pixelToWindow(tp), name, textOptions);
   }
   else if (strs.size() == 2) {
-    QFontMetricsF fm(painter->font());
+    QFontMetricsF fm(device->font());
 
     double th = fm.height();
 
-    QPointF tp1(pc.x, pc.y - th/2);
-    QPointF tp2(pc.x, pc.y + th/2);
+    QPointF tp1 = device->pixelToWindow(QPointF(pc.x, pc.y - th/2));
+    QPointF tp2 = device->pixelToWindow(QPointF(pc.x, pc.y + th/2));
 
-    CQChartsDrawUtil::drawTextAtPoint(painter, tp1, strs[0], textOptions);
-    CQChartsDrawUtil::drawTextAtPoint(painter, tp2, strs[1], textOptions);
+    CQChartsDrawUtil::drawTextAtPoint(device, tp1, strs[0], textOptions);
+    CQChartsDrawUtil::drawTextAtPoint(device, tp2, strs[1], textOptions);
   }
   else {
     assert(false);
@@ -1281,7 +1383,7 @@ draw(QPainter *painter)
 
   //---
 
-  painter->restore();
+  device->restore();
 }
 
 //------
@@ -1347,7 +1449,8 @@ packNodes()
     packNodes.push_back(node);
 
   // sort nodes
-  std::sort(packNodes.begin(), packNodes.end(), CQChartsHierBubbleNodeCmp());
+  if (plot_->isSorted())
+    std::sort(packNodes.begin(), packNodes.end(), CQChartsHierBubbleNodeCmp());
 
   // pack nodes
   for (auto &packNode : packNodes)
@@ -1417,20 +1520,21 @@ setPosition(double x, double y)
 
 QColor
 CQChartsHierBubbleHierNode::
-interpColor(const CQChartsHierBubblePlot *plot, int n) const
+interpColor(const CQChartsHierBubblePlot *plot, const CQChartsColor &c,
+            const ColorInd &colorInd, int n) const
 {
   using Colors = std::vector<QColor>;
 
   Colors colors;
 
   for (auto &child : children_)
-    colors.push_back(child->interpColor(plot, n));
+    colors.push_back(child->interpColor(plot, c, colorInd, n));
 
   for (auto &node : nodes_)
-    colors.push_back(node->interpColor(plot, n));
+    colors.push_back(node->interpColor(plot, c, colorInd, n));
 
   if (colors.empty())
-    return plot->interpPaletteColor(0, 1);
+    return plot->interpColor(c, colorInd);
 
   return CQChartsUtil::blendColors(colors);
 }
@@ -1454,7 +1558,8 @@ void
 CQChartsHierBubbleNode::
 initRadius()
 {
-  r_ = sqrt(hierSize()/(2*M_PI));
+  // area = PI*r*r; r = sqrt(area/PI)
+  r_ = sqrt(hierSize()/M_PI);
 }
 
 QString
@@ -1478,12 +1583,13 @@ setPosition(double x, double y)
 
 QColor
 CQChartsHierBubbleNode::
-interpColor(const CQChartsHierBubblePlot *plot, int n) const
+interpColor(const CQChartsHierBubblePlot *plot, const CQChartsColor &c,
+            const ColorInd &colorInd, int n) const
 {
-  if      (colorId() >= 0)
-    return plot->interpPaletteColor(colorId(), n);
-  else if (color().isValid())
-    return plot->charts()->interpColor(color(), 0, 1);
+  if      (color().isValid())
+    return plot->interpColor(color(), ColorInd());
+  else if (colorId() >= 0 && plot_->isColorById())
+    return plot->interpColor(c, ColorInd(colorId(), n));
   else
-    return plot->interpPaletteColor(0, 1);
+    return plot->interpColor(c, colorInd);
 }

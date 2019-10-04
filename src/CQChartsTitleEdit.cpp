@@ -18,15 +18,14 @@
 #include <QVBoxLayout>
 
 CQChartsEditTitleDlg::
-CQChartsEditTitleDlg(CQChartsTitle *title) :
- QDialog(), title_(title)
+CQChartsEditTitleDlg(QWidget *parent, CQChartsTitle *title) :
+ QDialog(parent), title_(title)
 {
   setWindowTitle(QString("Edit Plot Title (%1)").arg(title->plot()->id()));
 
   //---
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setMargin(2); layout->setSpacing(2);
+  QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 2, 2);
 
   //---
 
@@ -75,15 +74,14 @@ CQChartsTitleEdit(QWidget *parent, CQChartsTitle *title) :
 {
   setObjectName("titleEdit");
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setMargin(2); layout->setSpacing(2);
+  QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 2, 2);
 
   //---
 
   data_.visible    = title->isVisible();
   data_.location   = title->location();
-  data_.position   = title->absPosition();
-  data_.rect       = title->absRect();
+  data_.position   = title->absolutePosition();
+  data_.rect       = title->absoluteRectangle();
   data_.insidePlot = title->isInsidePlot();
   data_.textData   = title->textData();
 
@@ -96,14 +94,11 @@ CQChartsTitleEdit(QWidget *parent, CQChartsTitle *title) :
   groupBox_->setChecked(data_.visible);
   groupBox_->setTitle("Visible");
 
-  connect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
-
   layout->addWidget(groupBox_);
 
   //---
 
-  QGridLayout *groupLayout = new QGridLayout(groupBox_);
-  groupLayout->setMargin(2); groupLayout->setSpacing(2);
+  QGridLayout *groupLayout = CQUtil::makeLayout<QGridLayout>(groupBox_, 2, 2);
 
   int row = 0;
 
@@ -116,16 +111,12 @@ CQChartsTitleEdit(QWidget *parent, CQChartsTitle *title) :
 
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Location", locationEdit_, row);
 
-  connect(locationEdit_, SIGNAL(titleLocationChanged()), this, SLOT(widgetsToData()));
-
   //--
 
   // position
   positionEdit_ = CQUtil::makeWidget<CQChartsPositionEdit>("positionEdit");
 
   positionEdit_->setPosition(data_.position);
-
-  connect(positionEdit_, SIGNAL(positionChanged()), this, SLOT(widgetsToData()));
 
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Position", positionEdit_, row);
 
@@ -136,8 +127,6 @@ CQChartsTitleEdit(QWidget *parent, CQChartsTitle *title) :
 
   rectEdit_->setRect(data_.rect);
 
-  connect(rectEdit_, SIGNAL(rectChanged()), this, SLOT(widgetsToData()));
-
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Rect", rectEdit_, row);
 
   //--
@@ -147,13 +136,11 @@ CQChartsTitleEdit(QWidget *parent, CQChartsTitle *title) :
 
   insideEdit_->setChecked(data_.insidePlot);
 
-  connect(insideEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-
   CQChartsWidgetUtil::addGridLabelWidget(groupLayout, "Inside Plot", insideEdit_, row);
 
   //--
 
-  // box (margin, passing, fill, border, text)
+  // box (margin, passing, fill, stroke, text)
   textEdit_ = CQUtil::makeWidget<CQChartsTextDataEdit>("textEdit");
 
   textEdit_->setTitle("Box");
@@ -161,8 +148,6 @@ CQChartsTitleEdit(QWidget *parent, CQChartsTitle *title) :
   textEdit_->setPlot(title_->plot());
   textEdit_->setView(title_->view());
   textEdit_->setData(data_.textData);
-
-  connect(textEdit_, SIGNAL(textDataChanged()), this, SLOT(widgetsToData()));
 
   groupLayout->addWidget(textEdit_, row, 0, 1, 2); ++row;
 
@@ -172,19 +157,41 @@ CQChartsTitleEdit(QWidget *parent, CQChartsTitle *title) :
 
   //---
 
+  connectSlots(true);
+
   widgetsToData();
+}
+
+void
+CQChartsTitleEdit::
+connectSlots(bool b)
+{
+  assert(b != connected_);
+
+  connected_ = b;
+
+  //---
+
+  auto connectDisconnect = [&](bool b, QWidget *w, const char *from, const char *to) {
+    if (b)
+      connect(w, from, this, to);
+    else
+      disconnect(w, from, this, to);
+  };
+
+  connectDisconnect(b, groupBox_, SIGNAL(clicked(bool)), SLOT(widgetsToData()));
+  connectDisconnect(b, locationEdit_, SIGNAL(titleLocationChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, positionEdit_, SIGNAL(positionChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, rectEdit_, SIGNAL(rectChanged()), SLOT(widgetsToData()));
+  connectDisconnect(b, insideEdit_, SIGNAL(toggled(bool)), SLOT(widgetsToData()));
+  connectDisconnect(b, textEdit_, SIGNAL(textDataChanged()), SLOT(widgetsToData()));
 }
 
 void
 CQChartsTitleEdit::
 dataToWidgets()
 {
-  disconnect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
-  disconnect(locationEdit_, SIGNAL(titleLocationChanged()), this, SLOT(widgetsToData()));
-  disconnect(positionEdit_, SIGNAL(positionChanged()), this, SLOT(widgetsToData()));
-  disconnect(rectEdit_, SIGNAL(rectChanged()), this, SLOT(widgetsToData()));
-  disconnect(insideEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-  disconnect(textEdit_, SIGNAL(boxDataChanged()), this, SLOT(widgetsToData()));
+  connectSlots(false);
 
   groupBox_    ->setChecked      (data_.visible);
   locationEdit_->setTitleLocation(data_.location);
@@ -193,12 +200,7 @@ dataToWidgets()
   insideEdit_  ->setChecked      (data_.insidePlot);
   textEdit_    ->setData         (data_.textData);
 
-  connect(groupBox_, SIGNAL(clicked(bool)), this, SLOT(widgetsToData()));
-  connect(locationEdit_, SIGNAL(titleLocationChanged()), this, SLOT(widgetsToData()));
-  connect(positionEdit_, SIGNAL(positionChanged()), this, SLOT(widgetsToData()));
-  connect(rectEdit_, SIGNAL(rectChanged()), this, SLOT(widgetsToData()));
-  connect(insideEdit_, SIGNAL(toggled(bool)), this, SLOT(widgetsToData()));
-  connect(textEdit_, SIGNAL(boxDataChanged()), this, SLOT(widgetsToData()));
+  connectSlots(true);
 }
 
 void
@@ -219,10 +221,10 @@ void
 CQChartsTitleEdit::
 applyData()
 {
-  title_->setVisible    (data_.visible);
-  title_->setLocation   (data_.location);
-  title_->setAbsPosition(data_.position);
-  title_->setAbsRect    (data_.rect);
-  title_->setInsidePlot (data_.insidePlot);
-  title_->setTextData   (data_.textData);
+  title_->setVisible          (data_.visible);
+  title_->setLocation         (data_.location);
+  title_->setAbsolutePosition (data_.position);
+  title_->setAbsoluteRectangle(data_.rect);
+  title_->setInsidePlot       (data_.insidePlot);
+  title_->setTextData         (data_.textData);
 }

@@ -1,4 +1,62 @@
+Abstract Painter/Javascript
+ + JS Painter Clip
+ + JS complex inside test
+ + Support javascript callback in generated code (select)
+
 High
+ + Combine CQChartsModelDetails and CQModelDetails
+ + Same coloring in table and plot (if possible)
+   + same palette
+   + auto palette for single color
+   + stops
+ + Export model (META data and TIME (converted) value handling)
+ + Scroll to selected
+ + Better model property editors
+ + Pivot
+   + multiple labels (x and y).
+     + QStringList or newline separator.
+     + Combine common first/last strings ?
+     + Multi axis ?
+   + Skip missing
+   + More fill variation
+   + Key on/off for groups
+   + Group on key ?
+ + Should be able to create fully functional key from annotations
+ + Axis annotation
+ + more code in point plot (base class for scatter/xy)
+ + plot selection behavior -> select out, select in, none, both
+ + table per column coloring
+ + More help content
+ + Add base class for shared code between xy/scatter
+ + Scaled rotated text
+ + Improve edit arrow annotation preview
+ + Create View or Plot Annotation
+ + Edit View Annotation with mouse
+ + Multiline text in box formatting (tree map/bubble text + value)
+   + Standard library for this
+ + Move Layer painter to standard library
+   + Use in CQSchem ...
+ + Missing tooltips in dialogs
+ + probe supports x/y strings as well as reals (variant)
+ + If overlay of same type apply changes to all plots ?
+ + More html documentation update
+ + visible property at all levels (box, fill, stroke) or single value
+ + Better tcl list support for command option data
+ + Summarize properties using box,shape,fill,stroke abstractions
+ + Hide fill pattern by default
+ + hasSet/hasGroup for plot type
+ + Distinct is property of color def not palette
+ + Remove draw Simple Text calls
+ + Support View Key Header (or remove)
+ + Hier colorInd. Color by Hier. virtual for ig/is to use parent color index
+ + Only send color changed from editor on mouse release (or use different signal)
+ + Bar Chart Key using new color code, all key items connected to objects
+ + Pos for distribution plot (x for vertical) is meaningless for strings so turn off or remap
+   + get pos from axis data or separate mapping ?
+ + Interrupt and wait for thread kill
+ + More plot object properties
+ + Inconsistent key click behavior
+ + Variable bin size for distribution
  + Common text drawing to support all options
  + Font Editor
  + Use QThread
@@ -28,7 +86,6 @@ High
  + document expression handling (process, filter)
  + density axis plot scaling for multiple plots ?
  + Common Code for Data->Pen/Brush
- + Tree Map title (max) depth
  + Allow write to model value (tcl ?) not extra (extra option ?)
  + Consistent property names and hierarchy
  + More Variants in Model (QImage/QIcon could supply custom symbol !)
@@ -272,6 +329,7 @@ Combined Plots
  + Better builtin support for split plots
 
 Adjacency Plot
+ + Adjacency Plot bad draw on resize (not all layers drawn)
  + X Border Width
  + Better Text Placement/Sizing
  + Hierarchical Adjacency (H/V headers are hierarchical trees)
@@ -310,7 +368,8 @@ Hier Bubble Plot
  + How handle non-cumulative values (percentages)
 
 Image Plot
- + separate x/y and cell text styles
+ + Allow sub set of model ?
+ + Search and only matching (like tree map)
 
 Parallel Plot
  + Parallel needs x axis labels
@@ -340,6 +399,9 @@ Sunburst
  + Push/Pop
 
 Tree map
+ + Filter to visible (keep placement, don't show) 
+ + Tree map performance for large data (file tree) (small object opt)
+ + Tree Map title (max) depth
  + Support Hier Value and Child Values (include in sum, total size)
  + Auto font size
  + Color Key
@@ -403,18 +465,11 @@ Interactivity
 
 Parameters
  + Description
+ + Link to property
 
 Optimization
  + Get more data direct from model instead of cached
  + Use H Tree (V Tree) for bars and other ordered data structures
-
-Gradient Palette
- + Probe show color value at vertical line and on gradient
- + Interp vertical graph, horizontal gradient
- + Interp show RGB values
- + Min/Max, Negate controls on non-model data ?
- + Support indexed palette (1-N colors) with different color values
-   + Interp or index select with wrap
 
 Data Processing
  + Sources

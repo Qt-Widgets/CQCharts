@@ -7,14 +7,23 @@
 class CQRealSpin;
 class QComboBox;
 
+/*!
+ * \brief symbol edit
+ * \ingroup Charts
+ */
 class CQChartsSymbolEdit : public QFrame {
   Q_OBJECT
+
+  Q_PROPERTY(CQChartsSymbol symbol READ symbol WRITE setSymbol)
 
  public:
   CQChartsSymbolEdit(QWidget *parent=nullptr);
 
   const CQChartsSymbol &symbol() const;
   void setSymbol(const CQChartsSymbol &pos);
+
+ private:
+  void connectSlots(bool b);
 
  signals:
   void symbolChanged();
@@ -31,7 +40,10 @@ class CQChartsSymbolEdit : public QFrame {
 
 #include <CQPropertyViewType.h>
 
-// type for CQChartsSymbol
+/*!
+ * \brief type for CQChartsSymbol
+ * \ingroup Charts
+ */
 class CQChartsSymbolPropertyViewType : public CQPropertyViewType {
  public:
   CQChartsSymbolPropertyViewType();
@@ -40,18 +52,23 @@ class CQChartsSymbolPropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &index,
             const QVariant &value, bool inside) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "symbol"; }
 };
 
 //---
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsSymbol
+/*!
+ * \brief editor factory for CQChartsSymbol
+ * \ingroup Charts
+ */
 class CQChartsSymbolPropertyViewEditor : public CQPropertyViewEditorFactory {
  public:
   CQChartsSymbolPropertyViewEditor();

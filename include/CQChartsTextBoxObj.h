@@ -7,6 +7,10 @@
 #include <QFont>
 #include <QRectF>
 
+/*!
+ * \brief Charts Text Box Object
+ * \ingroup Charts
+ */
 class CQChartsTextBoxObj : public CQChartsBoxObj,
  public CQChartsObjTextData<CQChartsTextBoxObj> {
   Q_OBJECT
@@ -36,22 +40,19 @@ class CQChartsTextBoxObj : public CQChartsBoxObj,
 
   //---
 
-  void addProperties(CQPropertyViewModel *model, const QString &path) override;
+  void addProperties(CQPropertyViewModel *model, const QString &path,
+                     const QString &desc) override;
 
-  void addTextDataProperties(CQPropertyViewModel *model, const QString &path);
-
-  //---
-
-  void draw(QPainter *painter, const QRectF &rect) const;
-  void draw(QPainter *painter, const QPolygonF &poly) const;
-
-  //---
-
-  void drawText(QPainter *painter, const QRectF &rect, const QString &text) const;
+  void addTextDataProperties(CQPropertyViewModel *model, const QString &path,
+                             const QString &desc, bool addVisible=false);
 
   //---
 
   virtual void textBoxDataInvalidate();
+
+  //---
+
+  void write(std::ostream &os, const QString &varName) const;
 
  protected:
   void textDataInvalidate(bool) override {
@@ -59,7 +60,7 @@ class CQChartsTextBoxObj : public CQChartsBoxObj,
   }
 
  protected:
-  QString textStr_; //! text
+  QString textStr_; //!< text
 };
 
 #endif

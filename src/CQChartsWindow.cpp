@@ -1,21 +1,22 @@
 #include <CQChartsWindow.h>
 #include <CQChartsView.h>
 #include <CQChartsPlot.h>
+#include <CQCharts.h>
 #include <CQChartsViewExpander.h>
 #include <CQChartsViewSettings.h>
 #include <CQChartsViewStatus.h>
 #include <CQChartsViewToolBar.h>
 #include <CQChartsFilterEdit.h>
-#include <CQChartsModelView.h>
-#include <CQChartsGradientPaletteControl.h>
+#include <CQChartsModelViewHolder.h>
 #include <CQChartsPropertyViewTree.h>
 #include <CQPixmapCache.h>
+#include <CQTabSplit.h>
+#include <CQUtil.h>
 
 #include <svg/charts_svg.h>
 
 #include <QStackedWidget>
 #include <QVBoxLayout>
-#include <QSplitter>
 #include <QPainter>
 
 CQChartsWindowMgr *
@@ -53,6 +54,30 @@ createWindow(CQChartsView *view)
   return window;
 }
 
+void
+CQChartsWindowMgr::
+removeWindow(CQChartsWindow *window)
+{
+  int i = 0;
+  int n = windows_.size();
+
+  for ( ; i < n; ++i) {
+    if (windows_[i] == window)
+      break;
+  }
+
+  assert(i < n);
+
+  ++i;
+
+  for ( ; i < n; ++i)
+    windows_[i - 1] = windows_[i];
+
+  windows_.pop_back();
+
+  delete window;
+}
+
 CQChartsWindow *
 CQChartsWindowMgr::
 getWindowForView(CQChartsView *view) const
@@ -83,8 +108,7 @@ CQChartsWindow(CQChartsView *view) :
 
   //---
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setMargin(0); layout->setSpacing(0);
+  QVBoxLayout *layout = CQUtil::makeLayout<QVBoxLayout>(this, 0, 0);
 
   //---
 
@@ -94,9 +118,8 @@ CQChartsWindow(CQChartsView *view) :
 
   //---
 
-  QSplitter *settingsSplitter = new QSplitter;
+  QSplitter *settingsSplitter = CQUtil::makeWidget<QSplitter>("hsplitter");
 
-  settingsSplitter->setObjectName("hsplitter");
   settingsSplitter->setOrientation(Qt::Horizontal);
 
   layout->addWidget(settingsSplitter);
@@ -109,10 +132,9 @@ CQChartsWindow(CQChartsView *view) :
 
   //----
 
-  QSplitter *viewSplitter = new QSplitter;
+  CQTabSplit *viewSplitter = CQUtil::makeWidget<CQTabSplit>("vsplitter");
 
-  viewSplitter->setObjectName("vsplitter");
-  viewSplitter->setOrientation(Qt::Vertical);
+  viewSplitter->setState(CQTabSplit::State::VSPLIT);
 
   settingsSplitter->addWidget(viewSplitter);
 
@@ -127,13 +149,13 @@ CQChartsWindow(CQChartsView *view) :
 
   //---
 
-  QFrame *viewFrame = new QFrame;
+  QFrame *viewFrame = CQUtil::makeWidget<QFrame>("viewFrame");
 
-  viewFrame->setObjectName("viewFrame");
+  viewFrame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-  QGridLayout *viewLayout = new QGridLayout(viewFrame);
+  QGridLayout *viewLayout = CQUtil::makeLayout<QGridLayout>(viewFrame, 2, 2);
 
-  viewSplitter->addWidget(viewFrame);
+  viewSplitter->addWidget(viewFrame, "View");
 
   viewLayout->addWidget(view, 0, 0);
 
@@ -156,14 +178,11 @@ CQChartsWindow(CQChartsView *view) :
 
   //---
 
-  tableFrame_ = new QFrame(this);
-
-  tableFrame_->setObjectName("tableFrame");
+  tableFrame_ = CQUtil::makeWidget<QFrame>(this, "tableFrame");
 
   tableFrame_->setAutoFillBackground(true);
 
-  QVBoxLayout *tableLayout = new QVBoxLayout(tableFrame_);
-  tableLayout->setMargin(0); tableLayout->setSpacing(2);
+  QVBoxLayout *tableLayout = CQUtil::makeLayout<QVBoxLayout>(tableFrame_, 0, 2);
 
   filterEdit_ = new CQChartsFilterEdit;
 
@@ -182,15 +201,20 @@ CQChartsWindow(CQChartsView *view) :
 
   tableLayout->addWidget(filterEdit_);
 
-  modelView_ = new CQChartsModelView(view_->charts());
+  modelView_ = new CQChartsModelViewHolder(view_->charts());
 
   connect(modelView_, SIGNAL(filterChanged()), this, SLOT(filterChangedSlot()));
 
   tableLayout->addWidget(modelView_);
 
-  viewSplitter->addWidget(tableFrame_);
+  viewSplitter->addWidget(tableFrame_, "Table");
+
+  tableFrame_->setVisible(dataTable_);
 
   //---
+
+  connect(view_->charts(), SIGNAL(viewRemoved(CQChartsView *)),
+          this, SLOT(removeViewSlot(CQChartsView *)));
 
   connect(view_, SIGNAL(currentPlotChanged()), this, SLOT(plotSlot()));
 
@@ -403,7 +427,21 @@ filterChangedSlot()
   //CQChartsPlot *plot = view_->currentPlot(/*remap*/false);
   //if (! plot) return;
 
-  //plot->queueUpdateRangeAndObjs();
+  //plot->updateRangeAndObjs();
+}
+
+void
+CQChartsWindow::
+removeViewSlot(CQChartsView *view)
+{
+  if (view_ != view)
+    return;
+
+  view_->setParent(nullptr);
+
+  view_ = nullptr;
+
+  deleteLater();
 }
 
 void
@@ -417,17 +455,10 @@ plotSlot()
   else
     setWindowTitle(QString("Window: View %1, Plot <none>").arg(view_->id()));
 
-  if (tableFrame_->isVisible() && plot) {
+  if (tableFrame_->isVisible() && plot)
     modelView_->setModel(plot->model(), plot->isHierarchical());
-
-    plot->setSelectionModel(modelView_->selectionModel());
-  }
-  else {
-    modelView_->setModel(CQChartsModelView::ModelP(), false);
-
-    if (plot)
-      plot->setSelectionModel(nullptr);
-  }
+  else
+    modelView_->setModel(CQChartsModelViewHolder::ModelP(), false);
 }
 
 void
@@ -481,6 +512,19 @@ selectPropertyObjects()
   for (auto &obj : selectedObjs)
     selectedObjSet.insert(obj);
 
+  CQChartsView::Plots plots;
+
+  view_->getPlots(plots);
+
+  for (auto &plot : plots) {
+    CQPropertyViewTree::Objs selectedObjs;
+
+    settings_->plotPropertyTree(plot)->getSelectedObjects(selectedObjs);
+
+    for (auto &obj : selectedObjs)
+      selectedObjSet.insert(obj);
+  }
+
   //---
 
   // get selected charts objects
@@ -488,16 +532,16 @@ selectPropertyObjects()
 
   view_->allSelectedObjs(objs);
 
-  CQChartsView::Plots plots;
+  CQChartsView::Plots selectedPlots;
 
-  view_->selectedPlots(plots);
+  view_->selectedPlots(selectedPlots);
 
   ObjSet objSet;
 
   for (auto &obj : objs)
     objSet.insert(obj);
 
-  for (auto &plot : plots)
+  for (auto &plot : selectedPlots)
     objSet.insert(plot);
 
   //---
@@ -520,8 +564,17 @@ selectPropertyObjects()
   if (changed) {
     settings_->viewPropertyTree()->deselectAllObjects();
 
-    for (auto &obj : objSet)
-      settings_->viewPropertyTree()->selectObject(obj);
+    for (auto &plot : plots)
+      settings_->plotPropertyTree(plot)->deselectAllObjects();
+
+    for (auto &obj : objSet) {
+      CQChartsPlot *plot = objectPlot(obj);
+
+      if (plot)
+        settings_->plotPropertyTree(plot)->selectObject(obj);
+      else
+        settings_->viewPropertyTree()->selectObject(obj);
+    }
   }
 
   //---
@@ -534,25 +587,40 @@ void
 CQChartsWindow::
 propertyItemSelected(QObject *obj, const QString &path)
 {
+  CQChartsPlot *plot = objectPlot(obj);
+
+  if (plot)
+    plot->propertyItemSelected(obj, path);
+}
+
+CQChartsPlot *
+CQChartsWindow::
+objectPlot(QObject *obj) const
+{
   QObject *obj1 = obj;
 
   while (obj1) {
     CQChartsPlot *plot = qobject_cast<CQChartsPlot *>(obj1);
 
-    if (plot) {
-      plot->propertyItemSelected(obj, path);
-      return;
-    }
+    if (plot)
+      return plot;
 
     obj1 = obj1->parent();
   }
+
+  return nullptr;
 }
 
 QSize
 CQChartsWindow::
 sizeHint() const
 {
-  return QSize(1400, 1200);
+  QFontMetrics fm(font());
+
+  int w = fm.width("X")*150;
+  int h = fm.height()*80;
+
+  return QSize(w, h);
 }
 
 //------

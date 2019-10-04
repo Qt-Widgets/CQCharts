@@ -5,10 +5,11 @@
 #include <CQChartsEditHandles.h>
 #include <CQChartsUtil.h>
 #include <CQChartsDrawUtil.h>
+#include <CQChartsPaintDevice.h>
 
 #include <CQPropertyViewModel.h>
+#include <CQPropertyViewItem.h>
 
-#include <QPainter>
 #include <QRectF>
 
 CQChartsTitle::
@@ -23,16 +24,16 @@ CQChartsTitle(CQChartsPlot *plot) :
 
   //---
 
-  QFont f = textData_.font();
+  CQChartsFont font;
 
-  f.setPointSizeF(1.2*textFont().pointSizeF());
+  font.incFontSize(4);
 
-  textData_.setFont(f);
+  textData_.setFont(font);
 
   //---
 
-  setBorder(false);
-  setFilled(false);
+  setFilled (false);
+  setStroked(false);
 }
 
 CQChartsTitle::
@@ -52,7 +53,7 @@ void
 CQChartsTitle::
 setSelected(bool b)
 {
-  CQChartsUtil::testAndSet(selected_, b, [&]() { plot_->queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(selected_, b, [&]() { plot_->drawObjs(); } );
 }
 
 void
@@ -60,7 +61,7 @@ CQChartsTitle::
 redraw(bool wait)
 {
   if (wait)
-    plot_->queueDrawForeground();
+    plot_->drawForeground();
   else
     plot_->invalidateLayer(CQChartsBuffer::Type::FOREGROUND);
 }
@@ -136,7 +137,7 @@ updateLocation()
   QPointF kp(kx, ky);
 
   if      (location == CQChartsTitleLocation::Type::ABS_POS) {
-    kp = absPlotPosition();
+    kp = absolutePlotPosition();
   }
   else if (location == CQChartsTitleLocation::Type::ABS_RECT) {
   }
@@ -146,29 +147,29 @@ updateLocation()
 
 void
 CQChartsTitle::
-addProperties(CQPropertyViewModel *model, const QString &path)
+addProperties(CQPropertyViewModel *model, const QString &path, const QString &/*desc*/)
 {
-  model->addProperty(path, this, "visible"    );
-  model->addProperty(path, this, "location"   );
-  model->addProperty(path, this, "absPosition");
-  model->addProperty(path, this, "absRect"    );
-  model->addProperty(path, this, "insidePlot" );
+  model->addProperty(path, this, "visible"          )->setDesc("Title visible");
+  model->addProperty(path, this, "location"         )->setDesc("Title location");
+  model->addProperty(path, this, "absolutePosition" )->setDesc("Title absolute position");
+  model->addProperty(path, this, "absoluteRectangle")->setDesc("Title absolute rectangle");
+  model->addProperty(path, this, "insidePlot"       )->setDesc("Title is inside plot");
 
-  CQChartsTextBoxObj::addProperties(model, path);
+  CQChartsTextBoxObj::addProperties(model, path, "");
 }
 
 QPointF
 CQChartsTitle::
-absPlotPosition() const
+absolutePlotPosition() const
 {
-  return plot_->positionToPlot(absPosition());
+  return plot_->positionToPlot(absolutePosition());
 }
 
 void
 CQChartsTitle::
-setAbsPlotPosition(const QPointF &p)
+setAbsolutePlotPosition(const QPointF &p)
 {
-  setAbsPosition(CQChartsPosition(plot_->windowToView(p), CQChartsUnits::VIEW));
+  setAbsolutePosition(CQChartsPosition(plot_->windowToView(p), CQChartsUnits::VIEW));
 }
 
 QSizeF
@@ -225,7 +226,7 @@ editPress(const CQChartsGeom::Point &p)
       location() != CQChartsTitleLocation::Type::ABS_RECT) {
     setLocation(CQChartsTitleLocation::Type::ABS_POS);
 
-    setAbsPlotPosition(position_);
+    setAbsolutePlotPosition(position_);
   }
 
   return true;
@@ -245,7 +246,7 @@ editMove(const CQChartsGeom::Point &p)
       dragSide == CQChartsResizeSide::MOVE) {
     setLocation(CQChartsTitleLocation::Type::ABS_POS);
 
-    setAbsPlotPosition(absPlotPosition() + QPointF(dx, dy));
+    setAbsolutePlotPosition(absolutePlotPosition() + QPointF(dx, dy));
   }
   else {
     setLocation(CQChartsTitleLocation::Type::ABS_RECT);
@@ -254,7 +255,7 @@ editMove(const CQChartsGeom::Point &p)
 
     bbox_ = editHandles_->bbox();
 
-    setAbsRect(CQChartsUtil::toQRect(bbox_));
+    setAbsoluteRectangle(bbox_.qrect());
   }
 
   editHandles_->setDragPos(p);
@@ -284,7 +285,7 @@ editMoveBy(const QPointF &d)
 {
   setLocation(CQChartsTitleLocation::Type::ABS_POS);
 
-  setAbsPlotPosition(position_ + d);
+  setAbsolutePlotPosition(position_ + d);
 
   redraw(/*wait*/false);
 }
@@ -306,21 +307,21 @@ isDrawn() const
 
 void
 CQChartsTitle::
-draw(QPainter *painter)
+draw(CQChartsPaintDevice *device)
 {
   if (! isDrawn())
     return;
 
   //---
 
-  painter->save();
+  device->save();
 
   //---
 
   // clip to plot
-  QRectF clipRect = CQChartsUtil::toQRect(plot_->calcPlotPixelRect());
+  QRectF clipRect = plot_->calcPlotRect().qrect();
 
-  painter->setClipRect(clipRect);
+  device->setClipRect(clipRect);
 
   //---
 
@@ -346,8 +347,8 @@ draw(QPainter *painter)
     h = bbox_.getHeight();
   }
 
-  QSizeF paddingSize = plot_->pixelToWindowSize(QSizeF(padding(), padding()));
-  QSizeF marginSize  = plot_->pixelToWindowSize(QSizeF(margin (), margin ()));
+  QSizeF paddingSize = device->pixelToWindowSize(QSizeF(padding(), padding()));
+  QSizeF marginSize  = device->pixelToWindowSize(QSizeF(margin (), margin ()));
 
   CQChartsGeom::BBox ibbox(x     + paddingSize.width(), y     + paddingSize.height(),
                            x + w - paddingSize.width(), y + h - paddingSize.height());
@@ -359,24 +360,18 @@ draw(QPainter *painter)
 
   //---
 
-//CQChartsGeom::BBox prect  = plot_->windowToPixel(bbox_);
-  CQChartsGeom::BBox pirect = plot_->windowToPixel(ibbox);
-  CQChartsGeom::BBox ptrect = plot_->windowToPixel(tbbox);
-
-  //---
-
-  CQChartsBoxObj::draw(painter, CQChartsUtil::toQRect(pirect));
+  CQChartsBoxObj::draw(device, ibbox.qrect());
 
   //---
 
   // set text pen
   QPen pen;
 
-  QColor tc = interpTextColor(0, 1);
+  QColor tc = interpTextColor(ColorInd());
 
   plot()->setPen(pen, true, tc, textAlpha());
 
-  painter->setPen(pen);
+  device->setPen(pen);
 
   //---
 
@@ -395,28 +390,23 @@ draw(QPainter *painter)
   //---
 
   // set font
-  view()->setPlotPainterFont(plot(), painter, textFont());
-
-  //---
-
-  // set box
-  QRectF trect = CQChartsUtil::toQRect(ptrect);
+  view()->setPlotPainterFont(plot(), device, textFont());
 
   //---
 
   // draw text
-  painter->setRenderHints(QPainter::Antialiasing);
+  device->setRenderHints(QPainter::Antialiasing);
 
-  CQChartsDrawUtil::drawTextInBox(painter, trect, textStr(), textOptions);
+  CQChartsDrawUtil::drawTextInBox(device, tbbox.qrect(), textStr(), textOptions);
 
   //---
 
   if (plot_->showBoxes())
-    plot_->drawWindowColorBox(painter, bbox_, Qt::red);
+    plot_->drawWindowColorBox(device, bbox_, Qt::red);
 
   //---
 
-  painter->restore();
+  device->restore();
 }
 
 void

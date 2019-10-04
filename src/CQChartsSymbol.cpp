@@ -1,4 +1,5 @@
 #include <CQChartsSymbol.h>
+#include <CQPropertyView.h>
 
 CQUTIL_DEF_META_TYPE(CQChartsSymbol, toString, fromString)
 
@@ -63,8 +64,8 @@ typeNames()
   static QStringList typeNames = QStringList() <<
     "dot"      << "cross"    << "plus"     << "y"        <<
     "triangle" << "itriangle"<< "box"      << "diamond"  <<
-    "star"     << "star5"    << "star6"    << "circle"   <<
-    "pentagon" << "ipentagon"<< "hline"    << "vline";
+    "star5"    << "star6"    << "circle"   << "pentagon" <<
+    "ipentagon"<< "hline"    << "vline";
 
   return typeNames;
 }
@@ -76,6 +77,8 @@ CQChartsSymbol::
 registerMetaType()
 {
   metaTypeId = CQUTIL_REGISTER_META(CQChartsSymbol);
+
+  CQPropertyViewMgrInst->setUserName("CQChartsSymbol", "symbol");
 }
 
 CQChartsSymbol::

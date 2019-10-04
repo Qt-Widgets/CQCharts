@@ -50,6 +50,13 @@ bool columnTypeStr(CQCharts *charts, const QAbstractItemModel *model,
 
 bool setColumnTypeStrs(CQCharts *charts, QAbstractItemModel *model, const QString &columnTypes);
 
+bool setColumnTypeIndexStr(CQCharts *charts, QAbstractItemModel *model,
+                           int i, const QString &columnType);
+
+bool setColumnTypeI(CQCharts *charts, QAbstractItemModel *model, const CQChartsColumn &column,
+                    const QString &typeName, const QString &typeStr, const QStringList &strs,
+                    QString &errorMsg);
+
 bool setColumnTypeStr(CQCharts *charts, QAbstractItemModel *model,
                       const CQChartsColumn &column, const QString &typeStr);
 
@@ -77,7 +84,18 @@ CQChartsExprModel *getExprModel(QAbstractItemModel *model);
 const CQDataModel *getDataModel(const QAbstractItemModel *model);
 CQDataModel *getDataModel(QAbstractItemModel *model);
 
-QVariant modelMetaValue(const QAbstractItemModel *model, const QString &name);
+QAbstractItemModel *getBaseModel(QAbstractItemModel *model);
+
+using ModelNames = std::map<QAbstractItemModel*,QStringList>;
+
+void getPropertyNames(const QAbstractItemModel *model, ModelNames &names);
+void getPropertyNames(const QAbstractItemModel *model, QStringList &names);
+
+bool getProperty(const QAbstractItemModel *model, const QString &name, QVariant &value);
+bool setProperty(QAbstractItemModel *model, const QString &name, const QVariant &value);
+
+QVariant getModelMetaValue(const QAbstractItemModel *model, const QString &name);
+bool setModelMetaValue(QAbstractItemModel *model, const QString &name, const QVariant &value);
 
 }
 

@@ -4,11 +4,13 @@
 #include <CQChartsUtil.h>
 #include <CQCharts.h>
 #include <CQChartsDrawUtil.h>
+#include <CQChartsTip.h>
+#include <CQChartsPaintDevice.h>
+#include <CQChartsHtml.h>
 
 #include <CQPropertyViewItem.h>
 #include <CQPerfMonitor.h>
 
-#include <QPainter>
 #include <QMenu>
 
 CQChartsImagePlotType::
@@ -27,8 +29,28 @@ QString
 CQChartsImagePlotType::
 description() const
 {
-  return "<h2>Summary</h2>\n"
-         "<p>Draw 2d grid of 'pixels' from values in 2d table.</p>\n";
+  auto IMG = [](const QString &src) { return CQChartsHtml::Str::img(src); };
+
+  return CQChartsHtml().
+   h2("Image Plot").
+    h3("Summary").
+     p("Draw 2d grid of 'pixels' from values in 2d table.").
+     p("The pixels can be drawn as cells or scaled circles (balloon).").
+     p("The cells are colored using the scaled value.").
+    h3("Columns").
+     p("All row column values of the model are used for the pixels of the image.").
+     p("The vertical and horizontal headers are used for the row and column labels respetively.").
+    h3("Options").
+     p("To scale the colors and circle sizes for the cell the user can supply a maximum and/or "
+       "minimum value for the values in the value column. If not specifed the compured minimum "
+       "and maximum will be used").
+     p("X and/or Y labels can be added to the outside of the grid.").
+     p("Labels can be added to each grid cell and the labels can be scaled "
+       "to represent the size of the associated value.").
+    h3("Limitations").
+     p("Does not support axes.").
+    h3("Example").
+     p(IMG("images/imageplot.png"));
 }
 
 CQChartsPlot *
@@ -43,27 +65,67 @@ create(CQChartsView *view, const ModelP &model) const
 CQChartsImagePlot::
 CQChartsImagePlot(CQChartsView *view, const ModelP &model) :
  CQChartsPlot(view, view->charts()->plotType("image"), model),
- CQChartsObjTextData<CQChartsImagePlot>(this)
+ CQChartsObjCellShapeData    <CQChartsImagePlot>(this),
+ CQChartsObjCellLabelTextData<CQChartsImagePlot>(this),
+ CQChartsObjXLabelTextData   <CQChartsImagePlot>(this),
+ CQChartsObjYLabelTextData   <CQChartsImagePlot>(this)
 {
   NoUpdate noUpdate(this);
 
   addTitle();
+
+  setCellFillColor     (CQChartsColor(CQChartsColor::Type::PALETTE));
+  setCellStroked       (false);
+  setCellLabelTextAlign(Qt::AlignHCenter | Qt::AlignVCenter);
+  setXLabelTextAlign   (Qt::AlignHCenter | Qt::AlignVCenter);
+  setYLabelTextAlign   (Qt::AlignHCenter | Qt::AlignVCenter);
+}
+
+CQChartsImagePlot::
+~CQChartsImagePlot()
+{
 }
 
 void
 CQChartsImagePlot::
 addProperties()
 {
+  auto addProp = [&](const QString &path, const QString &name, const QString &alias,
+                     const QString &desc) {
+    return &(this->addProperty(path, this, name, alias)->setDesc(desc));
+  };
+
+  //---
+
   CQChartsPlot::addProperties();
 
-  addProperty("labels/x"   , this, "xLabels"        , "visible")->setDesc("Show x labels");
-  addProperty("labels/y"   , this, "yLabels"        , "visible")->setDesc("Show y labels");
-  addProperty("labels/cell", this, "cellLabels"     , "visible")->setDesc("Show cell labels");
-  addProperty("labels/cell", this, "scaleCellLabels", "scaled" )->setDesc("Scale cell labels");
+  // cell style
+  addProp("cell", "cellStyle", "style", "Cell style (rect or balloon)");
 
-  addTextProperties("labels", "text");
+  // cell labels
+//addProp("cell/labels", "scaleCellLabels", "scaled" , "Scale cell labels");
 
-  addProperty("balloon", this, "balloon", "visible")->setDesc("Show cell balloon");
+  // cell fill
+  addProp("cell/fill", "cellFilled", "visible", "Cell fill visible");
+
+  addFillProperties("cell/fill", "cellFill", "Cell");
+
+  // cell stroke
+  addProp("cell/stroke", "cellStroked", "visible", "Cell stroke visible");
+
+  addLineProperties("cell/stroke", "cellStroke", "Cell");
+
+  // cell label text
+  addProp("cell/text", "cellLabels", "visible", "Cell text label visible");
+
+  addAllTextProperties("cell/text", "cellLabelText", "Cell label");
+
+  // x/y axis label text
+  addProp("xaxis/text", "xLabels", "visible", "X labels visible");
+  addTextProperties("xaxis/text", "xLabelText", "X label");
+
+  addProp("yaxis/text", "yLabels", "visible", "Y labels visible");
+  addTextProperties("yaxis/text", "yLabelText", "Y label");
 }
 
 //------
@@ -72,14 +134,14 @@ void
 CQChartsImagePlot::
 setMinValue(double r)
 {
-  CQChartsUtil::testAndSet(minValue_, r, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(minValue_, r, [&]() { drawObjs(); } );
 }
 
 void
 CQChartsImagePlot::
 setMaxValue(double r)
 {
-  CQChartsUtil::testAndSet(maxValue_, r, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(maxValue_, r, [&]() { drawObjs(); } );
 }
 
 //---
@@ -88,35 +150,55 @@ void
 CQChartsImagePlot::
 setXLabels(bool b)
 {
-  CQChartsUtil::testAndSet(xLabels_, b, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(xLabels_, b, [&]() { drawObjs(); } );
 }
 
 void
 CQChartsImagePlot::
 setYLabels(bool b)
 {
-  CQChartsUtil::testAndSet(yLabels_, b, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(yLabels_, b, [&]() { drawObjs(); } );
 }
 
 void
 CQChartsImagePlot::
 setCellLabels(bool b)
 {
-  CQChartsUtil::testAndSet(cellLabels_, b, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(cellLabels_, b, [&]() { drawObjs(); } );
 }
 
+#if 0
 void
 CQChartsImagePlot::
 setScaleCellLabels(bool b)
 {
-  CQChartsUtil::testAndSet(scaleCellLabels_, b, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(scaleCellLabels_, b, [&]() { drawObjs(); } );
+}
+#endif
+
+void
+CQChartsImagePlot::
+setRectStyle(bool b)
+{
+  CellStyle cellStyle = (b ? CellStyle::RECT : CellStyle::BALLOON);
+
+  setCellStyle(cellStyle);
 }
 
 void
 CQChartsImagePlot::
-setBalloon(bool b)
+setBalloonStyle(bool b)
 {
-  CQChartsUtil::testAndSet(balloon_, b, [&]() { queueDrawObjs(); } );
+  CellStyle cellStyle = (b ? CellStyle::BALLOON : CellStyle::RECT);
+
+  setCellStyle(cellStyle);
+}
+
+void
+CQChartsImagePlot::
+setCellStyle(const CellStyle &cellStyle)
+{
+  CQChartsUtil::testAndSet(cellStyle_, cellStyle, [&]() { drawObjs(); } );
 }
 
 //---
@@ -194,7 +276,7 @@ createObjs(PlotObjs &objs) const
 {
   CQPerfTrace trace("CQChartsImagePlot::createObjs");
 
-  NoUpdate noUpdate(const_cast<CQChartsImagePlot *>(this));
+  NoUpdate noUpdate(this);
 
   //---
 
@@ -255,31 +337,74 @@ addImageObj(int row, int col, double x, double y, double dx, double dy, double v
 
   CQChartsGeom::BBox bbox(x, y, x + dx, y + dy);
 
-  CQChartsImageObj *imageObj = new CQChartsImageObj(this, bbox, row, col, value, ind1);
+  double rv = CMathUtil::map(value, minValue(), maxValue(), 0.0, 1.0);
+
+  CQChartsImageObj *imageObj =
+    new CQChartsImageObj(this, bbox, row, col, value, ind1, ColorInd(rv));
 
   objs.push_back(imageObj);
 }
+
+//---
+
+bool
+CQChartsImagePlot::
+probe(ProbeData &probeData) const
+{
+  CQChartsPlotObj *obj;
+
+  if (! objNearestPoint(probeData.p, obj))
+    return false;
+
+  CQChartsGeom::Point c = obj->rect().getCenter();
+
+  probeData.p    = c;
+  probeData.both = true;
+
+  probeData.xvals.push_back(c.x);
+  probeData.yvals.push_back(c.y);
+
+  return true;
+}
+
+//---
 
 bool
 CQChartsImagePlot::
 addMenuItems(QMenu *menu)
 {
-  QAction *xLabelsAction = new QAction("X Labels", menu);
-  QAction *yLabelsAction = new QAction("Y Labels", menu);
+  auto addMenuCheckedAction = [&](QMenu *menu, const QString &name,
+                                  bool isSet, const char *slot) -> QAction *{
+    QAction *action = new QAction(name, menu);
 
-  xLabelsAction->setCheckable(true);
-  xLabelsAction->setChecked(isXLabels());
+    action->setCheckable(true);
+    action->setChecked(isSet);
 
-  yLabelsAction->setCheckable(true);
-  yLabelsAction->setChecked(isYLabels());
+    connect(action, SIGNAL(triggered(bool)), this, slot);
 
-  connect(xLabelsAction, SIGNAL(triggered(bool)), this, SLOT(setXLabels(bool)));
-  connect(yLabelsAction, SIGNAL(triggered(bool)), this, SLOT(setYLabels(bool)));
+    menu->addAction(action);
+
+    return action;
+  };
+
+  auto addCheckedAction = [&](const QString &name, bool isSet, const char *slot) -> QAction *{
+    return addMenuCheckedAction(menu, name, isSet, slot);
+  };
+
+  //---
 
   menu->addSeparator();
 
-  menu->addAction(xLabelsAction);
-  menu->addAction(yLabelsAction);
+  QMenu *styleMenu = new QMenu("Cell Style");
+
+  (void) addMenuCheckedAction(styleMenu, "Rect"   , isRectStyle   (), SLOT(setRectStyle   (bool)));
+  (void) addMenuCheckedAction(styleMenu, "Balloon", isBalloonStyle(), SLOT(setBalloonStyle(bool)));
+
+  menu->addMenu(styleMenu);
+
+  (void) addCheckedAction("Cell Labels", isCellLabels(), SLOT(setCellLabels(bool)));
+  (void) addCheckedAction("X Labels"   , isXLabels   (), SLOT(setXLabels   (bool)));
+  (void) addCheckedAction("Y Labels"   , isYLabels   (), SLOT(setYLabels   (bool)));
 
   return true;
 }
@@ -301,49 +426,52 @@ hasForeground() const
 
 void
 CQChartsImagePlot::
-drawForeground(QPainter *painter) const
+execDrawForeground(CQChartsPaintDevice *device) const
 {
   if (isXLabels())
-    drawXLabels(painter);
+    drawXLabels(device);
 
   if (isYLabels())
-    drawYLabels(painter);
+    drawYLabels(device);
 }
 
 void
 CQChartsImagePlot::
-drawXLabels(QPainter *painter) const
+drawXLabels(CQChartsPaintDevice *device) const
 {
-  view()->setPlotPainterFont(this, painter, textFont());
+  view()->setPlotPainterFont(this, device, xLabelTextFont());
 
   //---
 
   QPen tpen;
 
-  QColor tc = interpTextColor(0, 1);
+  QColor tc = interpXLabelTextColor(ColorInd());
 
-  setPen(tpen, true, tc, textAlpha());
+  setPen(tpen, true, tc, xLabelTextAlpha());
 
-  painter->setPen(tpen);
+  device->setPen(tpen);
 
   //---
 
   CQChartsTextOptions textOptions;
 
-//textOptions.contrast  = isTextContrast();
-//textOptions.formatted = isTextFormatted();
-//textOptions.scaled    = isTextScaled();
-  textOptions.html      = isTextHtml();
-  textOptions.align     = Qt::AlignRight;
-  textOptions.angle     = 90;
+  textOptions.contrast  = isXLabelTextContrast();
+  textOptions.formatted = isXLabelTextFormatted();
+  textOptions.scaled    = isXLabelTextScaled();
+  textOptions.html      = isXLabelTextHtml();
+  textOptions.align     = xLabelTextAlign();
+  textOptions.angle     = xLabelTextAngle();
+  textOptions.scaled    = isXLabelTextScaled();
 
-  QFontMetricsF fm(painter->font());
+  //---
+
+  QFontMetricsF fm(device->font());
 
   double tw = 0.0;
-//double th = fm.height();
+  double th = fm.height();
   double tm = 4;
 
-  for (int col = 0; col < nc_; ++col) {
+  for (int col = 0; col < numColumns(); ++col) {
     bool ok;
 
     QString name = modelHeaderString(col, Qt::Horizontal, ok);
@@ -352,7 +480,7 @@ drawXLabels(QPainter *painter) const
     tw = std::max(tw, fm.width(name));
   }
 
-  for (int col = 0; col < nc_; ++col) {
+  for (int col = 0; col < numColumns(); ++col) {
     bool ok;
 
     QString name = modelHeaderString(col, Qt::Horizontal, ok);
@@ -367,48 +495,53 @@ drawXLabels(QPainter *painter) const
     QRectF trect;
 
     if (! isInvertY())
-      trect = QRectF(p1.x() - tw/2, p1.y() + tm, tw, tw1);
+      trect = QRectF(p1.x() - tw1/2, p1.y() + tm, tw1, th);
     else
-      trect = QRectF(p1.x() - tw/2, p1.y() - tw1 - tm, tw, tw1);
+      trect = QRectF(p1.x() - tw1/2, p1.y() - th - tm, tw1, th);
 
-    CQChartsDrawUtil::drawTextInBox(painter, trect, name, adjustTextOptions(textOptions));
+    CQChartsTextOptions textOptions1 = adjustTextOptions(textOptions);
+
+    CQChartsDrawUtil::drawTextInBox(device, device->pixelToWindow(trect), name, textOptions1);
   }
 }
 
 void
 CQChartsImagePlot::
-drawYLabels(QPainter *painter) const
+drawYLabels(CQChartsPaintDevice *device) const
 {
-  view()->setPlotPainterFont(this, painter, textFont());
+  view()->setPlotPainterFont(this, device, yLabelTextFont());
 
   //---
 
   QPen tpen;
 
-  QColor tc = interpTextColor(0, 1);
+  QColor tc = interpYLabelTextColor(ColorInd());
 
-  setPen(tpen, true, tc, textAlpha());
+  setPen(tpen, true, tc, yLabelTextAlpha());
 
-  painter->setPen(tpen);
+  device->setPen(tpen);
 
   //---
 
   CQChartsTextOptions textOptions;
 
-//textOptions.contrast  = isTextContrast();
-//textOptions.formatted = isTextFormatted();
-//textOptions.scaled    = isTextScaled();
-//textOptions.html      = isTextHtml();
-  textOptions.align     = (! isInvertX() ? Qt::AlignRight : Qt::AlignLeft);
-  textOptions.angle     = 0;
+  textOptions.contrast  = isYLabelTextContrast();
+  textOptions.formatted = isYLabelTextFormatted();
+  textOptions.scaled    = isYLabelTextScaled();
+  textOptions.html      = isYLabelTextHtml();
+  textOptions.align     = yLabelTextAlign();
+  textOptions.angle     = yLabelTextAngle();
+  textOptions.scaled    = isYLabelTextScaled();
 
-  QFontMetricsF fm(painter->font());
+  //---
+
+  QFontMetricsF fm(device->font());
 
   double tw = 0.0;
   double th = fm.height();
   double tm = 4;
 
-  for (int row = 0; row < nr_; ++row) {
+  for (int row = 0; row < numRows(); ++row) {
     bool ok;
 
     QString name = modelHeaderString(row, Qt::Vertical, ok);
@@ -417,7 +550,7 @@ drawYLabels(QPainter *painter) const
     tw = std::max(tw, fm.width(name));
   }
 
-  for (int row = 0; row < nr_; ++row) {
+  for (int row = 0; row < numRows(); ++row) {
     bool ok;
 
     QString name = modelHeaderString(row, Qt::Vertical, ok);
@@ -434,7 +567,9 @@ drawYLabels(QPainter *painter) const
     else
       trect = QRectF(p1.x() + tm, p1.y() - th/2.0, tw, th);
 
-    CQChartsDrawUtil::drawTextInBox(painter, trect, name, adjustTextOptions(textOptions));
+    CQChartsTextOptions textOptions1 = adjustTextOptions(textOptions);
+
+    CQChartsDrawUtil::drawTextInBox(device, device->pixelToWindow(trect), name, textOptions1);
   }
 }
 
@@ -444,7 +579,7 @@ CQChartsGeom::BBox
 CQChartsImagePlot::
 annotationBBox() const
 {
-  QFont font = view()->plotFont(this, textFont());
+  QFont font = view()->plotFont(this, cellLabelTextFont());
 
   QFontMetricsF fm(font);
 
@@ -455,7 +590,7 @@ annotationBBox() const
   if (isXLabels()) {
     double tw = 0.0;
 
-    for (int col = 0; col < nc_; ++col) {
+    for (int col = 0; col < numColumns(); ++col) {
       bool ok;
 
       QString name = modelHeaderString(col, Qt::Horizontal, ok);
@@ -466,7 +601,7 @@ annotationBBox() const
 
     double tw1 = pixelToWindowHeight(tw + tm);
 
-    CQChartsGeom::BBox tbbox(0, -tw1, nc_, 0);
+    CQChartsGeom::BBox tbbox(0, -tw1, numColumns(), 0);
 
     bbox += tbbox;
   }
@@ -474,7 +609,7 @@ annotationBBox() const
   if (isYLabels()) {
     double tw = 0.0;
 
-    for (int row = 0; row < nr_; ++row) {
+    for (int row = 0; row < numRows(); ++row) {
       bool ok;
 
       QString name = modelHeaderString(row, Qt::Vertical, ok);
@@ -485,7 +620,7 @@ annotationBBox() const
 
     double tw1 = pixelToWindowWidth(tw + tm);
 
-    CQChartsGeom::BBox tbbox(-tw1, 0, 0, nr_);
+    CQChartsGeom::BBox tbbox(-tw1, 0, 0, numRows());
 
     bbox += tbbox;
   }
@@ -497,87 +632,103 @@ annotationBBox() const
 
 CQChartsImageObj::
 CQChartsImageObj(const CQChartsImagePlot *plot, const CQChartsGeom::BBox &rect,
-                 int row, int col, double value, const QModelIndex &ind) :
- CQChartsPlotObj(const_cast<CQChartsImagePlot *>(plot), rect), plot_(plot),
- row_(row), col_(col), value_(value), ind_(ind)
+                 int row, int col, double value, const QModelIndex &ind, const ColorInd &iv) :
+ CQChartsPlotObj(const_cast<CQChartsImagePlot *>(plot), rect, ColorInd(), ColorInd(), iv),
+ plot_(plot), row_(row), col_(col), value_(value)
 {
+  setDetailHint(DetailHint::MAJOR);
+
+  setModelInd(ind);
 }
 
 QString
 CQChartsImageObj::
 calcId() const
 {
-  return QString("image:%1:%2").arg(row_).arg(col_);
+  return QString("%1:%2:%3").arg(typeName()).arg(row_).arg(col_);
 }
 
 QString
 CQChartsImageObj::
 calcTipId() const
 {
+  CQChartsTableTip tableTip;
+
   bool ok;
 
-  QString xname = plot_->modelHeaderString(ind_.column(), ok);
-  QString yname = plot_->modelHeaderString(ind_.row(), Qt::Vertical, ok);
-
-  QString tipStr;
+  QString xname = plot_->modelHeaderString(modelInd().column(), ok);
+  QString yname = plot_->modelHeaderString(modelInd().row(), Qt::Vertical, ok);
 
   if (xname.length())
-    tipStr += xname + " ";
+    tableTip.addTableRow("X", xname);
 
   if (yname.length())
-    tipStr += yname + " ";
+    tableTip.addTableRow("Y", yname);
 
-  tipStr += QString("%1").arg(value_);
+  tableTip.addTableRow("Value", value_);
 
-  return tipStr.simplified();
+  //---
+
+  plot()->addTipColumns(tableTip, modelInd());
+
+  //---
+
+  return tableTip.str();
 }
 
 void
 CQChartsImageObj::
 getSelectIndices(Indices &inds) const
 {
-  addColumnSelectIndex(inds, ind_.column());
+  addColumnSelectIndex(inds, modelInd().column());
 }
 
 void
 CQChartsImageObj::
-addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const
+draw(CQChartsPaintDevice *device)
 {
-  if (column.isValid())
-    addSelectIndex(inds, ind_.row(), column, ind_.parent());
-}
+  ColorInd ic;
 
-void
-CQChartsImageObj::
-draw(QPainter *painter)
-{
-  CQChartsGeom::BBox prect = plot_->windowToPixel(rect());
+  if (plot_->colorType() == CQChartsPlot::ColorType::AUTO) {
+    double v = CMathUtil::norm(value_, plot_->minValue(), plot_->maxValue());
 
-  QRectF qrect = CQChartsUtil::toQRect(prect);
-
-  double v = CMathUtil::norm(value_, plot_->minValue(), plot_->maxValue());
+    ic = ColorInd(v);
+  }
+  else
+    ic = calcColorInd();
 
   //---
 
   // set pen and brush
-  QColor c = plot_->interpPaletteColor(v);
+  QColor fc = plot_->interpCellFillColor  (ic);
+  QColor bc = plot_->interpCellStrokeColor(ic);
 
   QPen   pen;
   QBrush brush;
 
-  plot_->setBrush(brush, true, c, 1.0, CQChartsFillPattern());
-  plot_->setPen  (pen  , false);
+  plot_->setPen(pen, plot_->isCellStroked(), bc, plot_->cellStrokeAlpha(),
+                plot_->cellStrokeWidth(), plot_->cellStrokeDash());
+
+  plot_->setBrush(brush, plot_->isCellFilled(), fc, plot_->cellFillAlpha(),
+                  plot_->cellFillPattern());
 
   plot_->updateObjPenBrushState(this, pen, brush);
 
+  device->setPen  (pen);
+  device->setBrush(brush);
+
   //---
 
-  if (! plot_->isBalloon()) {
-    painter->fillRect(qrect, brush);
+  if      (plot_->cellStyle() == CQChartsImagePlot::CellStyle::RECT) {
+    QRectF qrect = rect().qrect();
+
+    device->drawRect(qrect);
+
+    //---
 
     if (plot_->isCellLabels()) {
       // set font
-      plot_->view()->setPlotPainterFont(plot_, painter, plot_->textFont());
+      plot_->view()->setPlotPainterFont(plot_, device, plot_->cellLabelTextFont());
 
       //---
 
@@ -585,48 +736,36 @@ draw(QPainter *painter)
       QPen   tpen;
       QBrush tbrush;
 
-      QColor tc = plot_->interpTextColor(0, 1);
+      QColor tc = plot_->interpCellLabelTextColor(ic);
 
-      plot_->setPen(tpen, true, tc, plot_->textAlpha());
+      plot_->setPen(tpen, true, tc, plot_->cellLabelTextAlpha());
 
       plot_->updateObjPenBrushState(this, tpen, tbrush);
 
-      painter->setPen(tpen);
+      device->setPen(tpen);
 
       //---
 
-      QString valueStr = CQChartsUtil::toString(value_);
+      QString valueStr = CQChartsUtil::formatReal(value_);
 
       CQChartsTextOptions textOptions;
 
-    //textOptions.contrast  = plot_->isTextContrast();
-    //textOptions.formatted = plot_->isTextFormatted();
-    //textOptions.html      = plot_->isTextHtml();
-      textOptions.align     = Qt::AlignCenter;
-      textOptions.scaled    = plot_->isScaleCellLabels();
+      textOptions.contrast  = plot_->isCellLabelTextContrast();
+      textOptions.formatted = plot_->isCellLabelTextFormatted();
+      textOptions.scaled    = plot_->isCellLabelTextScaled();
+      textOptions.html      = plot_->isCellLabelTextHtml();
+      textOptions.align     = plot_->cellLabelTextAlign();
+      textOptions.scaled    = plot_->isCellLabelTextScaled();
 
       textOptions = plot_->adjustTextOptions(textOptions);
 
-      CQChartsDrawUtil::drawTextInBox(painter, qrect, valueStr, textOptions);
+      CQChartsDrawUtil::drawTextInBox(device, qrect, valueStr, textOptions);
     }
   }
-  else {
-    double cs = CMathUtil::map(value_, plot_->minValue(), plot_->maxValue(), 0.0, 1.0);
+  else if  (plot_->cellStyle() == CQChartsImagePlot::CellStyle::BALLOON) {
+    CQChartsGeom::BBox prect = plot_->windowToPixel(rect());
 
-    // set pen
-    QPen   pen;
-    QBrush brush;
-
-    QColor c = plot_->interpPaletteColor(cs);
-
-    plot_->setBrush(brush, true, c);
-
-    plot_->updateObjPenBrushState(this, pen, brush);
-
-    painter->setPen  (pen);
-    painter->setBrush(brush);
-
-    //---
+    QRectF qrect = prect.qrect();
 
     double s = std::min(qrect.width(), qrect.height());
 
@@ -639,6 +778,28 @@ draw(QPainter *painter)
 
     //---
 
-    painter->drawEllipse(QRectF(center.x() - s1/2, center.y() - s1/2, s1, s1));
+    QRectF erect(center.x() - s1/2, center.y() - s1/2, s1, s1);
+
+    device->drawEllipse(device->pixelToWindow(erect));
   }
+}
+
+double
+CQChartsImageObj::
+xColorValue(bool relative) const
+{
+  if (! relative)
+    return col_;
+  else
+    return CMathUtil::map(col_, 0.0, 1.0*plot_->numColumns(), 0.0, 1.0);
+}
+
+double
+CQChartsImageObj::
+yColorValue(bool relative) const
+{
+  if (! relative)
+    return col_;
+  else
+    return CMathUtil::map(row_, 0.0, 1.0*plot_->numRows(), 0.0, 1.0);
 }

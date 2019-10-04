@@ -11,6 +11,10 @@ class QTabWidget;
 
 //---
 
+/*!
+ * \brief Model List Widget
+ * \ingroup Charts
+ */
 class CQChartsModelList : public QFrame {
   Q_OBJECT
 

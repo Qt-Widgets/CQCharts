@@ -5,13 +5,16 @@
 #include <CQChartsTip.h>
 #include <CQCharts.h>
 #include <CQChartsDisplayRange.h>
+#include <CQChartsPaintDevice.h>
 #include <CQChartsDrawUtil.h>
+#include <CQChartsPaintDevice.h>
+#include <CQChartsHtml.h>
 
 #include <CQPropertyViewItem.h>
 #include <CQPerfMonitor.h>
+#include <CMathRound.h>
 
 #include <QApplication>
-#include <QPainter>
 #include <QMenu>
 
 CQChartsParallelPlotType::
@@ -33,7 +36,7 @@ addParameters()
     setNumeric().setRequired().setTip("Y value columns");
 
   addBoolParameter("horizontal", "Horizontal", "horizontal").
-    setTip("draw horizontal");
+    setTip("Draw horizontal");
 
   endParameterGroup();
 
@@ -46,8 +49,16 @@ QString
 CQChartsParallelPlotType::
 description() const
 {
-  return "<h2>Summary</h2>\n"
-         "<p>Draws lines through values of multiple column values for each row.\n";
+  auto IMG = [](const QString &src) { return CQChartsHtml::Str::img(src); };
+
+  return CQChartsHtml().
+   h2("Parallel Plot").
+    h3("Summary").
+     p("Draws lines through values of multiple column values for each row.").
+    h3("Limitations").
+     p("None.").
+    h3("Example").
+     p(IMG("images/parallelplot.png"));
 }
 
 CQChartsPlot *
@@ -94,14 +105,14 @@ void
 CQChartsParallelPlot::
 setXColumn(const CQChartsColumn &c)
 {
-  CQChartsUtil::testAndSet(xColumn_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(xColumn_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 void
 CQChartsParallelPlot::
 setYColumns(const CQChartsColumns &c)
 {
-  CQChartsUtil::testAndSet(yColumns_, c, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(yColumns_, c, [&]() { updateRangeAndObjs(); } );
 }
 
 //---
@@ -110,7 +121,11 @@ void
 CQChartsParallelPlot::
 setHorizontal(bool b)
 {
-  CQChartsUtil::testAndSet(horizontal_, b, [&]() { queueUpdateRangeAndObjs(); } );
+  CQChartsUtil::testAndSet(horizontal_, b, [&]() {
+    //CQChartsAxis::swap(xAxis(), yAxis());
+
+    updateRangeAndObjs();
+  } );
 }
 
 //---
@@ -119,7 +134,7 @@ void
 CQChartsParallelPlot::
 setLinesSelectable(bool b)
 {
-  CQChartsUtil::testAndSet(linesSelectable_, b, [&]() { queueDrawObjs(); } );
+  CQChartsUtil::testAndSet(linesSelectable_, b, [&]() { drawObjs(); } );
 }
 
 //------
@@ -128,24 +143,32 @@ void
 CQChartsParallelPlot::
 addProperties()
 {
+  auto addProp = [&](const QString &path, const QString &name, const QString &alias,
+                     const QString &desc) {
+    return &(this->addProperty(path, this, name, alias)->setDesc(desc));
+  };
+
+  //---
+
   CQChartsPlot::addProperties();
 
   // columns
-  addProperty("columns", this, "xColumn" , "x")->setDesc("X column");
-  addProperty("columns", this, "yColumns", "y")->setDesc("Y columns");
+  addProp("columns", "xColumn" , "x", "X column");
+  addProp("columns", "yColumns", "y", "Y columns");
 
-  addProperty("options", this, "horizontal")->setDesc("Draw horizontally");
+  // options
+  addProp("options", "horizontal", "", "Draw horizontally");
 
   // points
-  addProperty("points", this, "points", "visible")->setDesc("Show points");
+  addProp("points", "points", "visible", "Points visible");
 
-  addSymbolProperties("points/symbol");
+  addSymbolProperties("points/symbol", "", "Points");
 
   // lines
-  addProperty("lines", this, "lines"          , "visible"   )->setDesc("Show lines");
-  addProperty("lines", this, "linesSelectable", "selectable")->setDesc("Lines selectable");
+  addProp("lines", "lines"          , "visible"   , "Lines visible");
+  addProp("lines", "linesSelectable", "selectable", "Lines selectable");
 
-  addLineProperties("lines", "lines");
+  addLineProperties("lines/stroke", "lines", "");
 }
 
 CQChartsGeom::Range
@@ -173,7 +196,7 @@ calcRange() const
       int ns = yColumns().count();
 
       for (int j = 0; j < ns; ++j) {
-        CQChartsAxis *axis = new CQChartsAxis(nullptr, adir_, 0, 1);
+        CQChartsAxis *axis = new CQChartsAxis(this, adir_, 0, 1);
 
         axis->moveToThread(th->thread());
 
@@ -261,15 +284,18 @@ calcRange() const
 
   CQChartsGeom::Range dataRange;
 
+  auto updateRange = [&](double x, double y) {
+    if (! isHorizontal())
+      dataRange.updateRange(x, y);
+    else
+      dataRange.updateRange(y, x);
+  };
+
+  //---
+
   // set plot range
-  if (! isHorizontal()) {
-    dataRange.updateRange(   - 0.5, 0);
-    dataRange.updateRange(ns - 0.5, 1);
-  }
-  else {
-    dataRange.updateRange(0,    - 0.5);
-    dataRange.updateRange(1, ns - 0.5);
-  }
+  updateRange(   - 0.5, 0);
+  updateRange(ns - 0.5, 1);
 
   th->normalizedDataRange_ = dataRange;
 
@@ -318,7 +344,7 @@ createObjs(PlotObjs &objs) const
 {
   CQPerfTrace trace("CQChartsParallelPlot::createObjs");
 
-  NoUpdate noUpdate(const_cast<CQChartsParallelPlot *>(this));
+  NoUpdate noUpdate(this);
 
   //---
 
@@ -414,8 +440,10 @@ createObjs(PlotObjs &objs) const
       CQChartsGeom::BBox(normalizedDataRange_.xmin(), normalizedDataRange_.ymin(),
                          normalizedDataRange_.xmax(), normalizedDataRange_.ymax());
 
+    ColorInd is(i, n);
+
     CQChartsParallelLineObj *lineObj =
-      new CQChartsParallelLineObj(this, bbox, poly, xind1, i, n);
+      new CQChartsParallelLineObj(this, bbox, poly, xind1, is);
 
     objs.push_back(lineObj);
 
@@ -465,8 +493,11 @@ createObjs(PlotObjs &objs) const
 
       CQChartsGeom::BBox bbox(x - sw/2, y - sh/2, x + sw/2, y + sh/2);
 
+      ColorInd is(i, n);
+      ColorInd iv(j, nl);
+
       CQChartsParallelPointObj *pointObj =
-        new CQChartsParallelPointObj(this, bbox, p.y(), x, y, yind1, i, n, j, nl);
+        new CQChartsParallelPointObj(this, bbox, p.y(), x, y, yind1, is, iv);
 
       //bool ok;
 
@@ -510,30 +541,65 @@ probe(ProbeData &probeData) const
   int n = yColumns().count();
 
   if (! isHorizontal()) {
-    int x = std::round(probeData.x);
+#if 0
+    int x1 = std::min(std::max(CMathRound::RoundDown(probeData.p.x), 0), n - 1);
+    int x2 = std::min(std::max(CMathRound::RoundUp  (probeData.p.x), 0), n - 1);
 
-    x = std::max(x, 0    );
-    x = std::min(x, n - 1);
+    const CQChartsGeom::Range &range1 = setRanges_[x1];
+    const CQChartsGeom::Range &range2 = setRanges_[x2];
+
+    for (const auto &plotObj : plotObjs_) {
+      CQChartsParallelLineObj *obj = dynamic_cast<CQChartsParallelLineObj *>(plotObj);
+      if (! obj) continue;
+
+      std::vector<double> yvals;
+
+      // interpolate to normalized (0-1) y
+      if (! obj->interpY(probeData.p.x, yvals))
+        continue;
+
+      for (const auto &y : yvals) {
+        double y1 = y*range1.ysize() + range1.ymin();
+        double y2 = y*range2.ysize() + range2.ymin();
+
+        double dx1 = probeData.p.x - x1;
+        double dx2 = x2 - probeData.p.x;
+
+        double yi;
+
+        if (x1 != x2)
+          yi = y1*(1 - dx1) + y2*(1 - dx2);
+        else
+          yi = y1;
+
+        probeData.yvals.emplace_back(y, QString("%1").arg(yi));
+      }
+    }
+#else
+    int x = CMathRound::RoundNearest(probeData.p.x);
+
+    x = std::min(std::max(x, 0), n - 1);
 
     const CQChartsGeom::Range &range = setRanges_[x];
 
-    probeData.x = x;
+    probeData.p.x = x;
 
-    probeData.yvals.emplace_back(probeData.y,
-      QString("%1").arg(probeData.y*range.ysize() + range.ymin()));
+    probeData.yvals.emplace_back(probeData.p.y,
+      QString("%1").arg(probeData.p.y*range.ysize() + range.ymin()));
+#endif
   }
   else {
-    int y = std::round(probeData.y);
+    int y = CMathRound::RoundNearest(probeData.p.y);
 
     y = std::max(y, 0    );
     y = std::min(y, n - 1);
 
     const CQChartsGeom::Range &range = setRanges_[y];
 
-    probeData.y = y;
+    probeData.p.y = y;
 
-    probeData.xvals.emplace_back(probeData.x,
-      QString("%1").arg(probeData.x*range.xsize() + range.xmin()));
+    probeData.xvals.emplace_back(probeData.p.x,
+      QString("%1").arg(probeData.p.x*range.xsize() + range.xmin()));
   }
 
   return true;
@@ -608,11 +674,11 @@ hasFgAxes() const
 
 void
 CQChartsParallelPlot::
-drawFgAxes(QPainter *painter) const
+drawFgAxes(CQChartsPaintDevice *device) const
 {
   CQChartsParallelPlot *th = const_cast<CQChartsParallelPlot *>(this);
 
-  th->setObjRange();
+  //th->setObjRange(device);
 
   //---
 
@@ -628,9 +694,9 @@ drawFgAxes(QPainter *painter) const
   for (int j = 0; j < ns; ++j) {
     CQChartsAxis *axis = axes_[j];
 
-    view()->setPlotPainterFont(this, painter, axis->axesLabelTextFont());
+    view()->setPlotPainterFont(this, device, axis->axesLabelTextFont());
 
-    QFontMetricsF fm(painter->font());
+    QFontMetricsF fm(device->font());
 
     //---
 
@@ -645,6 +711,14 @@ drawFgAxes(QPainter *painter) const
         displayRange_->setWindowRange(-0.5, dataRange_.ymin(), ns - 0.5, dataRange_.ymax());
       else
         displayRange_->setWindowRange(dataRange_.xmin(), -0.5, dataRange_.xmax(), ns - 0.5);
+
+      //---
+
+      if (device->type() == CQChartsPaintDevice::Type::SCRIPT) {
+        CQChartsScriptPainter *painter = dynamic_cast<CQChartsScriptPainter *>(device);
+
+        writeScriptRange(painter->os());
+      }
     }
 
     //---
@@ -652,7 +726,7 @@ drawFgAxes(QPainter *painter) const
     // draw set axis
     axis->setPosition(CQChartsOptReal(j));
 
-    axis->draw(this, painter);
+    axis->draw(this, device);
 
     //---
 
@@ -676,11 +750,11 @@ drawFgAxes(QPainter *painter) const
 
     QPen tpen;
 
-    QColor tc = axis->interpAxesTickLabelTextColor(0, 1);
+    QColor tc = axis->interpAxesTickLabelTextColor(ColorInd());
 
     setPen(tpen, true, tc, axis->axesTickLabelTextAlpha());
 
-    painter->setPen(tpen);
+    device->setPen(tpen);
 
     QPointF tp;
 
@@ -689,7 +763,7 @@ drawFgAxes(QPainter *painter) const
     else
       tp = QPointF(p.x + tm, p.y - (ta - td)/2);
 
-    CQChartsDrawUtil::drawSimpleText(painter, tp, label);
+    CQChartsDrawUtil::drawSimpleText(device, device->pixelToWindow(tp), label);
 
     //---
 
@@ -698,17 +772,35 @@ drawFgAxes(QPainter *painter) const
 
   //---
 
-  const_cast<CQChartsParallelPlot *>(this)->setNormalizedRange();
+  th->setNormalizedRange(device);
 
   th->axesBBox_ = pixelToWindow(axesBBox_);
+}
+
+void
+CQChartsParallelPlot::
+postDraw()
+{
+  //CQChartsParallelPlot *th = const_cast<CQChartsParallelPlot *>(this);
+
+  //th->setNormalizedRange(device);
+
+  rangeType_ = RangeType::NONE;
 }
 
 //---
 
 void
 CQChartsParallelPlot::
-setObjRange()
+setObjRange(CQChartsPaintDevice *device)
 {
+  if (rangeType_ == RangeType::OBJ)
+    return;
+
+  rangeType_ = RangeType::OBJ;
+
+  //---
+
   // set display range to data range
   const CQChartsGeom::Range &dataRange = this->dataRange();
 
@@ -718,27 +810,51 @@ setObjRange()
     else
       displayRange_->setWindowRange(0, dataRange.ymin(), 1, dataRange.ymax());
   }
+
+  //---
+
+  if (device->type() == CQChartsPaintDevice::Type::SCRIPT) {
+    CQChartsScriptPainter *painter = dynamic_cast<CQChartsScriptPainter *>(device);
+
+    writeScriptRange(painter->os());
+  }
 }
 
 void
 CQChartsParallelPlot::
-setNormalizedRange()
+setNormalizedRange(CQChartsPaintDevice *device)
 {
+  if (rangeType_ == RangeType::NORMALIZED)
+    return;
+
+  rangeType_ = RangeType::NORMALIZED;
+
+  //---
+
   // set display range to normalized range
   displayRange_->setWindowRange(normalizedDataRange_.xmin(), normalizedDataRange_.ymin(),
                                 normalizedDataRange_.xmax(), normalizedDataRange_.ymax());
 
   dataRange_ = normalizedDataRange_;
+
+  //---
+
+  if (device->type() == CQChartsPaintDevice::Type::SCRIPT) {
+    CQChartsScriptPainter *painter = dynamic_cast<CQChartsScriptPainter *>(device);
+
+    writeScriptRange(painter->os());
+  }
 }
 
 //------
 
 CQChartsParallelLineObj::
 CQChartsParallelLineObj(const CQChartsParallelPlot *plot, const CQChartsGeom::BBox &rect,
-                        const QPolygonF &poly, const QModelIndex &ind, int i, int n) :
- CQChartsPlotObj(const_cast<CQChartsParallelPlot *>(plot), rect),
- plot_(plot), poly_(poly), ind_(ind), i_(i), n_(n)
+                        const QPolygonF &poly, const QModelIndex &ind, const ColorInd &is) :
+ CQChartsPlotObj(const_cast<CQChartsParallelPlot *>(plot), rect, is, ColorInd(), ColorInd()),
+ plot_(plot), poly_(poly)
 {
+  setModelInd(ind);
 }
 
 QString
@@ -747,9 +863,9 @@ calcId() const
 {
   bool ok;
 
-  QString xname = plot_->modelString(ind_.row(), plot_->xColumn(), ind_.parent(), ok);
+  QString xname = plot_->modelString(modelInd().row(), plot_->xColumn(), modelInd().parent(), ok);
 
-  return xname;
+  return QString("%1:%2").arg(typeName()).arg(xname);
 }
 
 QString
@@ -758,7 +874,7 @@ calcTipId() const
 {
   bool ok;
 
-  QString xname = plot_->modelString(ind_.row(), plot_->xColumn(), ind_.parent(), ok);
+  QString xname = plot_->modelString(modelInd().row(), plot_->xColumn(), modelInd().parent(), ok);
 
   CQChartsTableTip tableTip;
 
@@ -775,6 +891,12 @@ calcTipId() const
 
     tableTip.addTableRow(yname, poly_[j].y());
   }
+
+  //---
+
+  plot()->addTipColumns(tableTip, modelInd());
+
+  //---
 
   return tableTip.str();
 }
@@ -825,7 +947,34 @@ inside(const CQChartsGeom::Point &p) const
   return false;
 }
 
-// TODO : interpY
+#if 0
+bool
+CQChartsParallelLineObj::
+interpY(double x, std::vector<double> &yvals) const
+{
+  if (! visible())
+    return false;
+
+  QPolygonF poly;
+
+  getPolyLine(poly);
+
+  for (int i = 1; i < poly.count(); ++i) {
+    double x1 = poly[i - 1].x();
+    double y1 = poly[i - 1].y();
+    double x2 = poly[i    ].x();
+    double y2 = poly[i    ].y();
+
+    if (x >= x1 && x <= x2) {
+      double y = (y2 - y1)*(x - x1)/(x2 - x1) + y1;
+
+      yvals.push_back(y);
+    }
+  }
+
+  return ! yvals.empty();
+}
+#endif
 
 void
 CQChartsParallelLineObj::
@@ -839,15 +988,7 @@ getSelectIndices(Indices &inds) const
 
 void
 CQChartsParallelLineObj::
-addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const
-{
-  if (column.isValid())
-    addSelectIndex(inds, ind_.row(), column, ind_.parent());
-}
-
-void
-CQChartsParallelLineObj::
-draw(QPainter *painter)
+draw(CQChartsPaintDevice *device)
 {
   if (! visible())
     return;
@@ -855,16 +996,18 @@ draw(QPainter *painter)
   //---
 
   // set pen and brush
+  ColorInd colorInd = calcColorInd();
+
   QPen   pen;
   QBrush brush;
 
-  plot_->setLineDataPen(pen, i_, n_);
+  plot_->setLineDataPen(pen, colorInd);
 
   plot_->setBrush(brush, false);
 
   plot_->updateObjPenBrushState(this, pen, brush);
 
-  painter->setPen(pen);
+  device->setPen(pen);
 
   //---
 
@@ -874,7 +1017,7 @@ draw(QPainter *painter)
   getPolyLine(poly);
 
   for (int i = 1; i < poly.count(); ++i)
-    painter->drawLine(plot_->windowToPixel(poly[i - 1]), plot_->windowToPixel(poly[i]));
+    device->drawLine(poly[i - 1], poly[i]);
 }
 
 void
@@ -905,10 +1048,11 @@ getPolyLine(QPolygonF &poly) const
 CQChartsParallelPointObj::
 CQChartsParallelPointObj(const CQChartsParallelPlot *plot, const CQChartsGeom::BBox &rect,
                          double yval, double x, double y, const QModelIndex &ind,
-                         int iset, int nset, int i, int n) :
- CQChartsPlotObj(const_cast<CQChartsParallelPlot *>(plot), rect), plot_(plot),
- yval_(yval), x_(x), y_(y), ind_(ind), iset_(iset), nset_(nset), i_(i), n_(n)
+                         const ColorInd &is, const ColorInd &iv) :
+ CQChartsPlotObj(const_cast<CQChartsParallelPlot *>(plot), rect, is, ColorInd(), iv),
+ plot_(plot), yval_(yval), x_(x), y_(y)
 {
+  setModelInd(ind);
 }
 
 QString
@@ -917,13 +1061,13 @@ calcId() const
 {
   bool ok;
 
-  QString xname = plot_->modelString(ind_.row(), plot_->xColumn(), ind_.parent(), ok);
+  QString xname = plot_->modelString(modelInd().row(), plot_->xColumn(), modelInd().parent(), ok);
 
-  const CQChartsColumn &yColumn = plot_->yColumns().getColumn(i_);
+  const CQChartsColumn &yColumn = plot_->yColumns().getColumn(iv_.i);
 
   QString yname = plot_->modelHeaderString(yColumn, ok);
 
-  return QString("point:%1:%2=%3").arg(xname).arg(yname).arg(yval_);
+  return QString("%1:%2:%3=%4").arg(typeName()).arg(xname).arg(yname).arg(yval_);
 }
 
 QString
@@ -934,15 +1078,21 @@ calcTipId() const
 
   bool ok;
 
-  QString xname = plot_->modelString(ind_.row(), plot_->xColumn(), ind_.parent(), ok);
+  QString xname = plot_->modelString(modelInd().row(), plot_->xColumn(), modelInd().parent(), ok);
 
   tableTip.addBoldLine(xname);
 
-  const CQChartsColumn &yColumn = plot_->yColumns().getColumn(i_);
+  const CQChartsColumn &yColumn = plot_->yColumns().getColumn(iv_.i);
 
   QString yname = plot_->modelHeaderString(yColumn, ok);
 
   tableTip.addTableRow(yname, yval_);
+
+  //---
+
+  plot()->addTipColumns(tableTip, modelInd());
+
+  //---
 
   return tableTip.str();
 }
@@ -981,20 +1131,12 @@ void
 CQChartsParallelPointObj::
 getSelectIndices(Indices &inds) const
 {
-  addColumnSelectIndex(inds, ind_.column());
+  addColumnSelectIndex(inds, modelInd().column());
 }
 
 void
 CQChartsParallelPointObj::
-addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const
-{
-  if (column.isValid())
-    addSelectIndex(inds, ind_.row(), column, ind_.parent());
-}
-
-void
-CQChartsParallelPointObj::
-draw(QPainter *painter)
+draw(CQChartsPaintDevice *device)
 {
   if (! visible())
     return;
@@ -1003,41 +1145,46 @@ draw(QPainter *painter)
 
   CQChartsParallelPlot *plot = const_cast<CQChartsParallelPlot *>(plot_);
 
-  plot->setObjRange();
+  plot->setObjRange(device);
 
   //---
 
   // set pen and brush
+  ColorInd colorInd = calcColorInd();
+
   QPen   pen;
   QBrush brush;
 
-  plot_->setSymbolPenBrush(pen, brush, iset_, nset_);
+  plot_->setSymbolPenBrush(pen, brush, colorInd);
 
   plot_->updateObjPenBrushState(this, pen, brush, CQChartsPlot::DrawType::SYMBOL);
 
   //---
 
   // get symbol type and size
-  CQChartsSymbol symbol = plot_->symbolType();
+  CQChartsSymbol symbolType = plot_->symbolType();
+  CQChartsLength symbolSize = plot_->symbolSize();
 
   double sx, sy;
 
-  plot_->pixelSymbolSize(plot_->symbolSize(), sx, sy);
+  plot_->pixelSymbolSize(symbolSize, sx, sy);
 
   if (isInside() || isSelected()) {
     sx *= 2;
     sy *= 2;
   }
 
+  CQChartsLength symbolSize1 = CQChartsLength(CMathUtil::avg(sx, sy), CQChartsUnits::PIXEL);
+
   //---
 
   // draw symbol
-  QPointF p = plot_->windowToPixel(QPointF(x_, y_));
+  QPointF p(x_, y_);
 
   const_cast<CQChartsParallelPlot *>(plot_)->
-    drawSymbol(painter, p, symbol, CMathUtil::avg(sx, sy), pen, brush);
+    drawSymbol(device, p, symbolType, symbolSize1, pen, brush);
 
   //---
 
-  plot->setNormalizedRange();
+  //plot->setNormalizedRange(device);
 }

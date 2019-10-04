@@ -7,6 +7,10 @@
 class CQChartsColumnEdit;
 class QAbstractItemModel;
 
+/*!
+ * \brief Column line edit
+ * \ingroup Charts
+ */
 class CQChartsColumnLineEdit : public CQChartsLineEditBase {
   Q_OBJECT
 
@@ -23,7 +27,7 @@ class CQChartsColumnLineEdit : public CQChartsLineEditBase {
   const CQChartsColumn &column() const;
   void setColumn(const CQChartsColumn &c);
 
-  void drawPreview(QPainter *painter, const QRect &rect);
+  void drawPreview(QPainter *painter, const QRect &rect) override;
 
  signals:
   void columnChanged();
@@ -49,10 +53,14 @@ class CQChartsColumnLineEdit : public CQChartsLineEditBase {
 #include <CQChartsEditBase.h>
 
 class CQGroupBox;
-class QLineEdit;
+class CQLineEdit;
 class QComboBox;
 class QCheckBox;
 
+/*!
+ * \brief Column edit
+ * \ingroup Charts
+ */
 class CQChartsColumnEdit : public CQChartsEditBase {
   Q_OBJECT
 
@@ -96,9 +104,9 @@ class CQChartsColumnEdit : public CQChartsEditBase {
   CQChartsColumn      column_;
   CQGroupBox*         columnGroup_    { nullptr };
   QComboBox*          columnCombo_    { nullptr };
-  QLineEdit*          roleEdit_       { nullptr };
+  CQLineEdit*         roleEdit_       { nullptr };
   CQGroupBox*         menuExprGroup_  { nullptr };
-  QLineEdit*          expressionEdit_ { nullptr };
+  CQLineEdit*         expressionEdit_ { nullptr };
   QCheckBox*          vheaderCheck_   { nullptr };
 };
 
@@ -106,7 +114,10 @@ class CQChartsColumnEdit : public CQChartsEditBase {
 
 #include <CQPropertyViewType.h>
 
-// type for CQChartsColumn
+/*!
+ * \brief type for CQChartsColumn
+ * \ingroup Charts
+ */
 class CQChartsColumnPropertyViewType : public CQPropertyViewType {
  public:
   CQChartsColumnPropertyViewType();
@@ -115,18 +126,23 @@ class CQChartsColumnPropertyViewType : public CQPropertyViewType {
 
   bool setEditorData(CQPropertyViewItem *item, const QVariant &value) override;
 
-  void draw(const CQPropertyViewDelegate *delegate, QPainter *painter,
+  void draw(CQPropertyViewItem *item, const CQPropertyViewDelegate *delegate, QPainter *painter,
             const QStyleOptionViewItem &option, const QModelIndex &index,
             const QVariant &value, bool inside) override;
 
   QString tip(const QVariant &value) const override;
+
+  QString userName() const override { return "column"; }
 };
 
 //---
 
 #include <CQPropertyViewEditor.h>
 
-// editor factory for CQChartsColumn
+/*!
+ * \brief editor factory for CQChartsColumn
+ * \ingroup Charts
+ */
 class CQChartsColumnPropertyViewEditor : public CQPropertyViewEditorFactory {
  public:
   CQChartsColumnPropertyViewEditor();

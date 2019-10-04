@@ -5,12 +5,11 @@
 #include <CQChartsPlotObj.h>
 #include <CQChartsColor.h>
 
-class CQChartsDataLabel;
-
 //---
 
 /*!
- * \brief bar chart plot type
+ * \brief Bar Chart plot type
+ * \ingroup Charts
  */
 class CQChartsBarChartPlotType : public CQChartsGroupPlotType {
  public:
@@ -19,6 +18,10 @@ class CQChartsBarChartPlotType : public CQChartsGroupPlotType {
   QString name() const override { return "barchart"; }
   QString desc() const override { return "BarChart"; }
 
+  Dimension dimension() const override { return Dimension::ONE_D; }
+
+  void addParameters() override;
+
   QString yColumnName() const override { return "value"; }
 
   bool allowXAxisIntegral() const override { return false; }
@@ -26,9 +29,7 @@ class CQChartsBarChartPlotType : public CQChartsGroupPlotType {
 
   bool allowXLog() const override { return false; }
 
-  Dimension dimension() const override { return Dimension::ONE_D; }
-
-  void addParameters() override;
+  bool canProbe() const override { return true; }
 
   QString description() const override;
 
@@ -53,7 +54,7 @@ class CQChartsBarChartValue {
   struct ValueInd {
     double      value { 0.0 };
     QModelIndex ind;
-    int         vrow { -1 };
+    int         vrow  { -1 };
   };
 
   using ValueInds = std::vector<ValueInd>;
@@ -105,16 +106,17 @@ class CQChartsBarChartValue {
   }
 
  private:
-  ValueInds  valueInds_;  //! value indices
-  QString    valueName_;  //! value name
-  QString    groupName_;  //! group name
-  NameValues nameValues_; //! name values
+  ValueInds  valueInds_;  //!< value indices
+  QString    valueName_;  //!< value name
+  QString    groupName_;  //!< group name
+  NameValues nameValues_; //!< name values
 };
 
 //------
 
 /*!
  * \brief set of value bars for group
+ * \ingroup Charts
  */
 class CQChartsBarChartValueSet {
  public:
@@ -163,61 +165,75 @@ class CQChartsBarChartValueSet {
   }
 
  private:
-  QString name_;            //! group name
-  int     ind_      { 0 };  //! index
-  int     groupInd_ { -1 }; //! group ind
-  Values  values_;          //! value bars
+  QString name_;            //!< group name
+  int     ind_      { 0 };  //!< index
+  int     groupInd_ { -1 }; //!< group ind
+  Values  values_;          //!< value bars
 };
 
 //------
 
 /*!
- * \brief bar object
+ * \brief Bar Chart Bar object
+ * \ingroup Charts
  */
 class CQChartsBarChartObj : public CQChartsPlotObj {
   Q_OBJECT
 
-  Q_PROPERTY(QString group READ groupStr)
-  Q_PROPERTY(QString name  READ nameStr )
-  Q_PROPERTY(QString value READ valueStr)
+  Q_PROPERTY(QString       group READ groupStr)
+  Q_PROPERTY(QString       name  READ nameStr )
+  Q_PROPERTY(QString       value READ valueStr)
+  Q_PROPERTY(CQChartsColor color READ color    WRITE setColor)
 
  public:
   CQChartsBarChartObj(const CQChartsBarChartPlot *plot, const CQChartsGeom::BBox &rect,
-                      int iset, int nset, int ival, int nval, int isval, int nsval,
+                      const ColorInd &iset, const ColorInd &ival, const ColorInd &isval,
                       const QModelIndex &ind);
+
+  QString typeName() const override { return "bar"; }
+
+  //---
 
   QString calcId() const override;
 
   QString calcTipId() const override;
 
+  //---
+
   QString groupStr() const;
   QString nameStr () const;
   QString valueStr() const;
 
+  //---
+
+  const CQChartsColor &color() const { return color_; }
   void setColor(const CQChartsColor &color) { color_ = color; }
 
   CQChartsGeom::BBox dataLabelRect() const;
 
+  //---
+
+  void addProperties(CQPropertyViewModel *model, const QString &path) override;
+
+  //---
+
   void getSelectIndices(Indices &inds) const override;
 
-  void addColumnSelectIndex(Indices &inds, const CQChartsColumn &column) const override;
+  //---
 
-  void draw(QPainter *painter) override;
+  void draw(CQChartsPaintDevice *device) override;
 
-  void drawFg(QPainter *painter) const override;
+  void drawFg(CQChartsPaintDevice *device) const override;
+
+  QColor calcBarColor() const;
+
+  //---
 
   const CQChartsBarChartValue *value() const;
 
  private:
-  const CQChartsBarChartPlot* plot_  { nullptr }; //! parent plot
-  int                         iset_  { -1 };      //! set number
-  int                         nset_  { -1 };      //! number of sets
-  int                         ival_  { -1 };      //! value number
-  int                         nval_  { -1 };      //! number of values
-  int                         isval_ { -1 };      //! sub set number
-  int                         nsval_ { -1 };      //! number of sub sets
-  QModelIndex                 ind_;               //! model index
-  CQChartsColor               color_;             //! custom color
+  const CQChartsBarChartPlot* plot_  { nullptr }; //!< parent plot
+  CQChartsColor               color_;             //!< custom color
 };
 
 //---
@@ -225,14 +241,19 @@ class CQChartsBarChartObj : public CQChartsPlotObj {
 #include <CQChartsKey.h>
 
 /*!
- * \brief key color box
+ * \brief Bar Chart Plot Key Color Box
+ * \ingroup Charts
  */
 class CQChartsBarKeyColor : public CQChartsKeyColorBox {
   Q_OBJECT
 
- public:
-  CQChartsBarKeyColor(CQChartsBarChartPlot *plot, int i, int n);
+  Q_PROPERTY(CQChartsColor color READ color WRITE setColor)
 
+ public:
+  CQChartsBarKeyColor(CQChartsBarChartPlot *plot, const ColorInd &is, const ColorInd &ig,
+                      const ColorInd &iv);
+
+  const CQChartsColor &color() const { return color_; }
   void setColor(const CQChartsColor &color) { color_ = color; }
 
   bool selectPress(const CQChartsGeom::Point &p, CQChartsSelMod selMod) override;
@@ -241,23 +262,26 @@ class CQChartsBarKeyColor : public CQChartsKeyColorBox {
 
   bool tipText(const CQChartsGeom::Point &p, QString &tip) const override;
 
+  // get/set hidden
   bool isSetHidden() const;
-
   void setSetHidden(bool b);
 
  private:
-  CQChartsBarChartPlot* plot_  { nullptr }; //! plot
-  CQChartsColor         color_;             //! custom color
+  CQChartsBarChartPlot* plot_  { nullptr }; //!< plot
+  CQChartsColor         color_;             //!< custom color
 };
 
-// key text
+/*!
+ * \brief Bar Chart Key Text
+ * \ingroup Charts
+ */
 class CQChartsBarKeyText : public CQChartsKeyText {
   Q_OBJECT
 
  public:
-  CQChartsBarKeyText(CQChartsBarChartPlot *plot, const QString &text, int i, int n);
+  CQChartsBarKeyText(CQChartsBarChartPlot *plot, const QString &text, const ColorInd &ic);
 
-  QColor interpTextColor(int i, int n) const override;
+  QColor interpTextColor(const ColorInd &ind) const override;
 
   bool isSetHidden() const;
 };
@@ -266,12 +290,13 @@ class CQChartsBarKeyText : public CQChartsKeyText {
 
 /*!
  * \brief bar chart plot
+ * \ingroup Charts
  *
  * columns:
  *   + x     : name
  *   + y     : value(s)
  *   + group : group(s)
- *   + bar   : custom color, stacked, percent, range, horizontal, margin, border, fill
+ *   + bar   : custom color, stacked, percent, range, horizontal, margin, stroke, fill
  *
  * Plot Type
  *   + \ref CQChartsBarChartPlotType
@@ -348,20 +373,16 @@ class CQChartsBarChartPlot : public CQChartsBarPlot,
 
   //---
 
+  // when multiple columns and grouped then color by value in value set (group)
   bool isColorBySet() const { return colorBySet_; }
   void setColorBySet(bool b);
 
   //---
 
-  bool isDotLines() const { return dotLines_; }
+  bool isDotLines() const { return dotLineData_.enabled; }
 
-  const CQChartsLength &dotLineWidth() const { return dotLineWidth_; }
+  const CQChartsLength &dotLineWidth() const { return dotLineData_.width; }
   void setDotLineWidth(const CQChartsLength &l);
-
-  //---
-
-  const CQChartsDataLabel *dataLabel() const { return dataLabel_; }
-  CQChartsDataLabel *dataLabel() { return dataLabel_; }
 
   //---
 
@@ -371,13 +392,19 @@ class CQChartsBarChartPlot : public CQChartsBarPlot,
 
   void addProperties() override;
 
+  //---
+
   CQChartsGeom::Range calcRange() const override;
 
   bool createObjs(PlotObjs &objs) const override;
 
   //---
 
+  QString valueName() const;
   QString valueStr(double v) const;
+
+  CQChartsAxis *mappedXAxis() const override;
+  CQChartsAxis *mappedYAxis() const override;
 
   void addKeyItems(CQChartsPlotKey *key) override;
 
@@ -395,12 +422,7 @@ class CQChartsBarChartPlot : public CQChartsBarPlot,
   double getPanX(bool is_shift) const override;
   double getPanY(bool is_shift) const override;
 
-  //---
-
  public slots:
-  // set horizontal
-  void setHorizontal(bool b) override;
-
   // set plot type
   void setPlotType(PlotType plotType);
 
@@ -429,9 +451,11 @@ class CQChartsBarChartPlot : public CQChartsBarPlot,
   void addRowColumn(const ModelVisitor::VisitData &data, const CQChartsColumns &valueColumns,
                     CQChartsGeom::Range &dataRange) const;
 
-  void initRangeAxes();
+  void initRangeAxes() const;
+  void initRangeAxesI();
 
-  void initObjAxes();
+  void initObjAxes() const;
+  void initObjAxesI();
 
  private:
   using ValueSets     = std::vector<CQChartsBarChartValueSet>;
@@ -439,8 +463,8 @@ class CQChartsBarChartPlot : public CQChartsBarPlot,
   using ValueGroupInd = std::map<int,int>;
 
   struct ValueData {
-    ValueSets     valueSets;     //! value sets
-    ValueGroupInd valueGroupInd; //! group ind to value index map
+    ValueSets     valueSets;     //!< value sets
+    ValueGroupInd valueGroupInd; //!< group ind to value index map
 
     void clear() {
       valueSets    .clear();
@@ -461,22 +485,27 @@ class CQChartsBarChartPlot : public CQChartsBarPlot,
   }
 
  private:
+  void initGroupValueSet() const;
+
   const CQChartsBarChartValueSet *groupValueSet(int groupId) const;
-  CQChartsBarChartValueSet *groupValueSet(int groupId);
+
+  CQChartsBarChartValueSet *groupValueSetI(int groupId);
 
  private:
-  CQChartsColumn     nameColumn_;                          //! name column
-  CQChartsColumn     labelColumn_;                         //! data label column
-  PlotType           plotType_       { PlotType::NORMAL }; //! plot type
-  ValueType          valueType_      { ValueType::VALUE }; //! bar value type
-  bool               percent_        { false };            //! percent values
-  bool               colorBySet_     { false };            //! color bars by set or value
-  bool               dotLines_       { false };            //! show dot lines
-  CQChartsLength     dotLineWidth_   { "3px" };            //! dot line width
-  CQChartsDataLabel* dataLabel_      { nullptr };          //! data label data
-  int                numVisible_     { 0 };                //! number of visible bars
-  double             barWidth_       { 1.0 };              //! bar width
-  ValueData          valueData_;                           //! value data
+  struct DotLineData {
+    bool           enabled { false }; //!< shown
+    CQChartsLength width   { "3px" }; //!< width
+  };
+
+  CQChartsColumn nameColumn_;                        //!< name column
+  CQChartsColumn labelColumn_;                       //!< data label column
+  PlotType       plotType_     { PlotType::NORMAL }; //!< plot type
+  ValueType      valueType_    { ValueType::VALUE }; //!< bar value type
+  bool           percent_      { false };            //!< percent values
+  bool           colorBySet_   { false };            //!< color bars by set or value
+  DotLineData    dotLineData_;                       //!< dot line data
+  mutable double barWidth_     { 1.0 };              //!< minimum bar width
+  ValueData      valueData_;                         //!< value data
 };
 
 #endif
